@@ -1,0 +1,127 @@
+import type { Priority } from "../../types";
+import type { FilterState, FilterAction } from "../../hooks/useDashboardFilters";
+import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { Button } from "../ui/orecus.io/components/enhanced-button";
+import { gradientHexColors } from "../ui/orecus.io/lib/color-utils";
+import { Separator } from "../ui/separator";
+
+const PRIORITIES: Priority[] = ["P0", "P1", "P2"];
+
+const PRIORITY_COLORS: Record<Priority, string> = {
+  P0: "var(--destructive)",
+  P1: "var(--warning)",
+  P2: "var(--muted-foreground)",
+};
+
+interface FilterBarProps {
+  filters: FilterState;
+  dispatchFilter: (action: FilterAction) => void;
+  hasActiveFilters: boolean;
+  allLabels: string[];
+  allAgents: string[];
+}
+
+function ToggleChip({
+  label,
+  active,
+  color,
+  onClick,
+}: {
+  label: string;
+  active: boolean;
+  color?: string;
+  onClick: () => void;
+}) {
+  return (
+    <button
+      onClick={onClick}
+      className={`px-2 py-0.5 text-[11px] font-semibold rounded-[var(--radius-element)] cursor-pointer transition-all duration-100 ${active ? "bg-accent" : "bg-transparent"}`}
+      style={{
+        border: active
+          ? `1px solid ${color ?? "var(--primary)"}`
+          : "1px solid var(--border)",
+        color: active ? (color ?? "var(--foreground)") : "var(--muted-foreground)",
+      }}
+    >
+      {label}
+    </button>
+  );
+}
+
+export default function FilterBar({
+  filters,
+  dispatchFilter,
+  hasActiveFilters,
+  allLabels,
+  allAgents,
+}: FilterBarProps) {
+  const accentColor = useProjectAccentColor();
+  const accentHex = gradientHexColors[accentColor]?.start ?? "var(--primary)";
+  return (
+    <div className="flex items-center gap-2 flex-wrap py-1.5">
+      {/* Priority toggles */}
+      <span className="text-[11px] text-muted-foreground mr-0.5">
+        Priority:
+      </span>
+      {PRIORITIES.map((p) => (
+        <ToggleChip
+          key={p}
+          label={p}
+          active={filters.priorities.has(p)}
+          color={PRIORITY_COLORS[p]}
+          onClick={() => dispatchFilter({ type: "TOGGLE_PRIORITY", priority: p })}
+        />
+      ))}
+
+      {/* Label toggles */}
+      {allLabels.length > 0 && (
+        <>
+          <Separator orientation="vertical" className="mx-1 h-4" />
+          <span className="text-[11px] text-muted-foreground mr-0.5">
+            Label:
+          </span>
+          {allLabels.map((label) => (
+            <ToggleChip
+              key={label}
+              label={label}
+              active={filters.labels.has(label)}
+              color={accentHex}
+              onClick={() => dispatchFilter({ type: "TOGGLE_LABEL", label })}
+            />
+          ))}
+        </>
+      )}
+
+      {/* Agent toggles */}
+      {allAgents.length > 0 && (
+        <>
+          <Separator orientation="vertical" className="mx-1 h-4" />
+          <span className="text-[11px] text-muted-foreground mr-0.5">
+            Agent:
+          </span>
+          {allAgents.map((agent) => (
+            <ToggleChip
+              key={agent}
+              label={agent}
+              active={filters.agents.has(agent)}
+              color={accentHex}
+              onClick={() => dispatchFilter({ type: "TOGGLE_AGENT", agent })}
+            />
+          ))}
+        </>
+      )}
+
+      {/* Clear all */}
+      <Button
+        variant="link"
+        size="xs"
+        hoverEffect="none"
+        clickEffect="none"
+        onClick={() => dispatchFilter({ type: "CLEAR_ALL" })}
+        className={`ml-auto transition-opacity duration-100 ${hasActiveFilters ? "opacity-100" : "opacity-0 pointer-events-none"}`}
+      >
+        Clear filters
+      </Button>
+    </div>
+  );
+}

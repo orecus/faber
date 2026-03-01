@@ -1,0 +1,223 @@
+import { invoke } from "@tauri-apps/api/core";
+import {
+  ChevronDown,
+  ChevronRight,
+  FolderOpen,
+  Globe,
+  Loader2,
+  Package,
+  Trash2,
+} from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
+
+import { Button } from "../ui/orecus.io/components/enhanced-button";
+
+interface SkillInfo {
+  name: string;
+  path: string;
+  description: string;
+  is_global: boolean;
+}
+
+interface InstalledSkillsResponse {
+  project_skills: SkillInfo[];
+  global_skills: SkillInfo[];
+}
+
+interface Props {
+  projectId: string;
+  refreshKey: number;
+  onRemove: (skillName: string, global: boolean) => void;
+}
+
+export default function InstalledSkillsList({
+  projectId,
+  refreshKey,
+  onRemove,
+}: Props) {
+  const [data, setData] = useState<InstalledSkillsResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
+  const [skillContent, setSkillContent] = useState<Record<string, string>>({});
+  const [removing, setRemoving] = useState<string | null>(null);
+
+  const loadSkills = useCallback(async () => {
+    setLoading(true);
+    try {
+      const result = await invoke<InstalledSkillsResponse>(
+        "list_installed_skills",
+        { projectId }
+      );
+      setData(result);
+    } catch (e) {
+      console.error("Failed to list installed skills:", e);
+    } finally {
+      setLoading(false);
+    }
+  }, [projectId]);
+
+  useEffect(() => {
+    loadSkills();
+  }, [loadSkills, refreshKey]);
+
+  const handleExpand = useCallback(
+    async (skill: SkillInfo) => {
+      const key = skill.path;
+      if (expandedSkill === key) {
+        setExpandedSkill(null);
+        return;
+      }
+      setExpandedSkill(key);
+
+      if (!skillContent[key]) {
+        try {
+          const content = await invoke<string>("read_skill_content", {
+            path: skill.path,
+          });
+          setSkillContent((prev) => ({ ...prev, [key]: content }));
+        } catch (e) {
+          setSkillContent((prev) => ({
+            ...prev,
+            [key]: `Failed to read skill: ${e}`,
+          }));
+        }
+      }
+    },
+    [expandedSkill, skillContent]
+  );
+
+  const handleRemove = useCallback(
+    async (skill: SkillInfo) => {
+      setRemoving(skill.name);
+      await onRemove(skill.name, skill.is_global);
+      setRemoving(null);
+    },
+    [onRemove]
+  );
+
+  if (loading) {
+    return (
+      <div className="flex items-center justify-center py-8">
+        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  const projectSkills = data?.project_skills ?? [];
+  const globalSkills = data?.global_skills ?? [];
+  const hasAny = projectSkills.length > 0 || globalSkills.length > 0;
+
+  if (!hasAny) {
+    return (
+      <div className="flex flex-col items-center justify-center py-10 gap-2 text-muted-foreground">
+        <Package className="size-8 opacity-30" />
+        <p className="text-sm">No skills installed</p>
+        <p className="text-xs opacity-70">
+          Search above to find and install skills from skills.sh
+        </p>
+      </div>
+    );
+  }
+
+  const renderSection = (
+    title: string,
+    icon: React.ReactNode,
+    skills: SkillInfo[]
+  ) => {
+    if (skills.length === 0) return null;
+    return (
+      <div>
+        <div className="px-3 py-2 flex items-center gap-2">
+          {icon}
+          <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+            {title}
+          </span>
+          <span className="text-[10px] text-muted-foreground/70 bg-accent/40 px-1.5 py-0.5 rounded-full">
+            {skills.length}
+          </span>
+        </div>
+        <div className="px-3 pb-3 space-y-1.5">
+          {skills.map((skill) => {
+            const isExpanded = expandedSkill === skill.path;
+            return (
+              <div
+                key={skill.path}
+                className="rounded-md bg-accent/20 overflow-hidden"
+              >
+                <div
+                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent/40 transition-colors"
+                  onClick={() => handleExpand(skill)}
+                >
+                  {isExpanded ? (
+                    <ChevronDown size={13} className="text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight size={13} className="text-muted-foreground shrink-0" />
+                  )}
+                  <Package size={13} className="text-primary/70 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <span className="text-sm font-medium text-foreground">
+                      {skill.name}
+                    </span>
+                    {skill.description && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {skill.description}
+                      </p>
+                    )}
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      handleRemove(skill);
+                    }}
+                    disabled={removing === skill.name}
+                    leftIcon={
+                      removing === skill.name ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Trash2 className="size-3" />
+                      )
+                    }
+                    className="opacity-0 group-hover:opacity-100 hover:!opacity-100 text-destructive/70 hover:text-destructive"
+                    hoverEffect="scale"
+                    clickEffect="scale"
+                  >
+                    Remove
+                  </Button>
+                </div>
+                {isExpanded && (
+                  <div className="px-3 pb-3 border-t border-border/20">
+                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono mt-2 max-h-64 overflow-y-auto">
+                      {skillContent[skill.path] ?? "Loading..."}
+                    </pre>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  };
+
+  return (
+    <div>
+      <div className="px-3 py-2">
+        <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
+          Installed Skills
+        </span>
+      </div>
+      {renderSection(
+        "Project",
+        <FolderOpen size={12} className="text-muted-foreground" />,
+        projectSkills
+      )}
+      {renderSection(
+        "Global",
+        <Globe size={12} className="text-muted-foreground" />,
+        globalSkills
+      )}
+    </div>
+  );
+}

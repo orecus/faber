@@ -1,0 +1,14 @@
+{
+  "app": {
+    "windows": [
+      {
+        "title": "Faber",
+        "width": 1400,
+        "height": 900,
+        "transparent": true,
+        "decorations": true,
+        "shadow": true
+      }
+    ]
+  }
+}

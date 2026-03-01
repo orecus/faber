@@ -1,0 +1,55 @@
+{
+  "$schema": "https://raw.githubusercontent.com/niconiahi/tauri-schema/refs/heads/v2-stable/schema.json",
+  "productName": "Faber",
+  "version": "0.6.0",
+  "identifier": "com.faber.dev",
+  "build": {
+    "beforeDevCommand": "node scripts/prepare-sidecar.mjs --debug && pnpm dev",
+    "devUrl": "http://localhost:1420",
+    "beforeBuildCommand": "pnpm build && node scripts/prepare-sidecar.mjs",
+    "frontendDist": "../dist"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Faber",
+        "width": 1400,
+        "height": 900,
+        "resizable": true,
+        "fullscreen": false,
+        "transparent": true,
+        "decorations": false,
+        "shadow": true
+      }
+    ],
+    "macOSPrivateApi": true,
+    "security": {
+      "csp": null
+    }
+  },
+  "plugins": {
+    "updater": {
+      "endpoints": [
+        "https://github.com/orecus/faber/releases/latest/download/latest.json"
+      ],
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDREMjIyN0VCRTlDOUIxM0IKUldRN3NjbnA2eWNpVGFUNFkvUjg0Zm8xOThPS2JNcmMrRVpYYnBmU2Nvam1uYmpIVkpBcVRGemYK"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "resources": ["../docs/*"],
+    "externalBin": ["binaries/faber-mcp"],
+    "targets": ["nsis", "dmg", "deb", "appimage"],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "macOS": {
+      "minimumSystemVersion": "10.15",
+      "signingIdentity": "-"
+    }
+  }
+}
