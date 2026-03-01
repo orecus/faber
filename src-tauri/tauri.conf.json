@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/niconiahi/tauri-schema/refs/heads/v2-stable/schema.json",
   "productName": "Faber",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "identifier": "com.faber.dev",
   "build": {
     "beforeDevCommand": "node scripts/prepare-sidecar.mjs --debug && pnpm dev",
@@ -39,7 +39,8 @@
     "active": true,
     "resources": ["../docs/*"],
     "externalBin": ["binaries/faber-mcp"],
-    "targets": ["nsis", "dmg", "deb", "appimage"],
+    "targets": ["app", "nsis", "dmg", "deb", "appimage"],
+    "createUpdaterArtifacts": true,
     "icon": [
       "icons/32x32.png",
       "icons/128x128.png",

@@ -14,12 +14,92 @@ concurrency:
   group: release-${{ github.ref }}
   cancel-in-progress: false
 
+permissions:
+  contents: write
+
 env:
   CARGO_TERM_COLOR: always
 
 jobs:
-  build-and-release:
-    name: Build & Release (${{ matrix.platform.name }})
+  preflight:
+    name: Preflight
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.get-version.outputs.version }}
+      tag: ${{ steps.get-tag.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Get version from package.json
+        id: get-version
+        run: echo "version=$(jq -r .version package.json)" >> $GITHUB_OUTPUT
+
+      - name: Determine release tag
+        id: get-tag
+        run: |
+          TAG="${{ github.event.inputs.tag || github.ref_name }}"
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "Release tag: $TAG"
+
+  create-release:
+    name: Create Draft Release
+    needs: preflight
+    runs-on: ubuntu-latest
+    outputs:
+      release_id: ${{ steps.create-release.outputs.result }}
+    steps:
+      - name: Create draft release
+        id: create-release
+        uses: actions/github-script@v7
+        env:
+          TAG: ${{ needs.preflight.outputs.tag }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+        with:
+          script: |
+            const tag = process.env.TAG;
+            const version = process.env.VERSION;
+
+            // Check if a release with this tag already exists
+            try {
+              const { data: existing } = await github.rest.repos.getReleaseByTag({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                tag: tag,
+              });
+              core.info(`Release for tag ${tag} already exists (id: ${existing.id}). Reusing it.`);
+              return existing.id;
+            } catch (e) {
+              if (e.status !== 404) throw e;
+            }
+
+            const { data: release } = await github.rest.repos.createRelease({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              tag_name: tag,
+              target_commitish: context.sha,
+              name: `Faber ${tag}`,
+              body: [
+                `See the [CHANGELOG](https://github.com/${context.repo.owner}/${context.repo.repo}/blob/main/CHANGELOG.md) for details.`,
+                '',
+                '## Installation',
+                '',
+                '| Platform | Download |',
+                '|----------|----------|',
+                '| Windows (installer) | `.exe` (NSIS) |',
+                '| macOS (universal) | `.dmg` |',
+                '| Linux (Debian/Ubuntu) | `.deb` |',
+                '| Linux (AppImage) | `.AppImage` |',
+              ].join('\n'),
+              draft: true,
+              prerelease: false,
+            });
+
+            core.info(`Created draft release (id: ${release.id})`);
+            return release.id;
+
+  build:
+    name: Build (${{ matrix.platform.name }})
+    needs: [preflight, create-release]
     runs-on: ${{ matrix.platform.runner }}
     strategy:
       fail-fast: false
@@ -80,7 +160,7 @@ jobs:
         run: |
           mkdir -p src-tauri/binaries
           if [[ "${{ matrix.platform.name }}" == "macOS" ]]; then
-            # Universal binary needs placeholders for both architectures
+            touch "src-tauri/binaries/faber-mcp-universal-apple-darwin"
             touch "src-tauri/binaries/faber-mcp-aarch64-apple-darwin"
             touch "src-tauri/binaries/faber-mcp-x86_64-apple-darwin"
           else
@@ -100,45 +180,286 @@ jobs:
         shell: bash
         run: |
           if [[ "${{ matrix.platform.name }}" == "macOS" ]]; then
-            # Build sidecar for both architectures for universal binary
             node scripts/prepare-sidecar.mjs --target aarch64-apple-darwin
             node scripts/prepare-sidecar.mjs --target x86_64-apple-darwin
+            lipo -create \
+              src-tauri/binaries/faber-mcp-aarch64-apple-darwin \
+              src-tauri/binaries/faber-mcp-x86_64-apple-darwin \
+              -output src-tauri/binaries/faber-mcp-universal-apple-darwin
+            mkdir -p src-tauri/target/aarch64-apple-darwin/release
+            mkdir -p src-tauri/target/x86_64-apple-darwin/release
+            mkdir -p src-tauri/target/universal-apple-darwin/release
+            cp src-tauri/binaries/faber-mcp-aarch64-apple-darwin src-tauri/target/aarch64-apple-darwin/release/faber-mcp
+            cp src-tauri/binaries/faber-mcp-x86_64-apple-darwin src-tauri/target/x86_64-apple-darwin/release/faber-mcp
+            cp src-tauri/binaries/faber-mcp-universal-apple-darwin src-tauri/target/universal-apple-darwin/release/faber-mcp
           else
             node scripts/prepare-sidecar.mjs
           fi
 
-      - name: Build Tauri app and create release
+      - name: Build Tauri app
         uses: tauri-apps/tauri-action@v0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: "Faber ${{ github.ref_name }}"
-          releaseBody: |
-            See the [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
-
-            ## Installation
-
-            | Platform | Download |
-            |----------|----------|
-            | Windows (installer) | `.exe` (NSIS) |
-            | Windows (portable) | `faber.exe` |
-            | macOS (universal) | `.dmg` |
-            | Linux (Debian/Ubuntu) | `.deb` |
-            | Linux (Fedora/RHEL) | `.rpm` |
-            | Linux (AppImage) | `.AppImage` |
-          releaseDraft: true
-          prerelease: false
           args: ${{ matrix.platform.name == 'macOS' && '--target universal-apple-darwin' || '' }}
 
-      - name: Upload portable Windows executable
-        if: matrix.platform.name == 'Windows'
-        uses: softprops/action-gh-release@v2
+      - name: List bundle artifacts
+        shell: bash
+        run: |
+          if [ "${{ matrix.platform.name }}" = "macOS" ]; then
+            BUNDLE_DIR="src-tauri/target/universal-apple-darwin/release/bundle"
+          else
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+          fi
+          echo "Contents of $BUNDLE_DIR:"
+          find "$BUNDLE_DIR" -maxdepth 3 -type f | head -80
+
+      - name: Create updater archives and sign
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          if [ "${{ matrix.platform.name }}" = "macOS" ]; then
+            BUNDLE_DIR="src-tauri/target/universal-apple-darwin/release/bundle"
+            # .app.tar.gz already created by tauri-action (updater target)
+            echo "Signing macOS updater bundle..."
+            npx tauri signer sign -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$BUNDLE_DIR/macos/Faber.app.tar.gz"
+            ls -la "$BUNDLE_DIR/macos/"
+          fi
+
+          if [ "${{ matrix.platform.name }}" = "Windows" ]; then
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+            EXE_FILE=$(find "$BUNDLE_DIR/nsis" -name "*-setup.exe" -type f | head -1)
+            ZIP_FILE="${EXE_FILE%.exe}.nsis.zip"
+            echo "Creating Windows updater archive: $(basename $ZIP_FILE)"
+            powershell -Command "Compress-Archive -Path '$EXE_FILE' -DestinationPath '$ZIP_FILE'"
+            echo "Signing Windows updater bundle..."
+            npx tauri signer sign -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$ZIP_FILE"
+            ls -la "$BUNDLE_DIR/nsis/"
+          fi
+
+          if [ "${{ matrix.platform.name }}" = "Linux" ]; then
+            BUNDLE_DIR="src-tauri/target/release/bundle"
+            APPIMAGE_FILE=$(find "$BUNDLE_DIR/appimage" -name "*.AppImage" -type f | head -1)
+            TGZ_FILE="$APPIMAGE_FILE.tar.gz"
+            APPIMAGE_NAME=$(basename "$APPIMAGE_FILE")
+            echo "Creating Linux updater archive: $(basename $TGZ_FILE)"
+            tar czf "$TGZ_FILE" -C "$(dirname $APPIMAGE_FILE)" "$APPIMAGE_NAME"
+            echo "Signing Linux updater bundle..."
+            npx tauri signer sign -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$TGZ_FILE"
+            ls -la "$BUNDLE_DIR/appimage/"
+          fi
+
+      - name: Upload release assets
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          PLATFORM: ${{ matrix.platform.name }}
         with:
-          tag_name: ${{ github.ref_name }}
-          draft: true
-          files: |
-            src-tauri/target/release/faber.exe
-            src-tauri/target/release/faber-mcp.exe
+          script: |
+            const fs = require('fs');
+            const path = require('path');
+            const releaseId = parseInt(process.env.RELEASE_ID);
+            const platform = process.env.PLATFORM;
+
+            const bundleDir = platform === 'macOS'
+              ? 'src-tauri/target/universal-apple-darwin/release/bundle'
+              : 'src-tauri/target/release/bundle';
+
+            // Patterns for distributable + updater artifacts
+            const artifactPatterns = [
+              /\.dmg$/,
+              /\.exe$/,
+              /\.deb$/,
+              /\.AppImage$/,
+              /\.app\.tar\.gz$/,
+              /\.app\.tar\.gz\.sig$/,
+              /\.nsis\.zip$/,
+              /\.nsis\.zip\.sig$/,
+              /\.AppImage\.tar\.gz$/,
+              /\.AppImage\.tar\.gz\.sig$/,
+            ];
+
+            function isArtifact(filename) {
+              return artifactPatterns.some(p => p.test(filename));
+            }
+
+            function findArtifacts(dir) {
+              const results = [];
+              if (!fs.existsSync(dir)) return results;
+              const entries = fs.readdirSync(dir, { withFileTypes: true });
+              for (const entry of entries) {
+                const fullPath = path.join(dir, entry.name);
+                if (entry.isDirectory()) {
+                  const subEntries = fs.readdirSync(fullPath, { withFileTypes: true });
+                  for (const sub of subEntries) {
+                    if (!sub.isDirectory() && isArtifact(sub.name)) {
+                      results.push(path.join(fullPath, sub.name));
+                    }
+                  }
+                } else if (isArtifact(entry.name)) {
+                  results.push(fullPath);
+                }
+              }
+              return results;
+            }
+
+            const files = findArtifacts(bundleDir);
+
+            // Also upload portable Windows executables
+            if (platform === 'Windows') {
+              const portables = [
+                'src-tauri/target/release/faber.exe',
+                'src-tauri/target/release/faber-mcp.exe',
+              ];
+              for (const p of portables) {
+                if (fs.existsSync(p)) files.push(p);
+              }
+            }
+
+            core.info(`Found ${files.length} artifacts to upload:`);
+            for (const f of files) {
+              const stats = fs.statSync(f);
+              core.info(`  ${path.basename(f)} (${(stats.size / 1024 / 1024).toFixed(1)} MB)`);
+            }
+
+            if (files.length === 0) {
+              core.setFailed('No artifacts found in ' + bundleDir);
+              return;
+            }
+
+            for (const filePath of files) {
+              const name = path.basename(filePath);
+              const data = fs.readFileSync(filePath);
+
+              core.info(`Uploading ${name} (${(data.length / 1024 / 1024).toFixed(1)} MB)...`);
+              try {
+                await github.rest.repos.uploadReleaseAsset({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  release_id: releaseId,
+                  name: name,
+                  data: data,
+                  headers: {
+                    'content-type': 'application/octet-stream',
+                    'content-length': data.length,
+                  },
+                });
+                core.info(`  ✅ Uploaded ${name}`);
+              } catch (e) {
+                if (e.status === 422) {
+                  core.warning(`  ⚠️ ${name} already exists, skipping`);
+                } else {
+                  throw e;
+                }
+              }
+            }
+
+  generate-updater:
+    name: Generate latest.json
+    needs: [preflight, create-release, build]
+    runs-on: ubuntu-latest
+    steps:
+      - name: Build and upload latest.json
+        uses: actions/github-script@v7
+        env:
+          RELEASE_ID: ${{ needs.create-release.outputs.release_id }}
+          VERSION: ${{ needs.preflight.outputs.version }}
+          TAG: ${{ needs.preflight.outputs.tag }}
+        with:
+          script: |
+            const releaseId = parseInt(process.env.RELEASE_ID);
+            const version = process.env.VERSION;
+            const tag = process.env.TAG;
+
+            // Fetch all release assets
+            const { data: assets } = await github.rest.repos.listReleaseAssets({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              per_page: 100,
+            });
+
+            core.info(`Release assets (${assets.length}):`);
+            for (const a of assets) {
+              core.info(`  ${a.name} (${(a.size / 1024 / 1024).toFixed(1)} MB)`);
+            }
+
+            // Download a .sig asset and return its text content
+            async function getSig(namePattern) {
+              const asset = assets.find(a => a.name.endsWith('.sig') && a.name.includes(namePattern));
+              if (!asset) {
+                const sigAssets = assets.filter(a => a.name.endsWith('.sig')).map(a => a.name);
+                core.info(`Available .sig assets: ${sigAssets.join(', ') || 'none'}`);
+                throw new Error(`No .sig asset matching '${namePattern}' found in release`);
+              }
+              const { data } = await github.rest.repos.getReleaseAsset({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                asset_id: asset.id,
+                headers: { Accept: 'application/octet-stream' },
+              });
+              return Buffer.from(data).toString('utf8').trim();
+            }
+
+            const macSig = await getSig('.app.tar.gz');
+            const winSig = await getSig('.nsis.zip');
+            const linuxSig = await getSig('.AppImage.tar.gz');
+
+            const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
+
+            // Find updater bundle asset names
+            const macBundle = assets.find(a => a.name.endsWith('.app.tar.gz') && !a.name.endsWith('.sig'));
+            const winBundle = assets.find(a => a.name.endsWith('.nsis.zip') && !a.name.endsWith('.sig'));
+            const linuxBundle = assets.find(a => a.name.endsWith('.AppImage.tar.gz') && !a.name.endsWith('.sig'));
+
+            if (!macBundle) throw new Error('macOS updater bundle (.app.tar.gz) not found');
+            if (!winBundle) throw new Error('Windows updater bundle (.nsis.zip) not found');
+            if (!linuxBundle) throw new Error('Linux updater bundle (.AppImage.tar.gz) not found');
+
+            const latest = {
+              version: version,
+              notes: `See https://github.com/${context.repo.owner}/${context.repo.repo}/releases/tag/${tag} for details.`,
+              pub_date: new Date().toISOString(),
+              platforms: {
+                'darwin-aarch64': {
+                  signature: macSig,
+                  url: `${baseUrl}/${macBundle.name}`,
+                },
+                'darwin-x86_64': {
+                  signature: macSig,
+                  url: `${baseUrl}/${macBundle.name}`,
+                },
+                'linux-x86_64': {
+                  signature: linuxSig,
+                  url: `${baseUrl}/${linuxBundle.name}`,
+                },
+                'windows-x86_64': {
+                  signature: winSig,
+                  url: `${baseUrl}/${winBundle.name}`,
+                },
+              },
+            };
+
+            const fs = require('fs');
+            fs.writeFileSync('latest.json', JSON.stringify(latest, null, 2));
+            core.info('Generated latest.json:');
+            core.info(JSON.stringify(latest, null, 2));
+
+            // Upload latest.json to the release
+            const data = fs.readFileSync('latest.json');
+            await github.rest.repos.uploadReleaseAsset({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              release_id: releaseId,
+              name: 'latest.json',
+              data: data,
+              headers: {
+                'content-type': 'application/json',
+                'content-length': data.length,
+              },
+            });
+            core.info('✅ Uploaded latest.json');

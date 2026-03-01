@@ -336,9 +336,9 @@ Please ensure `cargo clippy` and `pnpm build` pass before submitting.
 
 Thank you to the following projects for insperation, references and ideas.
 
-- [maestro](https://github.com/its-maestro-baby/maestro)
-- [svgl.app](https://svgl.app/)
-- [codexmonitor.app](https://www.codexmonitor.app/)
+- [maestro](https://github.com/its-maestro-baby/maestro) - For inspiration, references, and ideas.
+- [svgl.app](https://svgl.app/) - For Logos
+- [codexmonitor.app](https://www.codexmonitor.app/) - For inspiration and ideas.
 
 And of course, Anthropic Claude Opus 4.6 for doing the majority of the work. :)
 
