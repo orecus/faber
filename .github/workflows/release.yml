@@ -1,0 +1,144 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag (e.g. v0.1.0)"
+        required: true
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build-and-release:
+    name: Build & Release (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        platform:
+          - name: Linux
+            runner: ubuntu-latest
+          - name: macOS
+            runner: macos-latest
+          - name: Windows
+            runner: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Rust stable
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.platform.name == 'macOS' && 'aarch64-apple-darwin,x86_64-apple-darwin' || '' }}
+
+      - name: Cache Rust dependencies
+        uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
+      - name: Cache pnpm store
+        uses: actions/cache@v4
+        with:
+          path: ~/.pnpm-store
+          key: ${{ runner.os }}-pnpm-${{ hashFiles('pnpm-lock.yaml') }}
+          restore-keys: ${{ runner.os }}-pnpm-
+
+      - name: Install Linux system dependencies
+        if: matrix.platform.name == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            libgtk-3-dev \
+            libwebkit2gtk-4.1-dev \
+            libappindicator3-dev \
+            librsvg2-dev \
+            patchelf
+
+      - name: Install frontend dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Create sidecar placeholders
+        shell: bash
+        run: |
+          mkdir -p src-tauri/binaries
+          if [[ "${{ matrix.platform.name }}" == "macOS" ]]; then
+            # Universal binary needs placeholders for both architectures
+            touch "src-tauri/binaries/faber-mcp-aarch64-apple-darwin"
+            touch "src-tauri/binaries/faber-mcp-x86_64-apple-darwin"
+          else
+            TARGET=$(rustc -vV | grep host | cut -d' ' -f2)
+            if [[ "$TARGET" == *"windows"* ]]; then
+              touch "src-tauri/binaries/faber-mcp-${TARGET}.exe"
+            else
+              touch "src-tauri/binaries/faber-mcp-${TARGET}"
+            fi
+          fi
+
+      - name: Run Rust tests
+        working-directory: src-tauri
+        run: cargo test --lib
+
+      - name: Prepare MCP sidecar
+        shell: bash
+        run: |
+          if [[ "${{ matrix.platform.name }}" == "macOS" ]]; then
+            # Build sidecar for both architectures for universal binary
+            node scripts/prepare-sidecar.mjs --target aarch64-apple-darwin
+            node scripts/prepare-sidecar.mjs --target x86_64-apple-darwin
+          else
+            node scripts/prepare-sidecar.mjs
+          fi
+
+      - name: Build Tauri app and create release
+        uses: tauri-apps/tauri-action@v0
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: "Faber ${{ github.ref_name }}"
+          releaseBody: |
+            See the [CHANGELOG](https://github.com/${{ github.repository }}/blob/main/CHANGELOG.md) for details.
+
+            ## Installation
+
+            | Platform | Download |
+            |----------|----------|
+            | Windows (installer) | `.exe` (NSIS) |
+            | Windows (portable) | `faber.exe` |
+            | macOS (universal) | `.dmg` |
+            | Linux (Debian/Ubuntu) | `.deb` |
+            | Linux (Fedora/RHEL) | `.rpm` |
+            | Linux (AppImage) | `.AppImage` |
+          releaseDraft: true
+          prerelease: false
+          args: ${{ matrix.platform.name == 'macOS' && '--target universal-apple-darwin' || '' }}
+
+      - name: Upload portable Windows executable
+        if: matrix.platform.name == 'Windows'
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ github.ref_name }}
+          draft: true
+          files: |
+            src-tauri/target/release/faber.exe
+            src-tauri/target/release/faber-mcp.exe
