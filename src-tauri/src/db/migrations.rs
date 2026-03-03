@@ -200,12 +200,23 @@ pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
             |row| row.get(0),
         )?;
 
+    let total = MIGRATIONS.len() as i64;
+    let mut applied = 0;
+
     for (i, sql) in MIGRATIONS.iter().enumerate() {
         let version = (i + 1) as i64;
         if version > current {
             conn.execute_batch(sql)?;
             conn.execute("INSERT INTO schema_version (version) VALUES (?1)", [version])?;
+            tracing::debug!(version, "Applied migration");
+            applied += 1;
         }
+    }
+
+    if applied > 0 {
+        tracing::info!(from = current, to = total, applied, "Database migrations applied");
+    } else {
+        tracing::debug!(version = current, "Database schema up to date");
     }
 
     Ok(())

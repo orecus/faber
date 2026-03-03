@@ -24,6 +24,7 @@ fn configure(conn: &Connection) -> Result<(), rusqlite::Error> {
 
 /// Open (or create) the database at `path`, run migrations, return a `Mutex<Connection>`.
 pub fn init(path: &Path) -> Result<DbState, rusqlite::Error> {
+    tracing::debug!(path = %path.display(), "Opening database");
     let conn = Connection::open(path)?;
     configure(&conn)?;
     migrations::run(&conn)?;

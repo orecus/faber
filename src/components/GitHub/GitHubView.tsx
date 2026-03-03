@@ -20,6 +20,7 @@ import { ViewLayout } from "../Shell/ViewLayout";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
+import BranchSelect from "../ui/BranchSelect";
 import BranchFilter from "./BranchFilter";
 import ChangesTab from "./ChangesTab";
 import CommitDetailPanel from "./CommitDetailPanel";
@@ -206,6 +207,15 @@ export default function GitHubView() {
 
         <div className="flex-1" />
 
+        {/* Branch selector */}
+        <BranchSelect
+          projectId={activeProjectId}
+          currentBranch={projectInfo?.current_branch ?? null}
+          mode="checkout"
+          onBranchChanged={handleBranchChanged}
+          triggerVariant="badge"
+        />
+
         {/* Pull button */}
         <Button
           variant="outline"
@@ -282,14 +292,11 @@ export default function GitHubView() {
           <div className="flex flex-col h-full">
             {/* Toolbar */}
             <BranchFilter
-              projectId={activeProjectId}
-              currentBranch={projectInfo?.current_branch ?? null}
               allBranches={allBranches}
               onToggle={handleToggleBranches}
               onRefresh={refresh}
               loading={loading}
               commitCount={commits.length}
-              onBranchChanged={handleBranchChanged}
             />
 
             {/* Error banner */}

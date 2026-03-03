@@ -40,6 +40,7 @@ export default function InstalledSkillsList({
   const [expandedSkill, setExpandedSkill] = useState<string | null>(null);
   const [skillContent, setSkillContent] = useState<Record<string, string>>({});
   const [removing, setRemoving] = useState<string | null>(null);
+  const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const loadSkills = useCallback(async () => {
     setLoading(true);
@@ -95,6 +96,10 @@ export default function InstalledSkillsList({
     [onRemove]
   );
 
+  const toggleSection = useCallback((key: string) => {
+    setCollapsedSections((prev) => ({ ...prev, [key]: !prev[key] }));
+  }, []);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center py-8">
@@ -120,14 +125,25 @@ export default function InstalledSkillsList({
   }
 
   const renderSection = (
+    sectionKey: string,
     title: string,
     icon: React.ReactNode,
     skills: SkillInfo[]
   ) => {
     if (skills.length === 0) return null;
+    const isCollapsed = collapsedSections[sectionKey] ?? false;
     return (
       <div>
-        <div className="px-3 py-2 flex items-center gap-2">
+        <button
+          type="button"
+          className="w-full px-3 py-2 flex items-center gap-2 hover:bg-accent/30 transition-colors cursor-pointer"
+          onClick={() => toggleSection(sectionKey)}
+        >
+          {isCollapsed ? (
+            <ChevronRight size={12} className="text-muted-foreground shrink-0" />
+          ) : (
+            <ChevronDown size={12} className="text-muted-foreground shrink-0" />
+          )}
           {icon}
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {title}
@@ -135,68 +151,70 @@ export default function InstalledSkillsList({
           <span className="text-[10px] text-muted-foreground/70 bg-accent/40 px-1.5 py-0.5 rounded-full">
             {skills.length}
           </span>
-        </div>
-        <div className="px-3 pb-3 space-y-1.5">
-          {skills.map((skill) => {
-            const isExpanded = expandedSkill === skill.path;
-            return (
-              <div
-                key={skill.path}
-                className="rounded-md bg-accent/20 overflow-hidden"
-              >
+        </button>
+        {!isCollapsed && (
+          <div className="px-3 pb-3 space-y-1.5">
+            {skills.map((skill) => {
+              const isExpanded = expandedSkill === skill.path;
+              return (
                 <div
-                  className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent/40 transition-colors"
-                  onClick={() => handleExpand(skill)}
+                  key={skill.path}
+                  className="rounded-md bg-accent/20 overflow-hidden"
                 >
-                  {isExpanded ? (
-                    <ChevronDown size={13} className="text-muted-foreground shrink-0" />
-                  ) : (
-                    <ChevronRight size={13} className="text-muted-foreground shrink-0" />
-                  )}
-                  <Package size={13} className="text-primary/70 shrink-0" />
-                  <div className="flex-1 min-w-0">
-                    <span className="text-sm font-medium text-foreground">
-                      {skill.name}
-                    </span>
-                    {skill.description && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {skill.description}
-                      </p>
-                    )}
-                  </div>
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      handleRemove(skill);
-                    }}
-                    disabled={removing === skill.name}
-                    leftIcon={
-                      removing === skill.name ? (
-                        <Loader2 className="size-3 animate-spin" />
-                      ) : (
-                        <Trash2 className="size-3" />
-                      )
-                    }
-                    className="opacity-0 group-hover:opacity-100 hover:!opacity-100 text-destructive/70 hover:text-destructive"
-                    hoverEffect="scale"
-                    clickEffect="scale"
+                  <div
+                    className="flex items-center gap-2.5 px-3 py-2 cursor-pointer hover:bg-accent/40 transition-colors"
+                    onClick={() => handleExpand(skill)}
                   >
-                    Remove
-                  </Button>
-                </div>
-                {isExpanded && (
-                  <div className="px-3 pb-3 border-t border-border/20">
-                    <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono mt-2 max-h-64 overflow-y-auto">
-                      {skillContent[skill.path] ?? "Loading..."}
-                    </pre>
+                    {isExpanded ? (
+                      <ChevronDown size={13} className="text-muted-foreground shrink-0" />
+                    ) : (
+                      <ChevronRight size={13} className="text-muted-foreground shrink-0" />
+                    )}
+                    <Package size={13} className="text-primary/70 shrink-0" />
+                    <div className="flex-1 min-w-0">
+                      <span className="text-sm font-medium text-foreground">
+                        {skill.name}
+                      </span>
+                      {skill.description && (
+                        <p className="text-xs text-muted-foreground truncate">
+                          {skill.description}
+                        </p>
+                      )}
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleRemove(skill);
+                      }}
+                      disabled={removing === skill.name}
+                      leftIcon={
+                        removing === skill.name ? (
+                          <Loader2 className="size-3 animate-spin" />
+                        ) : (
+                          <Trash2 className="size-3" />
+                        )
+                      }
+                      className="opacity-0 group-hover:opacity-100 hover:!opacity-100 text-destructive/70 hover:text-destructive"
+                      hoverEffect="scale"
+                      clickEffect="scale"
+                    >
+                      Remove
+                    </Button>
                   </div>
-                )}
-              </div>
-            );
-          })}
-        </div>
+                  {isExpanded && (
+                    <div className="px-3 pb-3 border-t border-border/20">
+                      <pre className="text-xs text-muted-foreground whitespace-pre-wrap font-mono mt-2 max-h-64 overflow-y-auto">
+                        {skillContent[skill.path] ?? "Loading..."}
+                      </pre>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </div>
     );
   };
@@ -209,11 +227,13 @@ export default function InstalledSkillsList({
         </span>
       </div>
       {renderSection(
+        "project",
         "Project",
         <FolderOpen size={12} className="text-muted-foreground" />,
         projectSkills
       )}
       {renderSection(
+        "global",
         "Global",
         <Globe size={12} className="text-muted-foreground" />,
         globalSkills

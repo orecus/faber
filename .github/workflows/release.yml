@@ -232,12 +232,10 @@ jobs:
 
           if [ "${{ matrix.platform.name }}" = "Windows" ]; then
             BUNDLE_DIR="src-tauri/target/release/bundle"
-            EXE_FILE=$(find "$BUNDLE_DIR/nsis" -name "*-setup.exe" -type f | head -1)
-            ZIP_FILE="${EXE_FILE%.exe}.nsis.zip"
-            echo "Creating Windows updater archive: $(basename $ZIP_FILE)"
-            powershell -Command "Compress-Archive -Path '$EXE_FILE' -DestinationPath '$ZIP_FILE'"
-            echo "Signing Windows updater bundle..."
-            npx tauri signer sign -p "$TAURI_SIGNING_PRIVATE_KEY_PASSWORD" "$ZIP_FILE"
+            # With createUpdaterArtifacts: true (v2 mode), the Tauri updater
+            # downloads the raw .exe directly — no zip wrapping needed.
+            # Tauri already creates the .exe.sig during the build step.
+            echo "Windows updater artifacts (exe + sig created by Tauri):"
             ls -la "$BUNDLE_DIR/nsis/"
           fi
 
@@ -270,15 +268,16 @@ jobs:
               : 'src-tauri/target/release/bundle';
 
             // Patterns for distributable + updater artifacts
+            // With createUpdaterArtifacts: true (v2 mode), Windows uses the
+            // raw .exe + .exe.sig directly (no .nsis.zip wrapping).
             const artifactPatterns = [
               /\.dmg$/,
               /\.exe$/,
+              /\.exe\.sig$/,
               /\.deb$/,
               /\.AppImage$/,
               /\.app\.tar\.gz$/,
               /\.app\.tar\.gz\.sig$/,
-              /\.nsis\.zip$/,
-              /\.nsis\.zip\.sig$/,
               /\.AppImage\.tar\.gz$/,
               /\.AppImage\.tar\.gz\.sig$/,
             ];
@@ -406,18 +405,20 @@ jobs:
             }
 
             const macSig = await getSig('.app.tar.gz');
-            const winSig = await getSig('.nsis.zip');
+            const winSig = await getSig('-setup.exe');
             const linuxSig = await getSig('.AppImage.tar.gz');
 
             const baseUrl = `https://github.com/${context.repo.owner}/${context.repo.repo}/releases/download/${tag}`;
 
             // Find updater bundle asset names
+            // With createUpdaterArtifacts: true (v2 mode), Windows uses the
+            // raw .exe directly — no .nsis.zip wrapping.
             const macBundle = assets.find(a => a.name.endsWith('.app.tar.gz') && !a.name.endsWith('.sig'));
-            const winBundle = assets.find(a => a.name.endsWith('.nsis.zip') && !a.name.endsWith('.sig'));
+            const winBundle = assets.find(a => a.name.endsWith('-setup.exe') && !a.name.endsWith('.sig'));
             const linuxBundle = assets.find(a => a.name.endsWith('.AppImage.tar.gz') && !a.name.endsWith('.sig'));
 
             if (!macBundle) throw new Error('macOS updater bundle (.app.tar.gz) not found');
-            if (!winBundle) throw new Error('Windows updater bundle (.nsis.zip) not found');
+            if (!winBundle) throw new Error('Windows updater bundle (-setup.exe) not found');
             if (!linuxBundle) throw new Error('Linux updater bundle (.AppImage.tar.gz) not found');
 
             const latest = {

@@ -347,6 +347,19 @@ pub async fn checkout_branch(
         .map_err(|e| AppError::Io(e.to_string()))?
 }
 
+#[tauri::command]
+pub async fn create_branch(
+    state: State<'_, DbState>,
+    project_id: String,
+    branch_name: String,
+    base_ref: Option<String>,
+) -> Result<String, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    tokio::task::spawn_blocking(move || git::create_branch(&project_path, &branch_name, base_ref.as_deref()))
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))?
+}
+
 // ── Commit history commands (async — no DB lock during git subprocess) ──
 
 #[tauri::command]

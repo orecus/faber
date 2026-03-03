@@ -147,7 +147,9 @@ pub fn add_project(
     name: Option<String>,
 ) -> Result<Project, AppError> {
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    do_add_project(&conn, path, name)
+    let project = do_add_project(&conn, path, name)?;
+    tracing::info!(project_id = %project.id, name = %project.name, path = %project.path, "Project added");
+    Ok(project)
 }
 
 #[tauri::command]
@@ -192,6 +194,7 @@ pub fn update_project(
     };
 
     let project = db::projects::update(&conn, &id, &upd)?;
+    tracing::info!(project_id = %id, "Project updated");
     Ok(project)
 }
 
@@ -199,6 +202,9 @@ pub fn update_project(
 pub fn remove_project(state: State<'_, DbState>, id: String) -> Result<bool, AppError> {
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
     let deleted = db::projects::delete(&conn, &id)?;
+    if deleted {
+        tracing::info!(project_id = %id, "Project removed");
+    }
     Ok(deleted)
 }
 

@@ -99,7 +99,7 @@ pub fn get_adapter(name: &str) -> Option<Box<dyn AgentAdapter>> {
 
 /// Get info for all built-in adapters.
 pub fn list_agent_info() -> Vec<AgentInfo> {
-    builtin_adapters()
+    let agents: Vec<AgentInfo> = builtin_adapters()
         .iter()
         .map(|a| AgentInfo {
             name: a.name().to_string(),
@@ -109,7 +109,17 @@ pub fn list_agent_info() -> Vec<AgentInfo> {
             default_model: a.default_model().map(String::from),
             supported_models: a.supported_models().iter().map(|s| s.to_string()).collect(),
         })
-        .collect()
+        .collect();
+
+    let installed: Vec<&str> = agents.iter().filter(|a| a.installed).map(|a| a.name.as_str()).collect();
+    let missing: Vec<&str> = agents.iter().filter(|a| !a.installed).map(|a| a.name.as_str()).collect();
+    tracing::info!(
+        installed = %installed.join(", "),
+        missing = %missing.join(", "),
+        "Agent detection complete"
+    );
+
+    agents
 }
 
 // ── Helpers ──

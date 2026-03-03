@@ -1,4 +1,6 @@
-import { FolderTree } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
+import { FolderOpen, FolderTree } from "lucide-react";
+import { useCallback } from "react";
 
 import { useAppStore } from "../../store/appStore";
 import FileTree from "../Files/FileTree";
@@ -11,6 +13,12 @@ export default function RightSidebar() {
   const activeProject = activeProjectId
     ? projects.find((p) => p.id === activeProjectId)
     : null;
+
+  const handleOpenFolder = useCallback(() => {
+    if (activeProject?.path) {
+      invoke("open_file_in_os", { path: activeProject.path });
+    }
+  }, [activeProject?.path]);
 
   return (
     <div
@@ -40,6 +48,20 @@ export default function RightSidebar() {
           </div>
         )}
       </div>
+
+      {/* Footer — Open Folder button */}
+      {activeProject && (
+        <div className="shrink-0 border-t border-border px-2 py-1.5">
+          <button
+            type="button"
+            onClick={handleOpenFolder}
+            className="flex items-center gap-1.5 w-full px-2 py-1 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
+          >
+            <FolderOpen size={13} />
+            <span>Open Folder</span>
+          </button>
+        </div>
+      )}
 
       <RightSidebarResizeHandle />
     </div>

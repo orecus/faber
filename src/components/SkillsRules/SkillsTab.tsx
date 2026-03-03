@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import {
   Download,
   ExternalLink,
-  Globe,
   Loader2,
   Package,
   Search,
@@ -71,19 +70,19 @@ export default function SkillsTab({ projectId }: Props) {
   }, [query, doSearch]);
 
   const handleInstall = useCallback(
-    async (skill: SkillSearchResult, global: boolean) => {
-      const { addBackgroundTask, removeBackgroundTask } = useAppStore.getState();
+    async (skill: SkillSearchResult) => {
+      const { addBackgroundTask, removeBackgroundTask, setActiveView } =
+        useAppStore.getState();
       const taskLabel = `Installing skill: ${skill.name}`;
       addBackgroundTask(taskLabel);
       setInstalling(skill.id);
       try {
-        await invoke("install_skill", {
+        await invoke("start_skill_install_session", {
           projectId,
           source: skill.source,
           skillName: skill.name,
-          global,
         });
-        setRefreshKey((k) => k + 1);
+        setActiveView("sessions");
       } catch (e) {
         console.error("Skill install failed:", e);
         useAppStore.getState().flashError(`Install failed: ${e}`);
@@ -92,12 +91,13 @@ export default function SkillsTab({ projectId }: Props) {
         removeBackgroundTask(taskLabel);
       }
     },
-    [projectId]
+    [projectId],
   );
 
   const handleRemove = useCallback(
     async (skillName: string, global: boolean) => {
-      const { addBackgroundTask, removeBackgroundTask } = useAppStore.getState();
+      const { addBackgroundTask, removeBackgroundTask } =
+        useAppStore.getState();
       const taskLabel = `Removing skill: ${skillName}`;
       addBackgroundTask(taskLabel);
       try {
@@ -114,7 +114,7 @@ export default function SkillsTab({ projectId }: Props) {
         removeBackgroundTask(taskLabel);
       }
     },
-    [projectId]
+    [projectId],
   );
 
   return (
@@ -132,7 +132,10 @@ export default function SkillsTab({ projectId }: Props) {
           className="flex-1 bg-transparent text-sm text-foreground placeholder:text-muted-foreground focus:outline-none"
         />
         {searching && (
-          <Loader2 size={14} className="animate-spin text-muted-foreground shrink-0" />
+          <Loader2
+            size={14}
+            className="animate-spin text-muted-foreground shrink-0"
+          />
         )}
       </div>
 
@@ -155,7 +158,7 @@ export default function SkillsTab({ projectId }: Props) {
 
             {!searching && results.length === 0 && !searchError && (
               <div className="px-3 py-6 text-center text-sm text-muted-foreground">
-                No skills found for "{query}"
+                No skills found for &quot;{query}&quot;
               </div>
             )}
 
@@ -177,7 +180,10 @@ export default function SkillsTab({ projectId }: Props) {
                         title={`View on skills.sh`}
                       >
                         {skill.name}
-                        <ExternalLink size={11} className="opacity-50 shrink-0" />
+                        <ExternalLink
+                          size={11}
+                          className="opacity-50 shrink-0"
+                        />
                       </button>
                       {skill.installs > 0 && (
                         <span className="text-[10px] text-muted-foreground bg-accent/60 px-1.5 py-0.5 rounded-full">
@@ -191,37 +197,23 @@ export default function SkillsTab({ projectId }: Props) {
                       </span>
                     </div>
                   </div>
-                  <div className="flex items-center gap-1.5 shrink-0">
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleInstall(skill, false)}
-                      disabled={installing === skill.id}
-                      leftIcon={
-                        installing === skill.id ? (
-                          <Loader2 className="size-3 animate-spin" />
-                        ) : (
-                          <Download className="size-3" />
-                        )
-                      }
-                      hoverEffect="scale"
-                      clickEffect="scale"
-                    >
-                      Install
-                    </Button>
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => handleInstall(skill, true)}
-                      disabled={installing === skill.id}
-                      leftIcon={<Globe className="size-3" />}
-                      title="Install globally"
-                      hoverEffect="scale"
-                      clickEffect="scale"
-                    >
-                      Global
-                    </Button>
-                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => handleInstall(skill)}
+                    disabled={installing === skill.id}
+                    leftIcon={
+                      installing === skill.id ? (
+                        <Loader2 className="size-3 animate-spin" />
+                      ) : (
+                        <Download className="size-3" />
+                      )
+                    }
+                    hoverEffect="scale"
+                    clickEffect="scale"
+                  >
+                    Install
+                  </Button>
                 </div>
               ))}
             </div>

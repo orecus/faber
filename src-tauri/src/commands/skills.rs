@@ -85,6 +85,27 @@ fn url_encode(s: &str) -> String {
     encoded
 }
 
+/// Build a `Command` for an npm script (npx, npm, etc.) that may be a `.cmd`
+/// shim on Windows. On Windows this routes through `cmd.exe /c` so that batch
+/// scripts are resolved correctly; on other platforms it calls the program
+/// directly.
+fn npx_command(args: &[&str]) -> std::process::Command {
+    #[cfg(windows)]
+    {
+        let mut cmd = cmd_no_window("cmd.exe");
+        // /d = skip AutoRun, /c = execute and terminate
+        cmd.arg("/d").arg("/c").arg("npx");
+        cmd.args(args);
+        cmd
+    }
+    #[cfg(not(windows))]
+    {
+        let mut cmd = cmd_no_window("npx");
+        cmd.args(args);
+        cmd
+    }
+}
+
 fn get_project_path(conn: &rusqlite::Connection, project_id: &str) -> Result<PathBuf, AppError> {
     let project = db::projects::get(conn, project_id)?
         .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
@@ -156,7 +177,14 @@ fn scan_skills_dir(dir: &Path, is_global: bool) -> Vec<SkillInfo> {
 
     let entries = match std::fs::read_dir(dir) {
         Ok(entries) => entries,
-        Err(_) => return skills,
+        Err(e) => {
+            tracing::debug!(
+                "Skills dir not found or unreadable: {} ({})",
+                dir.display(),
+                e
+            );
+            return skills;
+        }
     };
 
     for entry in entries.flatten() {
@@ -295,17 +323,32 @@ pub fn list_installed_skills(
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
     let project_path = get_project_path(&conn, &project_id)?;
 
-    // Project skills: <project_root>/.claude/skills/
-    let project_skills_dir = project_path.join(".claude").join("skills");
-    let project_skills = scan_skills_dir(&project_skills_dir, false);
+    // Project skills: <project_root>/.claude/skills/ + <project_root>/.agents/skills/
+    let claude_skills_dir = project_path.join(".claude").join("skills");
+    let universal_skills_dir = project_path.join(".agents").join("skills");
+    tracing::info!(
+        "Listing installed skills — claude: {}, universal: {}, global: ~/.claude/skills/",
+        claude_skills_dir.display(),
+        universal_skills_dir.display(),
+    );
+    let mut project_skills = scan_skills_dir(&claude_skills_dir, false);
+    project_skills.extend(scan_skills_dir(&universal_skills_dir, false));
+    project_skills.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
 
     // Global skills: ~/.claude/skills/
     let global_skills = if let Some(home) = home_dir() {
         let global_skills_dir = home.join(".claude").join("skills");
         scan_skills_dir(&global_skills_dir, true)
     } else {
+        tracing::warn!("Could not determine home directory for global skills");
         Vec::new()
     };
+
+    tracing::info!(
+        "Found {} project skills, {} global skills",
+        project_skills.len(),
+        global_skills.len()
+    );
 
     Ok(InstalledSkillsResponse {
         project_skills,
@@ -354,12 +397,17 @@ pub async fn search_skills(query: String) -> Result<Vec<SkillSearchResult>, AppE
         "https://skills.sh/api/search?q={}",
         url_encode(&query)
     );
+    tracing::info!("Searching skills: {}", url);
 
     let response = reqwest::get(&url)
         .await
-        .map_err(|e| AppError::Io(format!("Skills search request failed: {e}")))?;
+        .map_err(|e| {
+            tracing::error!("Skills search request failed: {e}");
+            AppError::Io(format!("Skills search request failed: {e}"))
+        })?;
 
     if !response.status().is_success() {
+        tracing::error!("Skills search returned status {}", response.status());
         return Err(AppError::Io(format!(
             "Skills search returned status {}",
             response.status()
@@ -372,8 +420,11 @@ pub async fn search_skills(query: String) -> Result<Vec<SkillSearchResult>, AppE
         .await
         .map_err(|e| AppError::Io(format!("Failed to read search response: {e}")))?;
 
+    tracing::debug!("Skills search response body: {}", &body[..body.len().min(500)]);
+
     // Try parsing as direct array
     if let Ok(results) = serde_json::from_str::<Vec<SkillSearchResult>>(&body) {
+        tracing::info!("Skills search returned {} results", results.len());
         return Ok(results);
     }
 
@@ -387,6 +438,7 @@ pub async fn search_skills(query: String) -> Result<Vec<SkillSearchResult>, AppE
 
     if let Ok(wrapper) = serde_json::from_str::<Wrapper>(&body) {
         if let Some(results) = wrapper.results.or(wrapper.skills).or(wrapper.data) {
+            tracing::info!("Skills search returned {} results (wrapped)", results.len());
             return Ok(results);
         }
     }
@@ -394,43 +446,6 @@ pub async fn search_skills(query: String) -> Result<Vec<SkillSearchResult>, AppE
     // If we can't parse, return empty with no error (API shape may change)
     tracing::warn!("Could not parse skills.sh response: {}", &body[..body.len().min(200)]);
     Ok(Vec::new())
-}
-
-#[tauri::command]
-pub async fn install_skill(
-    state: State<'_, DbState>,
-    project_id: String,
-    source: String,
-    skill_name: String,
-    global: bool,
-) -> Result<String, AppError> {
-    let project_path = {
-        let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
-        get_project_path(&conn, &project_id)?
-    };
-
-    let mut cmd = cmd_no_window("npx");
-    cmd.args(["skills", "add", &source, "-s", &skill_name]);
-    if global {
-        cmd.arg("-g");
-    }
-    cmd.current_dir(&project_path);
-
-    let output = cmd
-        .output()
-        .map_err(|e| AppError::Io(format!("Failed to run npx skills: {e}. Is npm/npx installed?")))?;
-
-    let stdout = String::from_utf8_lossy(&output.stdout).to_string();
-    let stderr = String::from_utf8_lossy(&output.stderr).to_string();
-
-    if !output.status.success() {
-        return Err(AppError::Io(format!(
-            "Skill install failed: {}",
-            if stderr.is_empty() { &stdout } else { &stderr }
-        )));
-    }
-
-    Ok(stdout)
 }
 
 #[tauri::command]
@@ -445,26 +460,49 @@ pub async fn remove_skill(
         get_project_path(&conn, &project_id)?
     };
 
-    let mut cmd = cmd_no_window("npx");
-    cmd.args(["skills", "remove", &skill_name]);
+    tracing::info!(
+        "Removing skill '{}' (global={}) in {}",
+        skill_name,
+        global,
+        project_path.display()
+    );
+
+    let mut args: Vec<&str> = vec!["--yes", "skills", "remove", &skill_name];
     if global {
-        cmd.arg("-g");
+        args.push("-g");
     }
+
+    tracing::debug!("Running command: npx {}", args.join(" "));
+
+    let mut cmd = npx_command(&args);
     cmd.current_dir(&project_path);
 
     let output = cmd
         .output()
-        .map_err(|e| AppError::Io(format!("Failed to run npx skills: {e}. Is npm/npx installed?")))?;
+        .map_err(|e| {
+            tracing::error!("Failed to spawn npx process: {e}");
+            AppError::Io(format!("Failed to run npx skills: {e}. Is npm/npx installed?"))
+        })?;
 
     let stdout = String::from_utf8_lossy(&output.stdout).to_string();
     let stderr = String::from_utf8_lossy(&output.stderr).to_string();
 
+    tracing::info!(
+        "npx skills remove exited with status={}, stdout={}, stderr={}",
+        output.status,
+        stdout.trim(),
+        stderr.trim()
+    );
+
     if !output.status.success() {
+        let err_msg = if stderr.is_empty() { &stdout } else { &stderr };
+        tracing::error!("Skill remove failed: {}", err_msg);
         return Err(AppError::Io(format!(
             "Skill remove failed: {}",
-            if stderr.is_empty() { &stdout } else { &stderr }
+            err_msg
         )));
     }
 
+    tracing::info!("Skill '{}' removed successfully", skill_name);
     Ok(stdout)
 }

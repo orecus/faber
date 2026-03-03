@@ -140,6 +140,14 @@ pub fn start_continuous_mode(
         guard.insert(project_id.clone(), run.clone());
     }
 
+    tracing::info!(
+        project_id = %project_id,
+        strategy = ?run.strategy,
+        task_count = run.queue.len(),
+        agent = ?run.agent_name,
+        "Continuous mode started"
+    );
+
     let _ = app.emit(
         "continuous-mode-update",
         ContinuousModeUpdate {
@@ -169,6 +177,7 @@ pub fn pause_continuous_mode(
     }
 
     run.status = ContinuousStatus::Paused;
+    tracing::info!(project_id = %project_id, "Continuous mode paused");
     let result = run.clone();
 
     let _ = app.emit(
@@ -202,6 +211,7 @@ pub fn resume_continuous_mode(
         }
 
         run.status = ContinuousStatus::Running;
+        tracing::info!(project_id = %project_id, "Continuous mode resumed");
 
         let _ = app.emit(
             "continuous-mode-update",
@@ -262,6 +272,7 @@ pub fn stop_continuous_mode(
         None => return Ok(()), // no active run
     };
     drop(guard);
+    tracing::info!(project_id = %project_id, "Continuous mode stopped");
 
     // Stop the currently running session if any
     if let Some(item) = run.queue.get(run.current_index) {

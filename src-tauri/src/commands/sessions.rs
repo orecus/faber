@@ -51,7 +51,7 @@ pub fn start_task_session(
     // Get MCP port BEFORE acquiring DB lock to avoid nested mutex contention
     let mcp_port = session::get_mcp_port(&mcp);
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    session::start_task_session(
+    let session = session::start_task_session(
         &conn,
         &pty,
         &app,
@@ -64,7 +64,17 @@ pub fn start_task_session(
         create_worktree.unwrap_or(true),
         base_branch.as_deref(),
         user_prompt.as_deref(),
-    )
+    )?;
+    tracing::info!(
+        session_id = %session.id,
+        project_id = %project_id,
+        task_id = %task_id,
+        agent = %session.agent,
+        model = ?session.model,
+        mode = "task",
+        "Session launched"
+    );
+    Ok(session)
 }
 
 #[tauri::command]
@@ -78,6 +88,7 @@ pub fn start_vibe_session(
     agent_name: Option<String>,
     model: Option<String>,
     create_worktree: Option<bool>,
+    base_branch: Option<String>,
     user_prompt: Option<String>,
 ) -> Result<Session, AppError> {
     let mcp_port = session::get_mcp_port(&mcp);
@@ -86,9 +97,19 @@ pub fn start_vibe_session(
         agent_name: agent_name.as_deref(),
         model: model.as_deref(),
         create_worktree: create_worktree.unwrap_or(false),
+        base_branch: base_branch.as_deref(),
         user_prompt: user_prompt.as_deref(),
     };
-    session::start_vibe_session(&conn, &pty, &app, &mcp, mcp_port, &project_id, &opts)
+    let session = session::start_vibe_session(&conn, &pty, &app, &mcp, mcp_port, &project_id, &opts)?;
+    tracing::info!(
+        session_id = %session.id,
+        project_id = %project_id,
+        agent = %session.agent,
+        model = ?session.model,
+        mode = "vibe",
+        "Session launched"
+    );
+    Ok(session)
 }
 
 #[tauri::command]
@@ -99,7 +120,36 @@ pub fn start_shell_session(
     project_id: String,
 ) -> Result<Session, AppError> {
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    session::start_shell_session(&conn, &pty, &app, &project_id)
+    let session = session::start_shell_session(&conn, &pty, &app, &project_id)?;
+    tracing::info!(
+        session_id = %session.id,
+        project_id = %project_id,
+        mode = "shell",
+        "Session launched"
+    );
+    Ok(session)
+}
+
+#[tauri::command]
+pub fn start_skill_install_session(
+    db: State<'_, DbState>,
+    pty: State<'_, PtyState>,
+    app: AppHandle,
+    project_id: String,
+    source: String,
+    skill_name: String,
+) -> Result<Session, AppError> {
+    let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let session = session::start_skill_install_session(
+        &conn, &pty, &app, &project_id, &source, &skill_name,
+    )?;
+    tracing::info!(
+        session_id = %session.id,
+        project_id = %project_id,
+        skill_name = %skill_name,
+        "Skill install session launched"
+    );
+    Ok(session)
 }
 
 #[tauri::command]
@@ -123,7 +173,17 @@ pub fn start_research_session(
         model: model.as_deref(),
         user_prompt: user_prompt.as_deref(),
     };
-    session::start_research_session(&conn, &pty, &app, &mcp, mcp_port, &project_id, &opts)
+    let session = session::start_research_session(&conn, &pty, &app, &mcp, mcp_port, &project_id, &opts)?;
+    tracing::info!(
+        session_id = %session.id,
+        project_id = %project_id,
+        task_id = %task_id,
+        agent = %session.agent,
+        model = ?session.model,
+        mode = "research",
+        "Session launched"
+    );
+    Ok(session)
 }
 
 #[tauri::command]
@@ -136,7 +196,9 @@ pub fn relaunch_session(
 ) -> Result<Session, AppError> {
     let mcp_port = session::get_mcp_port(&mcp);
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    session::relaunch_session(&conn, &pty, &app, &mcp, mcp_port, &session_id)
+    let session = session::relaunch_session(&conn, &pty, &app, &mcp, mcp_port, &session_id)?;
+    tracing::info!(session_id = %session.id, mode = %session.mode, "Session relaunched");
+    Ok(session)
 }
 
 #[tauri::command]
@@ -148,7 +210,9 @@ pub fn stop_session(
     session_id: String,
 ) -> Result<Session, AppError> {
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    session::stop_session(&conn, &pty, &app, &mcp, &session_id)
+    let session = session::stop_session(&conn, &pty, &app, &mcp, &session_id)?;
+    tracing::info!(session_id = %session_id, "Session stopped");
+    Ok(session)
 }
 
 #[tauri::command]
@@ -160,7 +224,9 @@ pub fn stop_and_remove_session(
     session_id: String,
 ) -> Result<(), AppError> {
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    session::stop_and_remove_session(&conn, &pty, &app, &mcp, &session_id)
+    session::stop_and_remove_session(&conn, &pty, &app, &mcp, &session_id)?;
+    tracing::info!(session_id = %session_id, "Session stopped and removed");
+    Ok(())
 }
 
 #[tauri::command]
@@ -181,7 +247,11 @@ pub fn remove_session(
     session_id: String,
 ) -> Result<bool, AppError> {
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    Ok(db::sessions::delete(&conn, &session_id)?)
+    let deleted = db::sessions::delete(&conn, &session_id)?;
+    if deleted {
+        tracing::info!(session_id = %session_id, "Session removed");
+    }
+    Ok(deleted)
 }
 
 #[tauri::command]

@@ -2,7 +2,6 @@ use serde::Serialize;
 use tauri::State;
 
 use crate::agent;
-use crate::credentials;
 use crate::db;
 use crate::db::models::Setting;
 use crate::db::DbState;
@@ -31,33 +30,6 @@ pub fn get_all_settings(state: State<'_, DbState>) -> Result<Vec<Setting>, AppEr
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
     let settings = db::settings::get_all(&conn, "global", None)?;
     Ok(settings)
-}
-
-#[tauri::command]
-pub fn store_api_key(provider: String, key: String) -> Result<(), AppError> {
-    credentials::store(&provider, &key)?;
-    Ok(())
-}
-
-#[tauri::command]
-pub fn delete_api_key(provider: String) -> Result<bool, AppError> {
-    let deleted = credentials::delete(&provider)?;
-    Ok(deleted)
-}
-
-#[derive(Debug, Clone, Serialize)]
-pub struct ApiKeyStatus {
-    pub provider: String,
-    pub exists: bool,
-}
-
-#[tauri::command]
-pub fn get_api_key_status(provider: String) -> Result<ApiKeyStatus, AppError> {
-    let secret = credentials::get(&provider)?;
-    Ok(ApiKeyStatus {
-        provider,
-        exists: secret.is_some(),
-    })
 }
 
 #[tauri::command]
@@ -113,6 +85,9 @@ pub fn list_available_shells() -> Vec<ShellInfo> {
             }
         }
     }
+
+    let names: Vec<&str> = shells.iter().map(|s| s.name.as_str()).collect();
+    tracing::info!(shells = %names.join(", "), "Shell detection complete");
 
     shells
 }

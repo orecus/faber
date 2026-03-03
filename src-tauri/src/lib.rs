@@ -5,7 +5,6 @@ use tracing::{error, info, warn};
 mod agent;
 mod commands;
 mod continuous;
-mod credentials;
 mod db;
 mod error;
 mod font_detector;
@@ -131,6 +130,12 @@ pub fn run() {
             // Initialize file-based logging (must happen before any tracing calls)
             let log_dir = logging::init(&data_dir);
             info!(path = %log_dir.display(), "Logging initialized");
+            info!(
+                version = env!("CARGO_PKG_VERSION"),
+                os = std::env::consts::OS,
+                arch = std::env::consts::ARCH,
+                "Starting Faber"
+            );
             app.manage(LogDir(log_dir));
 
             // Use a separate database for debug builds to avoid conflicts
@@ -142,6 +147,7 @@ pub fn run() {
             };
             let db_path = data_dir.join(db_name);
             let db_state = db::init(&db_path).expect("failed to initialize database");
+            info!(path = %db_path.display(), "Database initialized");
 
             // Clean up sessions orphaned by a previous crash/force-quit.
             // PTY processes don't survive app restart, so any "active" sessions are stale.
@@ -194,6 +200,7 @@ pub fn run() {
             commands::projects::resolve_project_icon,
             commands::projects::read_svg_icon,
             commands::git::list_branches,
+            commands::git::create_branch,
             commands::git::create_worktree,
             commands::git::list_worktrees,
             commands::git::delete_worktree,
@@ -241,6 +248,7 @@ pub fn run() {
             commands::sessions::start_task_session,
             commands::sessions::start_vibe_session,
             commands::sessions::start_shell_session,
+            commands::sessions::start_skill_install_session,
             commands::sessions::start_research_session,
             commands::sessions::relaunch_session,
             commands::sessions::rename_session,
@@ -252,9 +260,6 @@ pub fn run() {
             commands::settings::get_setting,
             commands::settings::set_setting,
             commands::settings::get_all_settings,
-            commands::settings::store_api_key,
-            commands::settings::delete_api_key,
-            commands::settings::get_api_key_status,
             commands::settings::list_installed_agents,
             commands::settings::list_available_shells,
             commands::fonts::get_available_fonts,
@@ -298,7 +303,6 @@ pub fn run() {
             commands::skills::list_installed_skills,
             commands::skills::read_skill_content,
             commands::skills::search_skills,
-            commands::skills::install_skill,
             commands::skills::remove_skill,
         ])
         .run(tauri::generate_context!())

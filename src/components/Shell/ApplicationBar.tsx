@@ -1,8 +1,8 @@
 import { memo } from "react";
-import { Github, LayoutDashboard, PanelRight, Puzzle, TerminalSquare } from "lucide-react";
+import { Github, LayoutDashboard, PanelLeft, PanelRight, Puzzle, TerminalSquare } from "lucide-react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
-import { handleDragRegionMouseDown } from "../../lib/platform";
+import { handleDragRegionMouseDown, needsCustomWindowControls } from "../../lib/platform";
 import { useAppStore } from "../../store/appStore";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
 import WindowControls from "./WindowControls";
@@ -20,6 +20,8 @@ const ApplicationBar = memo(function ApplicationBar() {
   const accentColor = useProjectAccentColor();
   const activeView = useAppStore((s) => s.activeView);
   const setActiveView = useAppStore((s) => s.setActiveView);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
+  const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const rightSidebarOpen = useAppStore((s) => s.rightSidebarOpen);
   const toggleRightSidebar = useAppStore((s) => s.toggleRightSidebar);
 
@@ -37,6 +39,17 @@ const ApplicationBar = memo(function ApplicationBar() {
       className="flex items-center border-b border-border select-none bg-card/60"
       style={{ gridArea: "topbar" }}
     >
+      {/* Left sidebar toggle */}
+      <button
+        onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
+        className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-accent ml-1 ${
+          !sidebarCollapsed ? "text-primary" : "text-muted-foreground"
+        }`}
+        title="Toggle sidebar (Ctrl+Shift+B)"
+      >
+        <PanelLeft size={15} />
+      </button>
+
       {/* Left spacer / drag region */}
       <div className="flex-1 min-w-0" />
 
@@ -73,7 +86,9 @@ const ApplicationBar = memo(function ApplicationBar() {
       >
         <PanelRight size={15} />
       </button>
-      <div className="h-5 border-l border-border mx-1" />
+      {needsCustomWindowControls() && (
+        <div className="h-5 border-l border-border mx-1" />
+      )}
 
       <WindowControls />
     </div>

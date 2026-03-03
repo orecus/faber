@@ -1,9 +1,14 @@
 {
-  "$schema": "https://biomejs.dev/schemas/2.3.13/schema.json",
+  "$schema": "https://biomejs.dev/schemas/2.4.5/schema.json",
   "vcs": { "enabled": true, "clientKind": "git", "useIgnoreFile": false },
   "files": {
     "ignoreUnknown": false,
-    "includes": ["**", "!**/src/components/ui", "!**/src/components/magicui", "!**/*.css"]
+    "includes": [
+      "**",
+      "!**/src/components/ui",
+      "!**/src/components/magicui",
+      "!**/*.css"
+    ]
   },
   "formatter": {
     "enabled": true,
@@ -50,7 +55,14 @@
               { "type": false, "source": ["@packages/backend/**"] },
               { "type": false, "source": ["@/hooks/**"] },
               ":BLANK_LINE:",
-              { "type": false, "source": ["@/components/wrappers/**", "@/components/core/**", "@/components/modals/**"] },
+              {
+                "type": false,
+                "source": [
+                  "@/components/wrappers/**",
+                  "@/components/core/**",
+                  "@/components/modals/**"
+                ]
+              },
               ":BLANK_LINE:",
               { "type": false, "source": ["@/components/ui/**"] },
               ":BLANK_LINE:",

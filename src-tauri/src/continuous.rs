@@ -138,6 +138,8 @@ pub fn try_advance(app: &AppHandle, project_id: &str) -> Result<(), AppError> {
             project_id: pid.clone(),
             run: finished_run,
         });
+        tracing::info!(project_id, completed_count, "Continuous mode completed all tasks");
+
         let _ = app.emit("continuous-mode-finished", ContinuousModeFinished {
             project_id: pid.clone(),
             completed_count,
@@ -151,6 +153,7 @@ pub fn try_advance(app: &AppHandle, project_id: &str) -> Result<(), AppError> {
     run.queue[next_index].status = QueueItemStatus::Running;
 
     let task_id = run.queue[next_index].task_id.clone();
+    tracing::info!(project_id, next_task_id = %task_id, "Continuous mode advancing to next task");
     let agent = run.agent_name.clone();
     let model = run.model.clone();
     let strategy = run.strategy;
@@ -331,6 +334,8 @@ pub fn handle_manual_stop(app: &AppHandle, session_id: &str) {
     };
 
     let Some(project_id) = project_id else { return };
+
+    tracing::info!(session_id, "Continuous mode paused due to manual session stop");
 
     let mut guard = cont_state.blocking_lock();
     if let Some(run) = guard.get_mut(&project_id) {

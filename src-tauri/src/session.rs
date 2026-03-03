@@ -428,6 +428,7 @@ pub struct VibeSessionOpts<'a> {
     pub agent_name: Option<&'a str>,
     pub model: Option<&'a str>,
     pub create_worktree: bool,
+    pub base_branch: Option<&'a str>,
     pub user_prompt: Option<&'a str>,
 }
 
@@ -477,7 +478,7 @@ pub fn start_vibe_session(
                 task_slug: None,
             },
         );
-        let worktree = git::create_worktree(repo_path, &branch_name, None, None)?;
+        let worktree = git::create_worktree(repo_path, &branch_name, opts.base_branch, None)?;
         Some(worktree.path)
     } else {
         None
@@ -754,6 +755,95 @@ pub fn start_shell_session(
     Ok(session)
 }
 
+// ── Skill install session ──
+
+/// Spawn an interactive PTY session that runs `npx skills add <source> -s <skill>`.
+/// This lets the user interact with the skills CLI (e.g. select agents).
+pub fn start_skill_install_session(
+    conn: &Connection,
+    pty_state: &PtyState,
+    app: &AppHandle,
+    project_id: &str,
+    source: &str,
+    skill_name: &str,
+) -> Result<Session, AppError> {
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+
+    tracing::info!(
+        "Starting skill install session for '{}' from '{}' in {}",
+        skill_name,
+        source,
+        project.path
+    );
+
+    let new_session = NewSession {
+        project_id: project_id.to_string(),
+        task_id: None,
+        name: Some(format!("Installing: {}", skill_name)),
+        mode: SessionMode::Shell,
+        agent: "shell".to_string(),
+        model: None,
+        worktree_path: None,
+    };
+    let session = db::sessions::create(conn, &new_session)?;
+
+    // On Windows, npx is a .cmd script so we need to go through cmd.exe.
+    // On Unix, call npx directly with login-shell wrapping for PATH resolution.
+    #[cfg(windows)]
+    let (command, args) = {
+        (
+            "cmd.exe".to_string(),
+            vec![
+                "/d".to_string(),
+                "/c".to_string(),
+                "npx".to_string(),
+                "--yes".to_string(),
+                "skills".to_string(),
+                "add".to_string(),
+                source.to_string(),
+                "-s".to_string(),
+                skill_name.to_string(),
+            ],
+        )
+    };
+    #[cfg(not(windows))]
+    let (command, args) = {
+        (
+            "npx".to_string(),
+            vec![
+                "--yes".to_string(),
+                "skills".to_string(),
+                "add".to_string(),
+                source.to_string(),
+                "-s".to_string(),
+                skill_name.to_string(),
+            ],
+        )
+    };
+
+    pty::spawn(
+        pty_state,
+        app,
+        session.id.clone(),
+        &command,
+        &args,
+        Some(&project.path),
+        None,
+        80,
+        24,
+        cfg!(not(windows)), // login shell wrapping on Unix for PATH
+    )?;
+
+    db::sessions::update_status(conn, &session.id, SessionStatus::Running)?;
+
+    let session = db::sessions::get(conn, &session.id)?
+        .ok_or_else(|| AppError::Database("Session disappeared after creation".into()))?;
+    let _ = app.emit("session-started", &session);
+
+    Ok(session)
+}
+
 // ── Relaunch session ──
 
 /// Relaunch a stopped/finished/error session with the same configuration.
@@ -891,6 +981,7 @@ pub fn relaunch_session(
                 agent_name: Some(&old.agent),
                 model: old.model.as_deref(),
                 create_worktree: false,
+                base_branch: None,
                 user_prompt: None,
             };
             let new_session = start_vibe_session(conn, pty_state, app, mcp_state, mcp_port, &old.project_id, &opts)?;

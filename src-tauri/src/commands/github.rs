@@ -54,7 +54,7 @@ fn get_project_path(state: &DbState, project_id: &str) -> Result<PathBuf, AppErr
 
 #[tauri::command]
 pub async fn check_gh_auth() -> github::GhAuthStatus {
-    tokio::task::spawn_blocking(github::check_gh_auth)
+    let status = tokio::task::spawn_blocking(github::check_gh_auth)
         .await
         .unwrap_or_else(|_| github::GhAuthStatus {
             installed: false,
@@ -64,7 +64,13 @@ pub async fn check_gh_auth() -> github::GhAuthStatus {
             token_source: None,
             missing_scopes: vec![],
             has_scope_warnings: false,
-        })
+        });
+    tracing::info!(
+        authenticated = status.authenticated,
+        username = ?status.username,
+        "GitHub auth check"
+    );
+    status
 }
 
 #[tauri::command]
@@ -86,6 +92,7 @@ pub async fn list_github_issues(
 
     let filter = state_filter.unwrap_or_else(|| "open".to_string());
     let lim = limit.unwrap_or(50);
+    let filter_for_log = filter.clone();
 
     let (repo_slug, issues) = tokio::task::spawn_blocking(move || {
         let repo_path = Path::new(&project_path);
@@ -97,7 +104,7 @@ pub async fn list_github_issues(
     .map_err(|e| AppError::Io(e.to_string()))??;
 
     // Build result without lock
-    let result = issues
+    let result: Vec<_> = issues
         .into_iter()
         .map(|issue| {
             let issue_ref = format!("{repo_slug}#{}", issue.number);
@@ -110,6 +117,13 @@ pub async fn list_github_issues(
             }
         })
         .collect();
+
+    tracing::info!(
+        project_id = %project_id,
+        filter = %filter_for_log,
+        count = result.len(),
+        "Listed GitHub issues"
+    );
 
     Ok(result)
 }
@@ -133,8 +147,11 @@ pub async fn import_github_issues(
 
     // Now do the import with a lock (file I/O + DB writes, but no network)
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let count = issues.len();
     let issues: Vec<github::GitHubIssue> = issues.into_iter().map(Into::into).collect();
-    github::import_issues(&conn, &project_id, &project_path, &issues, &repo_slug)
+    let result = github::import_issues(&conn, &project_id, &project_path, &issues, &repo_slug)?;
+    tracing::info!(project_id = %project_id, count, "Imported GitHub issues");
+    Ok(result)
 }
 
 #[tauri::command]
@@ -155,6 +172,8 @@ pub async fn close_github_issue(
             .ok_or_else(|| AppError::Validation("Task has no linked GitHub issue".into()))?;
         (PathBuf::from(&project.path), issue_ref)
     };
+
+    tracing::info!(task_id = %task_id, issue_ref = %issue_ref, "Closing GitHub issue");
 
     // Network call without lock
     tokio::task::spawn_blocking(move || {
@@ -180,6 +199,8 @@ pub async fn reopen_github_issue(
             .ok_or_else(|| AppError::Validation("Task has no linked GitHub issue".into()))?;
         (PathBuf::from(&project.path), issue_ref)
     };
+
+    tracing::info!(task_id = %task_id, issue_ref = %issue_ref, "Reopening GitHub issue");
 
     tokio::task::spawn_blocking(move || {
         github::reopen_issue(Path::new(&project_path), &issue_ref)
@@ -257,6 +278,8 @@ pub fn set_task_github_pr(
     let task = db::tasks::get(&conn, &task_id, &project_id)?
         .ok_or_else(|| AppError::NotFound(format!("Task {task_id}")))?;
 
+    tracing::info!(task_id = %task_id, pr_url = %pr_url, "Linked PR to task");
+
     // Update DB
     db::tasks::update_github_pr(&conn, &task_id, &project_id, Some(&pr_url))?;
 
@@ -317,6 +340,8 @@ pub async fn merge_pull_request(
     let project_path = get_project_path(&state, &project_id)?;
     let merge_method = method.unwrap_or_else(|| "merge".to_string());
 
+    tracing::info!(number, method = %merge_method, "Merging pull request");
+
     tokio::task::spawn_blocking(move || {
         github::merge_pull_request(Path::new(&project_path), number, &merge_method)
     })
@@ -331,6 +356,8 @@ pub async fn close_pull_request(
     number: u64,
 ) -> Result<(), AppError> {
     let project_path = get_project_path(&state, &project_id)?;
+
+    tracing::info!(number, "Closing pull request");
 
     tokio::task::spawn_blocking(move || {
         github::close_pull_request(Path::new(&project_path), number)
@@ -352,6 +379,8 @@ pub async fn create_github_issue(
     let project_path = get_project_path(&state, &project_id)?;
     let body_text = body.unwrap_or_default();
     let label_list = labels.unwrap_or_default();
+
+    tracing::info!(title = %title, "Creating GitHub issue");
 
     tokio::task::spawn_blocking(move || {
         github::create_issue(Path::new(&project_path), &title, &body_text, &label_list)

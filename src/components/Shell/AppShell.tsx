@@ -112,6 +112,7 @@ export default function AppShell() {
   const { isGlass } = useTheme();
   const openProjectIds = useAppStore((s) => s.openProjectIds);
   const activeView = useAppStore((s) => s.activeView);
+  const sidebarCollapsed = useAppStore((s) => s.sidebarCollapsed);
   const sidebarWidth = useAppStore((s) => s.sidebarWidth);
   const rightSidebarOpen = useAppStore((s) => s.rightSidebarOpen);
   const rightSidebarWidth = useAppStore((s) => s.rightSidebarWidth);
@@ -119,19 +120,20 @@ export default function AppShell() {
   // Memoize grid style to avoid re-creating the object on every render
   // (AppShell re-renders during sidebar drag due to sidebarWidth subscription)
   // NOTE: Must be declared before any early returns to satisfy Rules of Hooks.
+  const leftCol = sidebarCollapsed ? "0px" : `${sidebarWidth}px`;
   const rightCol = rightSidebarOpen ? `${rightSidebarWidth}px` : "0px";
   const gridStyle = useMemo(
     () => ({
       display: "grid" as const,
       gridTemplateRows: "auto 1fr",
-      gridTemplateColumns: `${sidebarWidth}px 1fr ${rightCol}`,
+      gridTemplateColumns: `${leftCol} 1fr ${rightCol}`,
       gridTemplateAreas: rightSidebarOpen
         ? `"sidebar topbar rightsidebar" "sidebar content rightsidebar"`
         : `"sidebar topbar ." "sidebar content ."`,
       height: "100vh",
       overflow: "hidden" as const,
     }),
-    [sidebarWidth, rightCol, rightSidebarOpen],
+    [leftCol, rightCol, rightSidebarOpen],
   );
 
   // No open project tabs → show welcome prompt

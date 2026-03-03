@@ -18,6 +18,7 @@ import {
 } from "../ui/dialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { borderAccentColors } from "../ui/orecus.io/lib/color-utils";
+import BranchSelect from "../ui/BranchSelect";
 import {
   Select,
   SelectContent,
@@ -51,7 +52,6 @@ export default function LaunchTaskDialog({
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [baseBranch, setBaseBranch] = useState<string>("");
-  const [branches, setBranches] = useState<string[]>([]);
   const [createWorktree, setCreateWorktree] = useState(true);
   const [userPrompt, setUserPrompt] = useState(
     `Let's start working on task ${task.id}. Use the \`get_task\` MCP tool to fetch the task details, then return a short summary and ask the user if they are ready to start.`,
@@ -83,12 +83,6 @@ export default function LaunchTaskDialog({
       setSelectedModel(validModel);
     }
   }, [agents, selectedAgentName, task.agent, task.model, projectInfo]);
-
-  useEffect(() => {
-    invoke<string[]>("list_branches", { projectId })
-      .then(setBranches)
-      .catch(() => {});
-  }, [projectId]);
 
   const currentAgent = agents.find((a) => a.name === selectedAgentName);
 
@@ -253,31 +247,22 @@ export default function LaunchTaskDialog({
         </div>
 
         {/* Base branch (only when worktree enabled) */}
-        {createWorktree && branches.length > 0 && (
+        {createWorktree && (
           <div>
             <label className="mb-1 block text-xs text-dim-foreground">
               Base branch
             </label>
-            <Select
+            <BranchSelect
+              projectId={projectId}
+              currentBranch={null}
+              mode="select"
               value={baseBranch}
-              onValueChange={(v) => setBaseBranch(v as string)}
-              items={[
-                { value: "", label: "Current HEAD" },
-                ...branches.map((b) => ({ value: b, label: b })),
-              ]}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Current HEAD" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="">Current HEAD</SelectItem>
-                {branches.map((b) => (
-                  <SelectItem key={b} value={b}>
-                    {b}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+              onChange={setBaseBranch}
+              triggerVariant="select"
+            />
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              The worktree branch will be created from this branch
+            </p>
           </div>
         )}
 

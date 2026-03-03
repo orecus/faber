@@ -512,6 +512,13 @@ pub fn create_task(
             body.as_deref(),
         )?
     };
+    tracing::info!(
+        task_id = %task.id,
+        title = %task.title,
+        priority = %task.priority,
+        source = "user",
+        "Task created"
+    );
     // Write TODOS.md outside DB lock
     if let Some(t) = todos { t.write(); }
     Ok(task)
@@ -529,6 +536,12 @@ pub fn update_task_status(
         let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
         do_update_task_status(&conn, &project_id, &task_id, &status)?
     };
+    tracing::info!(
+        task_id = %task_id,
+        new_status = %status,
+        source = "user",
+        "Task status updated"
+    );
     // Lock is released here
 
     // Phase 2: Write TODOS.md + GitHub sync without holding DB lock
@@ -585,6 +598,7 @@ pub fn save_task_content(
             &body,
         )?
     };
+    tracing::info!(task_id = %task_id, title = %title, source = "user", "Task content saved");
     // Write TODOS.md outside DB lock
     if let Some(t) = todos { t.write(); }
     Ok(task)
@@ -600,6 +614,7 @@ pub fn delete_task(
         let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
         do_delete_task(&conn, &project_id, &task_id)?
     };
+    tracing::info!(task_id = %task_id, source = "user", "Task deleted");
     // Write TODOS.md outside DB lock
     if let Some(t) = todos { t.write(); }
     Ok(())

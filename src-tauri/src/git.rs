@@ -1118,6 +1118,17 @@ pub fn checkout_branch(repo_path: &Path, branch: &str, is_remote: bool) -> Resul
     Ok(format!("Switched to branch '{branch}'"))
 }
 
+/// Create a new branch without checking it out.
+/// `base_ref` defaults to HEAD if not provided.
+pub fn create_branch(repo_path: &Path, branch_name: &str, base_ref: Option<&str>) -> Result<String, AppError> {
+    let mut args = vec!["branch", branch_name];
+    if let Some(base) = base_ref {
+        args.push(base);
+    }
+    run_git(repo_path, &args)?;
+    Ok(format!("Created branch '{branch_name}'"))
+}
+
 // ── Tests ──
 
 #[cfg(test)]

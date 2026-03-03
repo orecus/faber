@@ -13,10 +13,12 @@ pub fn init(app_data_dir: &std::path::Path) -> PathBuf {
     std::fs::create_dir_all(&log_dir).expect("failed to create log directory");
 
     // Daily rotating file appender — produces faber.YYYY-MM-DD.log
+    // Keep only the 7 most recent log files to prevent unbounded disk usage.
     let file_appender = rolling::RollingFileAppender::builder()
         .rotation(Rotation::DAILY)
         .filename_prefix("faber")
         .filename_suffix("log")
+        .max_log_files(7)
         .build(&log_dir)
         .expect("failed to create rolling file appender");
 

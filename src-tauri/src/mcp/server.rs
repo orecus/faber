@@ -1090,6 +1090,15 @@ async fn handle_create_task(
         }
     }
 
+    tracing::info!(
+        task_id = %task.id,
+        title = %task.title,
+        priority = %task.priority,
+        source = "agent",
+        session_id,
+        "Task created"
+    );
+
     // 5. Emit task-updated event
     let _ = app.emit("task-updated", &task);
 
