@@ -717,6 +717,20 @@ export const useAppStore = create<AppState>()(
           // Clear stale diff review state immediately on any project switch
           set({ reviewWorktreePath: null });
 
+          // Reset project-specific views to dashboard so the user never sees
+          // "Task not found" errors from the previous project.
+          const currentView = get().activeView;
+          const projectSpecificViews: Set<string> = new Set([
+            "task-detail",
+            "review",
+            "github",
+          ]);
+          if (projectSpecificViews.has(currentView)) {
+            set({ activeView: "dashboard" as const });
+          }
+          // Always clear the selected task — it belongs to the old project
+          set({ activeTaskId: null });
+
           if (!pid) {
             set({ projectInfo: null, sessions: [], tasks: [], worktrees: [] });
             return;
