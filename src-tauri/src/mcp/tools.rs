@@ -161,6 +161,69 @@ pub fn all_tools() -> Vec<ToolDefinition> {
             }),
         },
         ToolDefinition {
+            name: "update_task".into(),
+            description: "Update task metadata (status, priority, labels, dependencies, etc.). Does NOT update the markdown body — use update_task_plan for that.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "task_id": {
+                        "type": "string",
+                        "description": "Task ID (e.g. 'T-011'). Omit to use the current session's task."
+                    },
+                    "status": {
+                        "type": "string",
+                        "enum": ["backlog", "ready", "in-progress", "in-review", "done", "archived"],
+                        "description": "New task status"
+                    },
+                    "priority": {
+                        "type": "string",
+                        "enum": ["P0", "P1", "P2"],
+                        "description": "New task priority"
+                    },
+                    "title": {
+                        "type": "string",
+                        "description": "New task title"
+                    },
+                    "labels": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Replace task labels with this list"
+                    },
+                    "depends_on": {
+                        "type": "array",
+                        "items": { "type": "string" },
+                        "description": "Replace task dependencies with this list of task IDs"
+                    },
+                    "github_issue": {
+                        "type": "string",
+                        "description": "GitHub issue reference (e.g. '#42' or 'owner/repo#42')"
+                    },
+                    "github_pr": {
+                        "type": "string",
+                        "description": "GitHub PR reference (e.g. '#43' or a URL)"
+                    }
+                }
+            }),
+        },
+        ToolDefinition {
+            name: "list_tasks".into(),
+            description: "List all tasks in the current project. Returns a compact summary (no body). Use get_task for full details on a specific task.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {
+                    "status": {
+                        "type": "string",
+                        "enum": ["backlog", "ready", "in-progress", "in-review", "done", "archived"],
+                        "description": "Filter tasks by status"
+                    },
+                    "label": {
+                        "type": "string",
+                        "description": "Filter tasks that have this label"
+                    }
+                }
+            }),
+        },
+        ToolDefinition {
             name: "create_task".into(),
             description: "Create a new task in the current project. Returns the new task ID. Tasks are always created with status 'backlog'.".into(),
             input_schema: json!({
@@ -201,9 +264,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn all_tools_returns_nine() {
+    fn all_tools_returns_expected_count() {
         let tools = all_tools();
-        assert_eq!(tools.len(), 9);
+        assert_eq!(tools.len(), 11);
     }
 
     #[test]
@@ -212,7 +275,7 @@ mod tests {
         let mut names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
         names.sort();
         names.dedup();
-        assert_eq!(names.len(), 9);
+        assert_eq!(names.len(), 11);
     }
 
     #[test]

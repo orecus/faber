@@ -275,6 +275,8 @@ async fn handle_tool_call(
         "update_task_plan" => {
             handle_update_task_plan(session_id, &params.arguments, mcp, app).await
         }
+        "update_task" => handle_update_task(session_id, &params.arguments, mcp, app).await,
+        "list_tasks" => handle_list_tasks(session_id, &params.arguments, mcp, app).await,
         "create_task" => handle_create_task(session_id, &params.arguments, mcp, app).await,
         _ => McpToolResult::error(format!("Unknown tool: {}", params.name)),
     }
@@ -994,6 +996,279 @@ async fn handle_update_task_plan(
     }
 
     McpToolResult::text(format!("Updated implementation plan for task {task_id}"))
+}
+
+async fn handle_update_task(
+    session_id: &str,
+    args: &Value,
+    mcp: &Arc<TokioMutex<McpState>>,
+    app: &AppHandle,
+) -> McpToolResult {
+    // 1. Resolve task_id
+    let (task_id, session_project_id) = match resolve_task_id(session_id, args, mcp).await {
+        Ok(v) => v,
+        Err(e) => return McpToolResult::error(e),
+    };
+
+    // 2. Get project_id
+    let project_id = session_project_id
+        .or_else(|| get_session_project_id(app, session_id));
+
+    let project_id = match project_id {
+        Some(pid) => pid,
+        None => return McpToolResult::error("Could not determine project_id for this session"),
+    };
+
+    // 3. Fetch existing task from DB
+    let db_state: tauri::State<'_, DbState> = app.state();
+    let conn = match db_state.lock() {
+        Ok(c) => c,
+        Err(e) => return McpToolResult::error(format!("Failed to lock DB: {e}")),
+    };
+
+    let task = match db::tasks::get(&conn, &task_id, &project_id) {
+        Ok(Some(t)) => t,
+        Ok(None) => return McpToolResult::error(format!("Task {task_id} not found")),
+        Err(e) => return McpToolResult::error(format!("Failed to fetch task: {e}")),
+    };
+
+    // 4. Merge provided fields with existing task values
+    let new_title = args
+        .get("title")
+        .and_then(|v| v.as_str())
+        .unwrap_or(&task.title);
+    let new_status = args
+        .get("status")
+        .and_then(|v| v.as_str())
+        .unwrap_or(task.status.as_str());
+    let new_priority = args
+        .get("priority")
+        .and_then(|v| v.as_str())
+        .unwrap_or(task.priority.as_str());
+    let new_labels: Vec<String> = args
+        .get("labels")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_else(|| task.labels.clone());
+    let new_depends_on: Vec<String> = args
+        .get("depends_on")
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(String::from))
+                .collect()
+        })
+        .unwrap_or_else(|| task.depends_on.clone());
+    let new_github_issue = args
+        .get("github_issue")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or_else(|| task.github_issue.clone());
+    let new_github_pr = args
+        .get("github_pr")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string())
+        .or_else(|| task.github_pr.clone());
+
+    // Validate status
+    if new_status.parse::<TaskStatus>().is_err() {
+        return McpToolResult::error(format!("Invalid status: {new_status}"));
+    }
+
+    // 5. Update task file on disk if it exists
+    let disk_enabled = crate::tasks::task_files_enabled(&conn, &project_id);
+    if disk_enabled {
+        if let Some(ref file_path_str) = task.task_file_path {
+            let file_path = std::path::Path::new(file_path_str);
+            if file_path.is_file() {
+                let content = match std::fs::read_to_string(file_path) {
+                    Ok(c) => c,
+                    Err(e) => {
+                        return McpToolResult::error(format!("Failed to read task file: {e}"))
+                    }
+                };
+                let parsed = match crate::tasks::parse_task_file(&content, file_path) {
+                    Ok(p) => p,
+                    Err(e) => {
+                        return McpToolResult::error(format!("Failed to parse task file: {e}"))
+                    }
+                };
+
+                let frontmatter = crate::tasks::TaskFrontmatter {
+                    id: task.id.clone(),
+                    title: new_title.to_string(),
+                    status: new_status.to_string(),
+                    priority: new_priority.to_string(),
+                    created: parsed.frontmatter.created,
+                    depends_on: new_depends_on.clone(),
+                    labels: new_labels.clone(),
+                    agent: task.agent.clone(),
+                    model: task.model.clone(),
+                    branch: task.branch.clone(),
+                    github_issue: new_github_issue.clone(),
+                    github_pr: new_github_pr.clone(),
+                };
+
+                match crate::tasks::serialize_task_file(&frontmatter, &parsed.body) {
+                    Ok(new_content) => {
+                        if let Err(e) = std::fs::write(file_path, new_content) {
+                            return McpToolResult::error(format!(
+                                "Failed to write task file: {e}"
+                            ));
+                        }
+                    }
+                    Err(e) => {
+                        return McpToolResult::error(format!(
+                            "Failed to serialize task file: {e}"
+                        ))
+                    }
+                }
+            }
+        }
+    }
+
+    // 6. Update DB via upsert
+    let new_task = db::models::NewTask {
+        id: task.id.clone(),
+        project_id: project_id.clone(),
+        task_file_path: task.task_file_path.clone(),
+        title: new_title.to_string(),
+        status: Some(
+            new_status
+                .parse::<TaskStatus>()
+                .unwrap_or(TaskStatus::Backlog),
+        ),
+        priority: Some(
+            new_priority
+                .parse::<db::models::Priority>()
+                .unwrap_or(db::models::Priority::P2),
+        ),
+        agent: task.agent.clone(),
+        model: task.model.clone(),
+        branch: task.branch.clone(),
+        worktree_path: task.worktree_path.clone(),
+        github_issue: new_github_issue.clone(),
+        github_pr: new_github_pr.clone(),
+        depends_on: new_depends_on.clone(),
+        labels: new_labels.clone(),
+        body: task.body.clone(),
+    };
+
+    let updated = match db::tasks::upsert(&conn, &new_task) {
+        Ok(t) => t,
+        Err(e) => return McpToolResult::error(format!("Failed to update task: {e}")),
+    };
+
+    // 7. Emit task-updated event
+    let _ = app.emit("task-updated", &updated);
+
+    tracing::info!(
+        task_id = %updated.id,
+        source = "agent",
+        session_id,
+        "Task updated via MCP"
+    );
+
+    // 8. Return updated task metadata
+    let result = json!({
+        "id": updated.id,
+        "title": updated.title,
+        "status": updated.status,
+        "priority": updated.priority,
+        "labels": updated.labels,
+        "depends_on": updated.depends_on,
+        "github_issue": updated.github_issue,
+        "github_pr": updated.github_pr,
+    });
+
+    McpToolResult::text(serde_json::to_string_pretty(&result).unwrap_or_default())
+}
+
+async fn handle_list_tasks(
+    session_id: &str,
+    args: &Value,
+    mcp: &Arc<TokioMutex<McpState>>,
+    app: &AppHandle,
+) -> McpToolResult {
+    // 1. Get project_id from session context
+    let project_id = {
+        let guard = mcp.lock().await;
+        guard
+            .sessions
+            .get(session_id)
+            .and_then(|d| d.project_id.clone())
+    }
+    .or_else(|| get_session_project_id(app, session_id));
+
+    let project_id = match project_id {
+        Some(pid) => pid,
+        None => {
+            return McpToolResult::error(
+                "Could not determine project_id — agent must be in a project context",
+            )
+        }
+    };
+
+    // 2. Fetch all tasks from DB
+    let db_state: tauri::State<'_, DbState> = app.state();
+    let conn = match db_state.lock() {
+        Ok(c) => c,
+        Err(e) => return McpToolResult::error(format!("Failed to lock DB: {e}")),
+    };
+
+    let tasks = match db::tasks::list_by_project(&conn, &project_id) {
+        Ok(t) => t,
+        Err(e) => return McpToolResult::error(format!("Failed to list tasks: {e}")),
+    };
+
+    // 3. Apply optional filters
+    let status_filter = args.get("status").and_then(|v| v.as_str());
+    let label_filter = args.get("label").and_then(|v| v.as_str());
+
+    let filtered: Vec<_> = tasks
+        .into_iter()
+        .filter(|t| {
+            if let Some(status) = status_filter {
+                if t.status.as_str() != status {
+                    return false;
+                }
+            }
+            if let Some(label) = label_filter {
+                if !t.labels.iter().any(|l| l == label) {
+                    return false;
+                }
+            }
+            true
+        })
+        .collect();
+
+    // 4. Build compact response (no body)
+    let items: Vec<Value> = filtered
+        .iter()
+        .map(|t| {
+            json!({
+                "id": t.id,
+                "title": t.title,
+                "status": t.status,
+                "priority": t.priority,
+                "labels": t.labels,
+                "depends_on": t.depends_on,
+                "github_issue": t.github_issue,
+                "github_pr": t.github_pr,
+            })
+        })
+        .collect();
+
+    let result = json!({
+        "count": items.len(),
+        "tasks": items,
+    });
+
+    McpToolResult::text(serde_json::to_string_pretty(&result).unwrap_or_default())
 }
 
 async fn handle_create_task(
