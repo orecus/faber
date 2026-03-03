@@ -1,4 +1,4 @@
-import type { Task } from "../types";
+import type { Task, TaskStatus } from "../types";
 
 // ── Dependency helpers ──
 
@@ -164,4 +164,115 @@ export function computeTreeDepths(
   }
 
   return depths;
+}
+
+// ── Column items with ghost parents ──
+
+export type ColumnItem =
+  | { type: "task"; task: Task; depth: number }
+  | { type: "ghost"; parentTask: Task; depth: number };
+
+const STATUS_ORDER: Record<TaskStatus, number> = {
+  backlog: 0,
+  ready: 1,
+  "in-progress": 2,
+  "in-review": 3,
+  done: 4,
+  archived: 5,
+};
+
+/**
+ * Build a flat render list for a column that includes:
+ * - Ghost parent headers for tasks whose dependencies live in other columns
+ * - Proper depth (indentation) for all tasks — in-column nesting + cross-column nesting
+ *
+ * Tasks are expected to already be topologically sorted.
+ */
+export function buildColumnItems(
+  columnTasks: Task[],
+  taskMap: Map<string, Task>,
+): ColumnItem[] {
+  if (columnTasks.length === 0) return [];
+
+  const columnIds = new Set(columnTasks.map((t) => t.id));
+  const inColumnDepths = computeTreeDepths(columnTasks);
+
+  // Find cross-column parents: group child tasks by their external parent
+  // A cross-column parent is a depends_on target that exists but is NOT in this column
+  // and is NOT done/archived (i.e. it's an active, unmet dependency)
+  const ghostParentChildren = new Map<string, string[]>();
+  const taskCrossParents = new Map<string, string[]>(); // taskId → cross-column parent IDs
+
+  for (const task of columnTasks) {
+    const crossDeps = task.depends_on.filter((depId) => {
+      const dep = taskMap.get(depId);
+      return dep != null && !columnIds.has(depId) && dep.status !== "done" && dep.status !== "archived";
+    });
+    if (crossDeps.length > 0) {
+      taskCrossParents.set(task.id, crossDeps);
+      // Use the first (primary) cross-column dep as the ghost parent
+      const primaryDep = crossDeps[0];
+      if (!ghostParentChildren.has(primaryDep)) {
+        ghostParentChildren.set(primaryDep, []);
+      }
+      ghostParentChildren.get(primaryDep)!.push(task.id);
+    }
+  }
+
+  // If no cross-column deps, just return tasks with their in-column depths
+  if (ghostParentChildren.size === 0) {
+    return columnTasks.map((task) => ({
+      type: "task" as const,
+      task,
+      depth: inColumnDepths.get(task.id) ?? 0,
+    }));
+  }
+
+  // Sort ghost parents by status order (earlier status first), then by ID
+  const sortedGhostParentIds = [...ghostParentChildren.keys()].sort((a, b) => {
+    const taskA = taskMap.get(a);
+    const taskB = taskMap.get(b);
+    const statusA = taskA ? STATUS_ORDER[taskA.status] ?? 99 : 99;
+    const statusB = taskB ? STATUS_ORDER[taskB.status] ?? 99 : 99;
+    if (statusA !== statusB) return statusA - statusB;
+    return a.localeCompare(b);
+  });
+
+  // Build the render list
+  const items: ColumnItem[] = [];
+  const renderedTaskIds = new Set<string>();
+
+  // First: render tasks that have cross-column parents, grouped under ghost headers
+  for (const ghostId of sortedGhostParentIds) {
+    const parentTask = taskMap.get(ghostId);
+    if (!parentTask) continue;
+
+    items.push({ type: "ghost", parentTask, depth: 0 });
+
+    const childIds = new Set(ghostParentChildren.get(ghostId) ?? []);
+    // Render children in their original topological order
+    for (const task of columnTasks) {
+      if (childIds.has(task.id) && !renderedTaskIds.has(task.id)) {
+        renderedTaskIds.add(task.id);
+        items.push({
+          type: "task",
+          task,
+          depth: 1 + (inColumnDepths.get(task.id) ?? 0),
+        });
+      }
+    }
+  }
+
+  // Then: render remaining tasks (no cross-column deps) at their normal depth
+  for (const task of columnTasks) {
+    if (!renderedTaskIds.has(task.id)) {
+      items.push({
+        type: "task",
+        task,
+        depth: inColumnDepths.get(task.id) ?? 0,
+      });
+    }
+  }
+
+  return items;
 }

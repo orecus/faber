@@ -54,8 +54,8 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
     ? `ring-1 animate-pulse ${isResearchActivity ? "ring-amber-500/70" : ringColors[accentColor]}`
     : "";
 
-  // Compute tree-node indentation style
-  const treeIndentStyle = variant === "tree-node" && treeDepth > 0
+  // Compute indentation style for nested/dependent tasks (all variants)
+  const treeIndentStyle = treeDepth > 0
     ? { marginLeft: `${treeDepth * 12}px` }
     : undefined;
 
@@ -69,7 +69,10 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
             ? `${borderAccentColors[accentColor]} shadow-[0_8px_24px_rgba(0,0,0,0.3)] cursor-grabbing`
             : "border-border cursor-grab"
         } ${isDragging ? "opacity-30" : ""}`}
-        style={transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined}
+        style={{
+          ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined),
+          ...treeIndentStyle,
+        }}
         {...listeners}
         {...attributes}
         onClick={(e) => {

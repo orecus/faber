@@ -4,8 +4,9 @@ import { useDroppable } from "@dnd-kit/core";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import TaskCard from "./TaskCard";
 import type { TaskCardVariant } from "./TaskCard";
+import GhostParentCard from "./GhostParentCard";
 import { ringColors } from "../ui/orecus.io/lib/color-utils";
-import { isTaskBlocked, computeTreeDepths } from "../../lib/taskSort";
+import { isTaskBlocked, buildColumnItems } from "../../lib/taskSort";
 
 import type { Session, Task, TaskStatus } from "../../types";
 
@@ -61,10 +62,10 @@ const KanbanColumn = memo(function KanbanColumn({
 
   const variant = getVariantForColumn(status);
 
-  // Compute tree depths for backlog column
-  const treeDepths = useMemo(
-    () => (status === "backlog" ? computeTreeDepths(tasks) : new Map<string, number>()),
-    [status, tasks],
+  // Build column items with ghost parents and depth info for all columns
+  const columnItems = useMemo(
+    () => buildColumnItems(tasks, taskMap),
+    [tasks, taskMap],
   );
 
   // Count blocked tasks for column subtitle
@@ -103,7 +104,17 @@ const KanbanColumn = memo(function KanbanColumn({
 
       {/* Card list */}
       <div className="flex-1 min-h-0 overflow-y-auto p-1.5 flex flex-col gap-1.5">
-        {tasks.map((task) => {
+        {columnItems.map((item) => {
+          if (item.type === "ghost") {
+            return (
+              <GhostParentCard
+                key={`ghost-${item.parentTask.id}`}
+                parentTask={item.parentTask}
+                onClick={onTaskClick}
+              />
+            );
+          }
+          const { task, depth } = item;
           const session = sessionMap.get(task.id) ?? null;
           const blocked = isTaskBlocked(task, taskMap);
           const deps = dependentsMap[task.id] ?? [];
@@ -120,7 +131,7 @@ const KanbanColumn = memo(function KanbanColumn({
               taskMap={taskMap}
               dependents={deps}
               isBlocked={blocked}
-              treeDepth={treeDepths.get(task.id) ?? 0}
+              treeDepth={depth}
             />
           );
         })}
