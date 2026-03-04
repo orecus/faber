@@ -620,6 +620,21 @@ pub fn delete_task(
     Ok(())
 }
 
+// ── Task Activity Commands ──
+
+#[tauri::command]
+pub fn get_task_activity(
+    state: State<'_, DbState>,
+    project_id: String,
+    task_id: String,
+    limit: Option<u32>,
+) -> Result<Vec<db::models::TaskActivity>, AppError> {
+    let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let activities = db::task_activity::list_by_task(&conn, &task_id, &project_id, limit.unwrap_or(100))
+        .map_err(|e| AppError::Database(e.to_string()))?;
+    Ok(activities)
+}
+
 // ── Task File Watcher Commands ──
 
 #[tauri::command]

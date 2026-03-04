@@ -1099,6 +1099,118 @@ pub fn fetch_single_issue(
     Ok(GitHubIssue::from(raw))
 }
 
+// ── Issue Comments ──
+
+/// A single comment on a GitHub issue.
+#[derive(Debug, Clone, Serialize)]
+pub struct GitHubComment {
+    pub id: u64,
+    pub author: String,
+    pub author_avatar: String,
+    pub body: String,
+    pub created_at: String,
+    pub updated_at: String,
+}
+
+/// Raw shape returned by `gh issue view --json comments`.
+#[derive(Debug, Deserialize)]
+struct GitHubCommentRaw {
+    author: GitHubCommentAuthor,
+    body: String,
+    #[serde(rename = "createdAt")]
+    created_at: String,
+    #[serde(rename = "updatedAt", default)]
+    updated_at: Option<String>,
+    id: Option<String>,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubCommentAuthor {
+    login: String,
+    #[serde(rename = "avatarUrl", default)]
+    avatar_url: String,
+}
+
+#[derive(Debug, Deserialize)]
+struct GitHubCommentsResponse {
+    comments: Vec<GitHubCommentRaw>,
+}
+
+/// Fetch all comments on a GitHub issue via `gh issue view --json comments`.
+pub fn fetch_issue_comments(
+    repo_path: &Path,
+    issue_number: u64,
+) -> Result<Vec<GitHubComment>, AppError> {
+    let number_str = issue_number.to_string();
+    let output = cmd_no_window("gh")
+        .args([
+            "issue",
+            "view",
+            &number_str,
+            "--json",
+            "comments",
+        ])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::Io(format!("Failed to run gh issue view: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Git(format!("gh issue view failed: {stderr}")));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let response: GitHubCommentsResponse = serde_json::from_str(&stdout).map_err(|e| {
+        AppError::Validation(format!("Failed to parse gh issue comments output: {e}"))
+    })?;
+
+    let comments = response
+        .comments
+        .into_iter()
+        .enumerate()
+        .map(|(i, raw)| {
+            // gh CLI doesn't always return a numeric id for comments;
+            // use the string id hash or fall back to index.
+            let id = raw
+                .id
+                .as_ref()
+                .and_then(|s| s.chars().filter(|c| c.is_ascii_digit()).collect::<String>().parse::<u64>().ok())
+                .unwrap_or(i as u64);
+            GitHubComment {
+                id,
+                author: raw.author.login,
+                author_avatar: raw.author.avatar_url,
+                body: raw.body,
+                created_at: raw.created_at.clone(),
+                updated_at: raw.updated_at.unwrap_or_else(|| raw.created_at),
+            }
+        })
+        .collect();
+
+    Ok(comments)
+}
+
+/// Post a comment on a GitHub issue via `gh issue comment`.
+pub fn post_issue_comment(
+    repo_path: &Path,
+    issue_number: u64,
+    body: &str,
+) -> Result<(), AppError> {
+    let number_str = issue_number.to_string();
+    let output = cmd_no_window("gh")
+        .args(["issue", "comment", &number_str, "--body", body])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::Io(format!("Failed to run gh issue comment: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Git(format!("gh issue comment failed: {stderr}")));
+    }
+
+    Ok(())
+}
+
 fn today_str() -> String {
     let now = std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)

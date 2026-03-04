@@ -295,6 +295,41 @@ pub fn set_task_github_pr(
         .ok_or_else(|| AppError::NotFound(format!("Task {task_id}")))
 }
 
+// ── Issue Comment commands ──
+
+#[tauri::command]
+pub async fn fetch_issue_comments(
+    state: State<'_, DbState>,
+    project_id: String,
+    issue_number: u64,
+) -> Result<Vec<github::GitHubComment>, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+
+    tokio::task::spawn_blocking(move || {
+        github::fetch_issue_comments(Path::new(&project_path), issue_number)
+    })
+    .await
+    .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn post_issue_comment(
+    state: State<'_, DbState>,
+    project_id: String,
+    issue_number: u64,
+    body: String,
+) -> Result<(), AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+
+    tracing::info!(issue_number, "Posting comment on GitHub issue");
+
+    tokio::task::spawn_blocking(move || {
+        github::post_issue_comment(Path::new(&project_path), issue_number, &body)
+    })
+    .await
+    .map_err(|e| AppError::Io(e.to_string()))?
+}
+
 // ── Pull Request commands ──
 
 #[tauri::command]

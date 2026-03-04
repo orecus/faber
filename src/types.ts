@@ -137,6 +137,20 @@ export interface TaskFileContent {
   body: string;
 }
 
+// ── Task Activity types ──
+
+export type TaskActivityEventType = "status" | "progress" | "files_changed" | "error" | "waiting" | "complete";
+
+export interface TaskActivity {
+  id: string;
+  task_id: string;
+  project_id: string;
+  session_id: string | null;
+  event_type: TaskActivityEventType;
+  timestamp: string;
+  data: Record<string, unknown>;
+}
+
 export interface AgentInfo {
   name: string;
   display_name: string;
@@ -303,6 +317,15 @@ export interface GitHubPRDetail extends GitHubPR {
   reviews: GitHubPRReview[];
   mergeable: string | null;
   merge_state_status: string | null;
+}
+
+export interface GitHubComment {
+  id: number;
+  author: string;
+  author_avatar: string;
+  body: string;
+  created_at: string;
+  updated_at: string;
 }
 
 export interface GitHubIssueCreated {

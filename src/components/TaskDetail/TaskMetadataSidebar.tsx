@@ -1,0 +1,451 @@
+import { open } from "@tauri-apps/plugin-shell";
+import {
+  AlertTriangle,
+  ArrowUpRight,
+  CornerDownRight,
+  ExternalLink,
+  GitBranch,
+  Github,
+  Loader2,
+  Plus,
+  Tag,
+} from "lucide-react";
+import { useCallback, useMemo } from "react";
+
+import { Badge } from "../ui/badge";
+import { Input } from "../ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import type { TaskFormData } from "./TaskMetadataForm";
+
+import type { AgentInfo, Priority, Task, TaskStatus } from "../../types";
+
+const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
+  { value: "backlog", label: "Backlog" },
+  { value: "ready", label: "Ready" },
+  { value: "in-progress", label: "In Progress" },
+  { value: "in-review", label: "In Review" },
+  { value: "done", label: "Done" },
+  { value: "archived", label: "Archived" },
+];
+
+const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
+  { value: "P0", label: "P0 — Critical" },
+  { value: "P1", label: "P1 — High" },
+  { value: "P2", label: "P2 — Normal" },
+];
+
+const STATUS_COLORS: Record<TaskStatus, string> = {
+  backlog: "var(--muted-foreground)",
+  ready: "var(--primary)",
+  "in-progress": "var(--warning)",
+  "in-review": "var(--primary)",
+  done: "var(--success)",
+  archived: "var(--muted-foreground)",
+};
+
+const PRIORITY_COLORS: Record<Priority, string> = {
+  P0: "var(--destructive)",
+  P1: "var(--warning)",
+  P2: "var(--muted-foreground)",
+};
+
+interface TaskMetadataSidebarProps {
+  data: TaskFormData;
+  onChange: (data: TaskFormData) => void;
+  agents: AgentInfo[];
+  taskId: string;
+  tasks: Task[];
+  onNavigateToTask: (taskId: string) => void;
+  onCreateGitHubIssue?: () => void;
+  creatingIssue?: boolean;
+}
+
+function SidebarSection({
+  label,
+  children,
+  icon,
+}: {
+  label: string;
+  children: React.ReactNode;
+  icon?: React.ReactNode;
+}) {
+  return (
+    <div className="space-y-1">
+      <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {icon}
+        {label}
+      </span>
+      {children}
+    </div>
+  );
+}
+
+export default function TaskMetadataSidebar({
+  data,
+  onChange,
+  agents,
+  taskId,
+  tasks,
+  onNavigateToTask,
+  onCreateGitHubIssue,
+  creatingIssue,
+}: TaskMetadataSidebarProps) {
+  const update = <K extends keyof TaskFormData>(
+    field: K,
+    value: TaskFormData[K],
+  ) => {
+    onChange({ ...data, [field]: value });
+  };
+
+  const installedAgents = agents.filter((a) => a.installed);
+
+  const handleOpenIssue = useCallback(() => {
+    if (!data.github_issue) return;
+    const [slug, num] = data.github_issue.split("#");
+    if (slug && num) {
+      open(`https://github.com/${slug}/issues/${num}`);
+    }
+  }, [data.github_issue]);
+
+  // Parse labels and deps for display
+  const labelBadges = data.labels
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const depBadges = data.depends_on
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  // Find sub-tasks (tasks that depend on this task)
+  const subTasks = useMemo(
+    () => tasks.filter((t) => t.depends_on.includes(taskId)),
+    [tasks, taskId],
+  );
+
+  // Resolve parent tasks (tasks this one depends on) for display
+  const parentTasks = useMemo(
+    () =>
+      depBadges
+        .map((id) => tasks.find((t) => t.id === id))
+        .filter(Boolean) as Task[],
+    [depBadges, tasks],
+  );
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Status */}
+      <SidebarSection label="Status">
+        <Select
+          value={data.status}
+          onValueChange={(v) => {
+            if (v) update("status", v as TaskStatus);
+          }}
+          items={STATUS_OPTIONS}
+        >
+          <SelectTrigger className="w-full">
+            <span className="flex items-center gap-2">
+              <span
+                className="inline-block size-2 rounded-full shrink-0"
+                style={{ background: STATUS_COLORS[data.status] }}
+              />
+              <SelectValue />
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {STATUS_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="inline-block size-2 rounded-full"
+                    style={{ background: STATUS_COLORS[opt.value] }}
+                  />
+                  {opt.label}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SidebarSection>
+
+      {/* Priority */}
+      <SidebarSection
+        label="Priority"
+        icon={<AlertTriangle size={10} className="opacity-60" />}
+      >
+        <Select
+          value={data.priority}
+          onValueChange={(v) => {
+            if (v) update("priority", v as Priority);
+          }}
+          items={PRIORITY_OPTIONS}
+        >
+          <SelectTrigger className="w-full">
+            <span className="flex items-center gap-2">
+              <span
+                className="inline-block size-2 rounded-full shrink-0"
+                style={{ background: PRIORITY_COLORS[data.priority] }}
+              />
+              <SelectValue />
+            </span>
+          </SelectTrigger>
+          <SelectContent>
+            {PRIORITY_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                <span className="flex items-center gap-2">
+                  <span
+                    className="inline-block size-2 rounded-full"
+                    style={{ background: PRIORITY_COLORS[opt.value] }}
+                  />
+                  {opt.label}
+                </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SidebarSection>
+
+      {/* Agent */}
+      <SidebarSection label="Agent">
+        <Select
+          value={data.agent || "__none__"}
+          onValueChange={(v) => {
+            const newAgent = v === "__none__" || v === null ? "" : v;
+            onChange({ ...data, agent: newAgent, model: "" });
+          }}
+          items={[
+            { value: "__none__", label: "None" },
+            ...installedAgents.map((a) => ({
+              value: a.name,
+              label: a.display_name,
+            })),
+          ]}
+        >
+          <SelectTrigger className="w-full">
+            <SelectValue placeholder="None" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="__none__">None</SelectItem>
+            {installedAgents.map((a) => (
+              <SelectItem key={a.name} value={a.name}>
+                {a.display_name}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </SidebarSection>
+
+      {/* Model */}
+      <SidebarSection label="Model">
+        {(() => {
+          const currentAgent = installedAgents.find(
+            (a) => a.name === data.agent,
+          );
+          const models = currentAgent?.supported_models ?? [];
+          if (models.length > 0) {
+            return (
+              <Select
+                value={data.model || "__none__"}
+                onValueChange={(v) =>
+                  update("model", !v || v === "__none__" ? "" : v)
+                }
+                items={[
+                  { value: "__none__", label: "Default" },
+                  ...models.map((m) => ({ value: m, label: m })),
+                ]}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Default" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Default</SelectItem>
+                  {models.map((m) => (
+                    <SelectItem key={m} value={m}>
+                      {m}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            );
+          }
+          return (
+            <Input
+              value={data.model}
+              onChange={(e) => update("model", e.target.value)}
+              placeholder="e.g. provider/model"
+              className="text-xs"
+            />
+          );
+        })()}
+      </SidebarSection>
+
+      {/* Divider */}
+      <div className="border-t border-border/60" />
+
+      {/* Branch */}
+      <SidebarSection
+        label="Branch"
+        icon={<GitBranch size={10} className="opacity-60" />}
+      >
+        <Input
+          value={data.branch}
+          onChange={(e) => update("branch", e.target.value)}
+          placeholder="feat/..."
+          className="font-mono text-xs"
+        />
+      </SidebarSection>
+
+      {/* GitHub Issue */}
+      <SidebarSection
+        label="GitHub Issue"
+        icon={<Github size={10} className="opacity-60" />}
+      >
+        <div className="flex items-center gap-1.5">
+          <Input
+            value={data.github_issue}
+            onChange={(e) => update("github_issue", e.target.value)}
+            placeholder="owner/repo#123"
+            className="flex-1 text-xs"
+          />
+          {data.github_issue ? (
+            <button
+              onClick={handleOpenIssue}
+              className="cursor-pointer flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              title="Open on GitHub"
+            >
+              <ExternalLink size={13} />
+            </button>
+          ) : onCreateGitHubIssue ? (
+            <button
+              onClick={onCreateGitHubIssue}
+              disabled={creatingIssue}
+              className="cursor-pointer flex size-8 shrink-0 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50 disabled:cursor-not-allowed"
+              title="Create GitHub issue from this task"
+            >
+              {creatingIssue ? (
+                <Loader2 size={13} className="animate-spin" />
+              ) : (
+                <Plus size={13} />
+              )}
+            </button>
+          ) : null}
+        </div>
+      </SidebarSection>
+
+      {/* Divider */}
+      <div className="border-t border-border/60" />
+
+      {/* Labels */}
+      <SidebarSection
+        label="Labels"
+        icon={<Tag size={10} className="opacity-60" />}
+      >
+        {labelBadges.length > 0 && (
+          <div className="flex flex-wrap gap-1 pb-1">
+            {labelBadges.map((label) => (
+              <Badge
+                key={label}
+                variant="secondary"
+                className="text-[10px] px-1.5 py-0"
+              >
+                {label}
+              </Badge>
+            ))}
+          </div>
+        )}
+        <Input
+          value={data.labels}
+          onChange={(e) => update("labels", e.target.value)}
+          placeholder="backend, api, core"
+          className="text-xs"
+        />
+      </SidebarSection>
+
+      {/* Dependencies (parents) */}
+      <SidebarSection
+        label="Depends on"
+        icon={<ArrowUpRight size={10} className="opacity-60" />}
+      >
+        {parentTasks.length > 0 && (
+          <div className="flex flex-col gap-0.5 pb-1">
+            {parentTasks.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onNavigateToTask(t.id)}
+                className="cursor-pointer flex items-baseline gap-1.5 rounded-md px-1.5 py-1 text-left text-xs leading-none transition-colors hover:bg-accent group/dep"
+              >
+                <span
+                  className="inline-block size-1.5 rounded-full shrink-0 translate-y-[-0.5px]"
+                  style={{ background: STATUS_COLORS[t.status] }}
+                />
+                <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                  {t.id}
+                </span>
+                <span className="truncate text-foreground/80 group-hover/dep:text-foreground">
+                  {t.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+        {/* Show orphan IDs that don't resolve to a task */}
+        {depBadges.filter((id) => !tasks.find((t) => t.id === id)).length > 0 && (
+          <div className="flex flex-wrap gap-1 pb-1">
+            {depBadges
+              .filter((id) => !tasks.find((t) => t.id === id))
+              .map((dep) => (
+                <Badge
+                  key={dep}
+                  variant="outline"
+                  className="font-mono text-[10px] px-1.5 py-0"
+                >
+                  {dep}
+                </Badge>
+              ))}
+          </div>
+        )}
+        <Input
+          value={data.depends_on}
+          onChange={(e) => update("depends_on", e.target.value)}
+          placeholder="T-001, T-002"
+          className="font-mono text-xs"
+        />
+      </SidebarSection>
+
+      {/* Sub-tasks (children that depend on this task) */}
+      {subTasks.length > 0 && (
+        <SidebarSection
+          label="Sub-tasks"
+          icon={<CornerDownRight size={10} className="opacity-60" />}
+        >
+          <div className="flex flex-col gap-0.5">
+            {subTasks.map((t) => (
+              <button
+                key={t.id}
+                onClick={() => onNavigateToTask(t.id)}
+                className="cursor-pointer flex items-baseline gap-1.5 rounded-md px-1.5 py-1 text-left text-xs leading-none transition-colors hover:bg-accent group/sub"
+              >
+                <span
+                  className="inline-block size-1.5 rounded-full shrink-0 translate-y-[-0.5px]"
+                  style={{ background: STATUS_COLORS[t.status] }}
+                />
+                <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                  {t.id}
+                </span>
+                <span className="truncate text-foreground/80 group-hover/sub:text-foreground">
+                  {t.title}
+                </span>
+              </button>
+            ))}
+          </div>
+        </SidebarSection>
+      )}
+    </div>
+  );
+}

@@ -184,7 +184,23 @@ const MIGRATION_010: &str = r#"
 ALTER TABLE tasks ADD COLUMN body TEXT DEFAULT '';
 "#;
 
-const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010];
+const MIGRATION_011: &str = r#"
+CREATE TABLE task_activity (
+    id          TEXT PRIMARY KEY,
+    task_id     TEXT NOT NULL,
+    project_id  TEXT NOT NULL,
+    session_id  TEXT,
+    event_type  TEXT NOT NULL CHECK(event_type IN ('status','progress','files_changed','error','waiting','complete')),
+    timestamp   TEXT NOT NULL DEFAULT (datetime('now')),
+    data        TEXT NOT NULL DEFAULT '{}',
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_task_activity_task ON task_activity(task_id, project_id);
+CREATE INDEX idx_task_activity_session ON task_activity(session_id);
+CREATE INDEX idx_task_activity_timestamp ON task_activity(timestamp);
+"#;
+
+const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
@@ -235,13 +251,13 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 10);
+        assert_eq!(version, 11);
 
         // Running again is a no-op
         run(&conn).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 10);
+        assert_eq!(count, 11);
     }
 }

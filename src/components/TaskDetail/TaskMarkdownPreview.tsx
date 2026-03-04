@@ -1,5 +1,10 @@
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Streamdown } from "streamdown";
+
+import {
+  streamdownControls,
+  streamdownPlugins,
+  streamdownTheme,
+} from "../../lib/markdown";
 
 interface TaskMarkdownPreviewProps {
   body: string;
@@ -16,7 +21,7 @@ export default function TaskMarkdownPreview({ body }: TaskMarkdownPreviewProps) 
 
   return (
     <div className="markdown-preview flex-1 overflow-y-auto px-1">
-      <Markdown remarkPlugins={[remarkGfm]}>{body}</Markdown>
+      <Streamdown mode="static" plugins={streamdownPlugins} shikiTheme={streamdownTheme} controls={streamdownControls}>{body}</Streamdown>
     </div>
   );
 }

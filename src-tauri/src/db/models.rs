@@ -297,6 +297,19 @@ pub struct NewAgentConfig {
     pub flags: Vec<String>,
 }
 
+// ── Task Activity ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct TaskActivity {
+    pub id: String,
+    pub task_id: String,
+    pub project_id: String,
+    pub session_id: Option<String>,
+    pub event_type: String,
+    pub timestamp: String,
+    pub data: serde_json::Value,
+}
+
 // ── File Browser ──
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

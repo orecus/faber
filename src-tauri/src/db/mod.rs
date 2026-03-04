@@ -4,6 +4,7 @@ pub mod models;
 pub mod projects;
 pub mod sessions;
 pub mod settings;
+pub mod task_activity;
 pub mod tasks;
 
 use rusqlite::Connection;

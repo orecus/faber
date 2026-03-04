@@ -1,278 +1,104 @@
-import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
 import {
   ArrowLeft,
   Check,
-  Eye,
   ExternalLink,
   Github,
   Loader2,
-  Pencil,
   RefreshCw,
   Save,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
-import { useAppStore } from "../../store/appStore";
 import { ViewLayout } from "../Shell/ViewLayout";
 import { Badge } from "../ui/badge";
-import { Card, CardContent } from "../ui/orecus.io/cards/card";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import TaskMarkdownEditor from "./TaskMarkdownEditor";
-import TaskMarkdownPreview from "./TaskMarkdownPreview";
-import TaskMetadataForm, { type TaskFormData } from "./TaskMetadataForm";
-
-import type { Task, TaskFileContent } from "../../types";
-
-function taskToFormData(task: Task): TaskFormData {
-  return {
-    title: task.title,
-    status: task.status,
-    priority: task.priority,
-    agent: task.agent ?? "",
-    model: task.model ?? "",
-    branch: task.branch ?? "",
-    github_issue: task.github_issue ?? "",
-    depends_on: task.depends_on.join(", "),
-    labels: task.labels.join(", "),
-  };
-}
-
-function parseCommaSeparated(str: string): string[] {
-  return str
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-}
+import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import TaskActivityPanel from "./TaskActivityPanel";
+import TaskBody from "./TaskBody";
+import TaskMetadataSidebar from "./TaskMetadataSidebar";
+import TaskTitle from "./TaskTitle";
+import { useTaskDetail } from "./useTaskDetail";
 
 export default function TaskDetailView() {
   const { isGlass } = useTheme();
   const accentColor = useProjectAccentColor();
-  const activeTaskId = useAppStore((s) => s.activeTaskId);
-  const activeProjectId = useAppStore((s) => s.activeProjectId);
-  const agents = useAppStore((s) => s.agents);
-  const setActiveView = useAppStore((s) => s.setActiveView);
-  const setActiveTask = useAppStore((s) => s.setActiveTask);
-  const updateTask = useAppStore((s) => s.updateTask);
-  const setTasks = useAppStore((s) => s.setTasks);
-  const addBackgroundTask = useAppStore((s) => s.addBackgroundTask);
-  const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
 
-  const [mode, setMode] = useState<"view" | "edit">("edit");
-  const [formData, setFormData] = useState<TaskFormData | null>(null);
-  const [body, setBody] = useState("");
-  const [originalFormData, setOriginalFormData] = useState<TaskFormData | null>(
-    null,
-  );
-  const [originalBody, setOriginalBody] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [deleting, setDeleting] = useState(false);
-  const [confirmDelete, setConfirmDelete] = useState(false);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const deleteTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const [syncing, setSyncing] = useState(false);
-  const [syncSuccess, setSyncSuccess] = useState(false);
-
-  // Compute isDirty
-  const isDirty =
-    formData !== null &&
-    originalFormData !== null &&
-    (JSON.stringify(formData) !== JSON.stringify(originalFormData) ||
-      body !== originalBody);
-
-  // Load task file content
-  useEffect(() => {
-    if (!activeProjectId || !activeTaskId) return;
-    setLoading(true);
-    setError(null);
-
-    invoke<TaskFileContent>("get_task_file_content", {
-      projectId: activeProjectId,
-      taskId: activeTaskId,
-    })
-      .then((result) => {
-        const fd = taskToFormData(result.task);
-        setFormData(fd);
-        setOriginalFormData(fd);
-        setBody(result.body);
-        setOriginalBody(result.body);
-      })
-      .catch((err) => {
-        setError(err instanceof Error ? err.message : String(err));
-      })
-      .finally(() => setLoading(false));
-  }, [activeProjectId, activeTaskId]);
-
-  const handleBack = useCallback(() => {
-    setActiveView("dashboard");
-    setActiveTask(null);
-  }, [setActiveView, setActiveTask]);
-
-  const handleSave = useCallback(async () => {
-    if (!activeProjectId || !activeTaskId || !formData) return;
-    setSaving(true);
-    setError(null);
-    addBackgroundTask("Saving task");
-    try {
-      const updated = await invoke<Task>("save_task_content", {
-        projectId: activeProjectId,
-        taskId: activeTaskId,
-        title: formData.title,
-        status: formData.status,
-        priority: formData.priority,
-        agent: formData.agent || null,
-        model: formData.model || null,
-        branch: formData.branch || null,
-        githubIssue: formData.github_issue || null,
-        dependsOn: parseCommaSeparated(formData.depends_on),
-        labels: parseCommaSeparated(formData.labels),
-        body,
-      });
-      updateTask(updated);
-      const fd = taskToFormData(updated);
-      setFormData(fd);
-      setOriginalFormData(fd);
-      setOriginalBody(body);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSaving(false);
-      removeBackgroundTask("Saving task");
-    }
-  }, [
-    activeProjectId,
+  const {
     activeTaskId,
+    activeProjectId,
     formData,
     body,
-    updateTask,
-    addBackgroundTask,
-    removeBackgroundTask,
-  ]);
+    agents,
+    tasks,
+    linkedSession,
+    loading,
+    error,
+    saving,
+    deleting,
+    confirmDelete,
+    syncing,
+    syncSuccess,
+    creatingIssue,
+    ghAuthOk,
+    isDirty,
+    setFormData,
+    setBody,
+    handleBack,
+    handleSave,
+    handleDeleteClick,
+    handleSyncToGitHub,
+    handleCreateGitHubIssue,
+    navigateToTask,
+  } = useTaskDetail();
 
   // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       if ((e.ctrlKey || e.metaKey) && e.key === "s") {
         e.preventDefault();
-        if (mode === "edit" && isDirty && !saving) {
+        if (isDirty && !saving) {
           handleSave();
         }
       }
       if (e.key === "Escape") {
-        handleBack();
+        // Only navigate back if not inside an input/textarea
+        const target = e.target as HTMLElement;
+        if (
+          target.tagName !== "INPUT" &&
+          target.tagName !== "TEXTAREA" &&
+          !target.isContentEditable
+        ) {
+          handleBack();
+        }
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-  }, [mode, isDirty, saving, handleSave, handleBack]);
-
-  const handleDelete = useCallback(async () => {
-    if (!activeProjectId || !activeTaskId) return;
-    setDeleting(true);
-    setError(null);
-    addBackgroundTask("Deleting task");
-    try {
-      await invoke("delete_task", {
-        projectId: activeProjectId,
-        taskId: activeTaskId,
-      });
-      // Re-fetch tasks
-      const freshTasks = await invoke<Task[]>("list_tasks", {
-        projectId: activeProjectId,
-      });
-      setTasks(freshTasks);
-      setActiveTask(null);
-      setActiveView("dashboard");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setDeleting(false);
-      removeBackgroundTask("Deleting task");
-    }
-  }, [
-    activeProjectId,
-    activeTaskId,
-    setTasks,
-    setActiveTask,
-    setActiveView,
-    addBackgroundTask,
-    removeBackgroundTask,
-  ]);
-
-  const handleDeleteClick = useCallback(() => {
-    if (!confirmDelete) {
-      setConfirmDelete(true);
-      // Auto-reset after 3 seconds
-      deleteTimerRef.current = setTimeout(() => setConfirmDelete(false), 3000);
-      return;
-    }
-    if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    setConfirmDelete(false);
-    handleDelete();
-  }, [confirmDelete, handleDelete]);
-
-  // Sync task to GitHub issue
-  const handleSyncToGitHub = useCallback(async () => {
-    if (!activeProjectId || !activeTaskId || !formData) return;
-    const issueRef = formData.github_issue;
-    if (!issueRef) return;
-
-    // Extract issue number from ref like "owner/repo#42"
-    const num = issueRef.split("#").pop();
-    if (!num) return;
-    const issueNumber = parseInt(num, 10);
-    if (isNaN(issueNumber)) return;
-
-    setSyncing(true);
-    setSyncSuccess(false);
-    setError(null);
-    addBackgroundTask("Syncing to GitHub");
-    try {
-      await invoke("update_github_issue", {
-        projectId: activeProjectId,
-        issueNumber,
-        title: formData.title,
-        body,
-      });
-      setSyncSuccess(true);
-      setTimeout(() => setSyncSuccess(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSyncing(false);
-      removeBackgroundTask("Syncing to GitHub");
-    }
-  }, [
-    activeProjectId,
-    activeTaskId,
-    formData,
-    body,
-    addBackgroundTask,
-    removeBackgroundTask,
-  ]);
+  }, [isDirty, saving, handleSave, handleBack]);
 
   const handleOpenIssue = useCallback(() => {
     if (!formData?.github_issue) return;
-    const issueRef = formData.github_issue;
-    // Build URL from ref like "owner/repo#42"
-    const [slug, num] = issueRef.split("#");
+    const [slug, num] = formData.github_issue.split("#");
     if (slug && num) {
       open(`https://github.com/${slug}/issues/${num}`);
     }
   }, [formData]);
 
-  // Cleanup timer
-  useEffect(() => {
-    return () => {
-      if (deleteTimerRef.current) clearTimeout(deleteTimerRef.current);
-    };
-  }, []);
+  // Title change handler
+  const handleTitleChange = useCallback(
+    (title: string) => {
+      if (formData) {
+        setFormData({ ...formData, title });
+      }
+    },
+    [formData, setFormData],
+  );
 
-  // No task selected
+  // ── No task selected ──
   if (!activeTaskId) {
     return (
       <div
@@ -284,7 +110,7 @@ export default function TaskDetailView() {
     );
   }
 
-  // Loading
+  // ── Loading ──
   if (loading) {
     return (
       <div
@@ -297,7 +123,7 @@ export default function TaskDetailView() {
     );
   }
 
-  // Error loading
+  // ── Error loading ──
   if (error && !formData) {
     return (
       <div
@@ -319,18 +145,9 @@ export default function TaskDetailView() {
 
   if (!formData) return null;
 
-  const labelBadges = formData.labels
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-  const depBadges = formData.depends_on
-    .split(",")
-    .map((s) => s.trim())
-    .filter(Boolean);
-
   return (
     <ViewLayout>
-      {/* ── Toolbar — matches SummaryHeader / SessionsToolbar layout ── */}
+      {/* ── Toolbar ── */}
       <ViewLayout.Toolbar>
         <Button
           variant="ghost"
@@ -347,10 +164,6 @@ export default function TaskDetailView() {
           {activeTaskId}
         </Badge>
 
-        <span className="text-[13px] font-medium text-foreground truncate">
-          {formData.title}
-        </span>
-
         {/* GitHub issue badge */}
         {formData.github_issue && (
           <button
@@ -364,48 +177,10 @@ export default function TaskDetailView() {
           </button>
         )}
 
-        {/* Labels & deps in toolbar (view mode only) */}
-        {mode === "view" &&
-          labelBadges.length > 0 &&
-          labelBadges.map((label) => (
-            <Badge key={label} variant="secondary" className="text-[11px]">
-              {label}
-            </Badge>
-          ))}
-        {mode === "view" &&
-          depBadges.length > 0 &&
-          depBadges.map((dep) => (
-            <Badge
-              key={dep}
-              variant="outline"
-              className="font-mono text-[11px]"
-            >
-              {dep}
-            </Badge>
-          ))}
-
         <div className="flex-1" />
 
-        {/* Edit/Preview toggle */}
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={() => setMode(mode === "edit" ? "view" : "edit")}
-          leftIcon={
-            mode === "edit" ? (
-              <Eye className="size-3.5" />
-            ) : (
-              <Pencil className="size-3.5" />
-            )
-          }
-          hoverEffect="scale"
-          clickEffect="scale"
-        >
-          {mode === "edit" ? "Preview" : "Edit"}
-        </Button>
-
-        {/* Sync to GitHub */}
-        {formData.github_issue && mode === "edit" && (
+        {/* Sync to GitHub (when issue is linked) */}
+        {formData.github_issue && (
           <Button
             variant="outline"
             size="sm"
@@ -423,26 +198,46 @@ export default function TaskDetailView() {
             hoverEffect="scale"
             clickEffect="scale"
           >
-            {syncSuccess ? "Synced!" : "Sync to GitHub"}
+            {syncSuccess ? "Synced!" : "Sync"}
+          </Button>
+        )}
+
+        {/* Create GitHub Issue (when no issue is linked) */}
+        {!formData.github_issue && (
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={creatingIssue || !ghAuthOk}
+            onClick={handleCreateGitHubIssue}
+            title={!ghAuthOk ? "GitHub CLI not authenticated. Run `gh auth login` first." : undefined}
+            leftIcon={
+              creatingIssue ? (
+                <Loader2 className="size-3.5 animate-spin" />
+              ) : (
+                <Github className="size-3.5" />
+              )
+            }
+            hoverEffect="scale"
+            clickEffect="scale"
+          >
+            {creatingIssue ? "Creating..." : "Create Issue"}
           </Button>
         )}
 
         {/* Save */}
-        {mode === "edit" && (
-          <Button
-            variant="color"
-            color={accentColor}
-            size="sm"
-            disabled={!isDirty || saving}
-            loading={saving}
-            onClick={handleSave}
-            leftIcon={<Save className="size-3.5" />}
-            hoverEffect="scale-glow"
-            clickEffect="scale"
-          >
-            Save
-          </Button>
-        )}
+        <Button
+          variant="color"
+          color={accentColor}
+          size="sm"
+          disabled={!isDirty || saving}
+          loading={saving}
+          onClick={handleSave}
+          leftIcon={<Save className="size-3.5" />}
+          hoverEffect="scale-glow"
+          clickEffect="scale"
+        >
+          Save
+        </Button>
 
         {/* Delete */}
         <Button
@@ -461,48 +256,52 @@ export default function TaskDetailView() {
 
       {/* ── Error banner ── */}
       {error && (
-        <div className="mt-1 rounded-[var(--radius-element)] bg-destructive/10 px-3 py-2 text-xs text-destructive">
+        <div className="rounded-[var(--radius-element)] bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {error}
         </div>
       )}
 
-      {/* ── Content ── */}
-      <div className="flex min-h-0 flex-1 flex-col gap-2 overflow-y-auto p-px">
-        {/* Metadata */}
-        <Card
-          type={isGlass ? "normal" : "solid"}
-          border
-          radius="lg"
-          className="shrink-0"
-        >
-          <CardContent>
-            <TaskMetadataForm
+      {/* ── Two-panel layout ── */}
+      <div className="flex min-h-0 flex-1 gap-0 overflow-hidden">
+        {/* Left — Main content area */}
+        <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
+          <div className="flex flex-col gap-3 pr-3 pb-4 px-1">
+            {/* Title */}
+            <TaskTitle title={formData.title} onChange={handleTitleChange} />
+
+            {/* Body (preview by default, click to edit) */}
+            <div className={`flex min-h-[200px] flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+              <TaskBody body={body} onChange={setBody} onSave={handleSave} />
+            </div>
+
+            {/* Activity Panel */}
+            <div className={`flex flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+              <TaskActivityPanel
+                linkedSession={linkedSession}
+                githubIssue={formData.github_issue}
+                accentColor={accentColor}
+                taskId={activeTaskId}
+                projectId={activeProjectId!}
+              />
+            </div>
+          </div>
+        </div>
+
+        {/* Right — Metadata sidebar */}
+        <div className="w-[260px] shrink-0 overflow-y-auto border-l border-border/40">
+          <div className="px-3 py-1">
+            <TaskMetadataSidebar
               data={formData}
               onChange={setFormData}
-              editing={mode === "edit"}
               agents={agents}
+              taskId={activeTaskId}
+              tasks={tasks}
+              onNavigateToTask={navigateToTask}
+              onCreateGitHubIssue={ghAuthOk ? handleCreateGitHubIssue : undefined}
+              creatingIssue={creatingIssue}
             />
-          </CardContent>
-        </Card>
-
-        {/* Body */}
-        <Card
-          type={isGlass ? "normal" : "solid"}
-          border
-          radius="lg"
-          className="flex min-h-0 flex-1 flex-col"
-        >
-          <CardContent className="flex min-h-0 flex-1 flex-col">
-            <div className="mb-2 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
-              Description
-            </div>
-            {mode === "edit" ? (
-              <TaskMarkdownEditor body={body} onChange={setBody} />
-            ) : (
-              <TaskMarkdownPreview body={body} />
-            )}
-          </CardContent>
-        </Card>
+          </div>
+        </div>
       </div>
     </ViewLayout>
   );

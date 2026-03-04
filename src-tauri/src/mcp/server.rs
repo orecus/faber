@@ -867,7 +867,19 @@ async fn handle_get_task(
         })
         .unwrap_or_default();
 
-    // 5. Return task data as JSON
+    // 5. Fetch recent activity history from DB (last 50 events)
+    let activity_history: Vec<Value> = db::task_activity::list_by_task(&conn, &task_id, &project_id, 50)
+        .unwrap_or_default()
+        .into_iter()
+        .map(|a| json!({
+            "event_type": a.event_type,
+            "timestamp": a.timestamp,
+            "session_id": a.session_id,
+            "data": a.data,
+        }))
+        .collect();
+
+    // 6. Return task data as JSON
     let result = json!({
         "id": task.id,
         "title": task.title,
@@ -881,6 +893,7 @@ async fn handle_get_task(
         "github_issue": task.github_issue,
         "github_pr": task.github_pr,
         "body": body,
+        "activity_history": activity_history,
     });
 
     McpToolResult::text(serde_json::to_string_pretty(&result).unwrap_or_default())

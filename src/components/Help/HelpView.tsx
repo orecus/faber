@@ -11,10 +11,14 @@ import {
   Puzzle,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
-import Markdown from "react-markdown";
-import remarkGfm from "remark-gfm";
+import { Streamdown } from "streamdown";
 
 import { useTheme } from "../../contexts/ThemeContext";
+import {
+  streamdownControls,
+  streamdownPlugins,
+  streamdownTheme,
+} from "../../lib/markdown";
 import { ViewLayout } from "../Shell/ViewLayout";
 
 import type { DocContent, DocEntry } from "../../types";
@@ -165,8 +169,11 @@ export default function HelpView() {
           ) : content ? (
             <div className="flex-1 overflow-y-auto px-6 py-4">
               <div className="markdown-preview max-w-3xl">
-                <Markdown
-                  remarkPlugins={[remarkGfm]}
+                <Streamdown
+                  mode="static"
+                  plugins={streamdownPlugins}
+                  shikiTheme={streamdownTheme}
+                  controls={streamdownControls}
                   components={{
                     a: ({ href, children }) => (
                       <a
@@ -184,7 +191,7 @@ export default function HelpView() {
                   }}
                 >
                   {content.body}
-                </Markdown>
+                </Streamdown>
               </div>
             </div>
           ) : (
