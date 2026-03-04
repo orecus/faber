@@ -184,8 +184,9 @@ export default function TaskDetailView() {
           <Button
             variant="outline"
             size="sm"
-            disabled={syncing}
+            disabled={syncing || isDirty}
             onClick={handleSyncToGitHub}
+            title={isDirty ? "Save changes before syncing to GitHub" : undefined}
             leftIcon={
               syncing ? (
                 <Loader2 className="size-3.5 animate-spin" />
