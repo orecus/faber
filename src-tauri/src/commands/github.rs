@@ -134,8 +134,7 @@ pub async fn import_github_issues(
     project_id: String,
     issues: Vec<GitHubIssueInput>,
 ) -> Result<github::ImportResult, AppError> {
-    // Import needs DB access throughout (upsert per issue), but the gh CLI call
-    // (detect_repo_slug) is the only slow part. Get repo slug first without lock.
+    // Get repo slug without holding the DB lock (network call via `gh`).
     let project_path = get_project_path(&state, &project_id)?;
 
     let pp = project_path.clone();
@@ -145,11 +144,19 @@ pub async fn import_github_issues(
     .await
     .map_err(|e| AppError::Io(e.to_string()))??;
 
-    // Now do the import with a lock (file I/O + DB writes, but no network)
-    let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
     let count = issues.len();
     let issues: Vec<github::GitHubIssue> = issues.into_iter().map(Into::into).collect();
-    let result = github::import_issues(&conn, &project_id, &project_path, &issues, &repo_slug)?;
+
+    // Phase 1: Hold DB lock for reads/writes only — no file I/O.
+    let prepared = {
+        let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        github::prepare_issues(&conn, &project_id, &project_path, &issues, &repo_slug)?
+    };
+    // Lock released here.
+
+    // Phase 2: Write task files + TODOS.md without holding the lock.
+    let result = prepared.write_files();
+
     tracing::info!(project_id = %project_id, count, "Imported GitHub issues");
     Ok(result)
 }

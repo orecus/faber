@@ -342,17 +342,49 @@ pub fn parse_body_dependencies(body: &str, repo_slug: &str) -> Vec<String> {
     refs
 }
 
-/// Import a single GitHub issue as a local task file.
-pub fn import_single_issue(
+/// A deferred file write to be executed after releasing the DB lock.
+pub struct DeferredFileWrite {
+    pub path: std::path::PathBuf,
+    pub content: String,
+}
+
+/// Result of the DB-only phase of import_issues.
+pub struct ImportPrepared {
+    pub result: ImportResult,
+    /// Task files and TODOS.md to write after releasing the DB lock.
+    pub deferred_writes: Vec<DeferredFileWrite>,
+}
+
+impl ImportPrepared {
+    /// Execute all deferred file writes (call after releasing DB lock).
+    pub fn write_files(self) -> ImportResult {
+        for write in &self.deferred_writes {
+            if let Some(parent) = write.path.parent() {
+                if let Err(e) = std::fs::create_dir_all(parent) {
+                    tracing::warn!(%e, path = %parent.display(), "Failed to create task dir");
+                    continue;
+                }
+            }
+            if let Err(e) = std::fs::write(&write.path, &write.content) {
+                tracing::warn!(%e, path = %write.path.display(), "Failed to write task file");
+            }
+        }
+        self.result
+    }
+}
+
+/// Prepare a single GitHub issue for import: build the task data and upsert to DB.
+/// File writes are deferred into `DeferredFileWrite` entries.
+fn prepare_single_issue(
     conn: &Connection,
     project_id: &str,
     tasks_dir: &Path,
     issue: &GitHubIssue,
     repo_slug: &str,
-) -> Result<Task, AppError> {
-    std::fs::create_dir_all(tasks_dir)?;
-
-    let task_id = tasks::next_task_id(tasks_dir)?;
+    next_task_num: &mut u32,
+) -> Result<(Task, DeferredFileWrite), AppError> {
+    *next_task_num += 1;
+    let task_id = format!("T-{:03}", *next_task_num);
     let slug = tasks::slugify(&issue.title);
     let filename = format!("{task_id}-{slug}.md");
     let file_path = tasks_dir.join(&filename);
@@ -406,25 +438,84 @@ pub fn import_single_issue(
     };
 
     let content = tasks::serialize_task_file(&frontmatter, &body)?;
-    std::fs::write(&file_path, &content)?;
 
-    // Upsert into DB
+    // Upsert into DB (no file I/O)
     let parsed = tasks::parse_task_file(&content, &file_path)?;
     let new_task = tasks::to_new_task(&parsed, project_id);
     let task = db::tasks::upsert(conn, &new_task)?;
 
+    let deferred = DeferredFileWrite {
+        path: file_path,
+        content,
+    };
+
+    Ok((task, deferred))
+}
+
+/// Import a single GitHub issue as a local task file.
+/// This is the legacy all-in-one version that performs file I/O immediately.
+/// Prefer `prepare_issues` + `ImportPrepared::write_files` for lock-conscious callers.
+#[cfg(test)]
+pub fn import_single_issue(
+    conn: &Connection,
+    project_id: &str,
+    tasks_dir: &Path,
+    issue: &GitHubIssue,
+    repo_slug: &str,
+) -> Result<Task, AppError> {
+    std::fs::create_dir_all(tasks_dir)?;
+
+    // Determine next task number from directory scan (legacy behavior)
+    let mut next_num = current_max_task_num_from_dir(tasks_dir);
+    let (task, deferred) =
+        prepare_single_issue(conn, project_id, tasks_dir, issue, repo_slug, &mut next_num)?;
+    std::fs::write(&deferred.path, &deferred.content)?;
     Ok(task)
 }
 
-/// Batch import multiple GitHub issues. Skips issues that are already imported
-/// (detected by checking existing tasks' `github_issue` field).
-pub fn import_issues(
+/// Scan directory for the current maximum T-NNN number.
+fn current_max_task_num_from_dir(tasks_dir: &Path) -> u32 {
+    let mut max_num: u32 = 0;
+    if tasks_dir.is_dir() {
+        for entry in std::fs::read_dir(tasks_dir).into_iter().flatten().flatten() {
+            let name = entry.file_name();
+            let name_str = name.to_string_lossy();
+            if let Some(rest) = name_str.strip_prefix("T-") {
+                if let Some(num_str) = rest.split(|c: char| !c.is_ascii_digit()).next() {
+                    if let Ok(n) = num_str.parse::<u32>() {
+                        max_num = max_num.max(n);
+                    }
+                }
+            }
+        }
+    }
+    max_num
+}
+
+/// Get the current maximum task number from the DB for a project.
+fn current_max_task_num_from_db(conn: &Connection, project_id: &str) -> u32 {
+    conn.query_row(
+        "SELECT COALESCE(MAX(CAST(SUBSTR(id, 3) AS INTEGER)), 0) FROM tasks WHERE project_id = ?1",
+        rusqlite::params![project_id],
+        |row| row.get(0),
+    )
+    .unwrap_or(0)
+}
+
+/// Batch import multiple GitHub issues. DB operations and file I/O are separated:
+/// all DB reads/writes happen here, file writes are deferred into `ImportPrepared`.
+///
+/// Callers should:
+/// 1. Hold the DB lock and call `prepare_issues()`
+/// 2. Release the DB lock
+/// 3. Call `ImportPrepared::write_files()` to flush task files + TODOS.md
+pub fn prepare_issues(
     conn: &Connection,
     project_id: &str,
     project_path: &Path,
     issues: &[GitHubIssue],
     repo_slug: &str,
-) -> Result<ImportResult, AppError> {
+) -> Result<ImportPrepared, AppError> {
     let tasks_dir = project_path.join(".agents").join("tasks");
 
     // Get existing tasks to check for already-imported issues
@@ -437,6 +528,11 @@ pub fn import_issues(
     let mut imported_count = 0;
     let mut skipped_count = 0;
     let mut created_tasks = Vec::new();
+    let mut deferred_writes: Vec<DeferredFileWrite> = Vec::new();
+
+    // Start numbering from the max of DB and directory scan
+    let mut next_num = current_max_task_num_from_db(conn, project_id)
+        .max(current_max_task_num_from_dir(&tasks_dir));
 
     for issue in issues {
         let issue_ref = format!("{repo_slug}#{}", issue.number);
@@ -445,8 +541,10 @@ pub fn import_issues(
             continue;
         }
 
-        let task = import_single_issue(conn, project_id, &tasks_dir, issue, repo_slug)?;
+        let (task, deferred) =
+            prepare_single_issue(conn, project_id, &tasks_dir, issue, repo_slug, &mut next_num)?;
         created_tasks.push(task);
+        deferred_writes.push(deferred);
         imported_count += 1;
     }
 
@@ -461,7 +559,7 @@ pub fn import_issues(
             .map(|i| (format!("{repo_slug}#{}", i.number), i))
             .collect();
 
-        for task in &mut created_tasks {
+        for (idx, task) in created_tasks.iter_mut().enumerate() {
             let issue_ref = match &task.github_issue {
                 Some(r) => r.clone(),
                 None => continue,
@@ -486,37 +584,52 @@ pub fn import_issues(
                 continue;
             }
 
-            // Update the task file on disk and re-upsert into DB
-            if let Some(ref file_path) = task.task_file_path {
-                let path = std::path::Path::new(file_path);
-                if path.exists() {
-                    if let Ok(content) = std::fs::read_to_string(path) {
-                        if let Ok(mut parsed) = tasks::parse_task_file(&content, path) {
-                            parsed.frontmatter.depends_on = resolved.clone();
-                            if let Ok(new_content) = tasks::serialize_task_file(&parsed.frontmatter, &parsed.body) {
-                                let _ = std::fs::write(path, &new_content);
-                                // Re-upsert with updated depends_on
-                                let new_task = tasks::to_new_task(&parsed, project_id);
-                                if let Ok(updated) = db::tasks::upsert(conn, &new_task) {
-                                    *task = updated;
-                                }
-                            }
-                        }
+            // Re-serialize the deferred content with updated depends_on, and re-upsert to DB
+            let deferred = &deferred_writes[idx];
+            if let Ok(mut parsed) = tasks::parse_task_file(&deferred.content, &deferred.path) {
+                parsed.frontmatter.depends_on = resolved.clone();
+                if let Ok(new_content) = tasks::serialize_task_file(&parsed.frontmatter, &parsed.body) {
+                    // Update the deferred write with new content
+                    deferred_writes[idx].content = new_content;
+                    // Re-upsert with updated depends_on
+                    let new_task = tasks::to_new_task(&parsed, project_id);
+                    if let Ok(updated) = db::tasks::upsert(conn, &new_task) {
+                        *task = updated;
                     }
                 }
             }
         }
 
-        // Generate TODOS.md content (write happens after DB lock release)
+        // Generate TODOS.md content under lock (write deferred)
         let todos_content = tasks::generate_todos_md(conn, project_id)?;
-        std::fs::write(project_path.join("TODOS.md"), todos_content)?;
+        deferred_writes.push(DeferredFileWrite {
+            path: project_path.join("TODOS.md"),
+            content: todos_content,
+        });
     }
 
-    Ok(ImportResult {
-        imported_count,
-        skipped_count,
-        tasks: created_tasks,
+    Ok(ImportPrepared {
+        result: ImportResult {
+            imported_count,
+            skipped_count,
+            tasks: created_tasks,
+        },
+        deferred_writes,
     })
+}
+
+/// Legacy all-in-one import that holds `conn` for the entire duration.
+/// Prefer `prepare_issues` + `ImportPrepared::write_files` for lock-conscious callers.
+#[cfg(test)]
+pub fn import_issues(
+    conn: &Connection,
+    project_id: &str,
+    project_path: &Path,
+    issues: &[GitHubIssue],
+    repo_slug: &str,
+) -> Result<ImportResult, AppError> {
+    let prepared = prepare_issues(conn, project_id, project_path, issues, repo_slug)?;
+    Ok(prepared.write_files())
 }
 
 /// Build a map of `"owner/repo#number"` -> task_id for already-imported issues.
