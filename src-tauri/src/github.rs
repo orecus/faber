@@ -600,7 +600,12 @@ pub fn prepare_issues(
             }
         }
 
-        // Generate TODOS.md content under lock (write deferred)
+    }
+
+    // Regenerate TODOS.md after import (even if all issues were skipped),
+    // to stay consistent with other task-modifying operations.
+    // Only write if disk task files are enabled for this project.
+    if tasks::task_files_enabled(conn, project_id) {
         let todos_content = tasks::generate_todos_md(conn, project_id)?;
         deferred_writes.push(DeferredFileWrite {
             path: project_path.join("TODOS.md"),
