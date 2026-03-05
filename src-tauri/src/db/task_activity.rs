@@ -52,6 +52,7 @@ pub fn list_by_task(
 }
 
 /// List activity events for a session, ordered by timestamp ascending.
+#[allow(dead_code)]
 pub fn list_by_session(
     conn: &Connection,
     session_id: &str,
@@ -67,6 +68,7 @@ pub fn list_by_session(
 }
 
 /// Delete all activity events for a task.
+#[allow(dead_code)]
 pub fn delete_by_task(
     conn: &Connection,
     task_id: &str,
