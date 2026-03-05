@@ -1,19 +1,26 @@
-import { Puzzle } from "lucide-react";
-import { useState } from "react";
+import { Blocks } from "lucide-react";
+import { useMemo, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { AgentIcon } from "../../lib/agentIcons";
 import { useAppStore } from "../../store/appStore";
 import { ViewLayout } from "../Shell/ViewLayout";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
+import PluginsTab from "./PluginsTab";
 import RulesTab from "./RulesTab";
 import SkillsTab from "./SkillsTab";
 
-type SkillsRulesTab = "rules" | "skills";
+type ExtensionsTab = "rules" | "skills" | "plugins";
 
 export default function SkillsRulesView() {
   const accentColor = useProjectAccentColor();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
-  const [activeTab, setActiveTab] = useState<SkillsRulesTab>("rules");
+  const agents = useAppStore((s) => s.agents);
+  const isClaudeInstalled = useMemo(
+    () => agents.some((a) => a.name === "claude-code" && a.installed),
+    [agents],
+  );
+  const [activeTab, setActiveTab] = useState<ExtensionsTab>("rules");
 
   if (!activeProjectId) {
     return (
@@ -21,8 +28,8 @@ export default function SkillsRulesView() {
         className="flex flex-col items-center justify-center text-muted-foreground"
         style={{ gridArea: "content" }}
       >
-        <Puzzle className="mb-3 size-10 opacity-30" />
-        <p className="text-sm">Select a project to manage skills & rules</p>
+        <Blocks className="mb-3 size-10 opacity-30" />
+        <p className="text-sm">Select a project to manage extensions</p>
         <p className="mt-1 text-xs opacity-60">
           Open a project tab to get started
         </p>
@@ -34,10 +41,10 @@ export default function SkillsRulesView() {
     <ViewLayout>
       <ViewLayout.Toolbar>
         <span className="text-[13px] font-medium text-foreground mr-1">
-          Skills & Rules
+          Extensions
         </span>
 
-        <Tabs<SkillsRulesTab>
+        <Tabs<ExtensionsTab>
           value={activeTab}
           onChange={setActiveTab}
           animation="slide"
@@ -52,6 +59,13 @@ export default function SkillsRulesView() {
         >
           <Tabs.Tab value="rules">Rules</Tabs.Tab>
           <Tabs.Tab value="skills">Skills</Tabs.Tab>
+          <Tabs.Tab
+            value="plugins"
+            icon={<AgentIcon agent="claude-code" size={13} />}
+            disabled={!isClaudeInstalled}
+          >
+            Plugins
+          </Tabs.Tab>
         </Tabs>
 
         <div className="flex-1" />
@@ -59,6 +73,7 @@ export default function SkillsRulesView() {
 
       {activeTab === "rules" && <RulesTab projectId={activeProjectId} />}
       {activeTab === "skills" && <SkillsTab projectId={activeProjectId} />}
+      {activeTab === "plugins" && <PluginsTab projectId={activeProjectId} />}
     </ViewLayout>
   );
 }

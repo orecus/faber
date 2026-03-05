@@ -8,7 +8,7 @@ import {
   FileText,
   Monitor,
   PanelRight,
-  Puzzle,
+  Blocks,
 } from "lucide-react";
 import { useAppStore } from "../../store/appStore";
 import type { Command } from "./commandRegistry";
@@ -41,7 +41,7 @@ export function useCommands(onExecuted: () => void): Command[] {
     nav("dashboard", "Go to Dashboard", LayoutDashboard, "dashboard");
     nav("sessions", "Go to Sessions", TerminalSquare, "sessions");
     nav("github", "Go to GitHub", Github, "github");
-    nav("skills-rules", "Go to Skills & Rules", Puzzle, "skills-rules");
+    nav("skills-rules", "Go to Extensions", Blocks, "skills-rules");
     nav("review", "Go to Review", GitCompare, "review");
 
     // ── Projects ──

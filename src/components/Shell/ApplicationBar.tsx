@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Github, LayoutDashboard, PanelLeft, PanelRight, Puzzle, TerminalSquare } from "lucide-react";
+import { Blocks, Github, LayoutDashboard, PanelLeft, PanelRight, TerminalSquare } from "lucide-react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { handleDragRegionMouseDown, needsCustomWindowControls } from "../../lib/platform";
@@ -13,7 +13,7 @@ const VIEW_TABS: { id: ViewId; icon: React.ReactNode; label: string }[] = [
   { id: "dashboard", icon: <LayoutDashboard size={14} />, label: "Tasks" },
   { id: "sessions", icon: <TerminalSquare size={14} />, label: "Sessions" },
   { id: "github", icon: <Github size={14} />, label: "GitHub" },
-  { id: "skills-rules", icon: <Puzzle size={14} />, label: "Skills" },
+  { id: "skills-rules", icon: <Blocks size={14} />, label: "Extensions" },
 ];
 
 const ApplicationBar = memo(function ApplicationBar() {

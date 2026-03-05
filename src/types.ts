@@ -160,6 +160,35 @@ export interface AgentInfo {
   supported_models: string[];
 }
 
+// ── Rule file types ──
+
+export interface RuleFrontmatter {
+  description?: string;
+  globs?: string[];
+  alwaysApply?: boolean;
+}
+
+export interface RuleFileInfo {
+  agentName: string;
+  displayName: string;
+  path: string | null;
+  relativePath: string;
+  exists: boolean;
+  scope: "project" | "global";
+  category: "primary" | "nested" | "local" | "override";
+  deprecated: boolean;
+  deprecationHint: string | null;
+  frontmatter: RuleFrontmatter | null;
+}
+
+export interface AgentRuleGroup {
+  agentName: string;
+  displayName: string;
+  installed: boolean;
+  projectRules: RuleFileInfo[];
+  globalRules: RuleFileInfo[];
+}
+
 export interface ShellInfo {
   name: string;
   path: string;

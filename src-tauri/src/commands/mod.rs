@@ -10,6 +10,7 @@ pub mod projects;
 pub mod pty;
 pub mod sessions;
 pub mod settings;
+pub mod plugins;
 pub mod skills;
 pub mod tasks;
 pub mod updates;
