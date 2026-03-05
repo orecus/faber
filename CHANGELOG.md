@@ -5,7 +5,44 @@ All notable changes to Faber will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.7.0] - 2026-03-01
+## [0.8.1] - 2026-03-xx
+
+### Added
+
+- **Parallel Continuous Mode** — Independent branching strategy now launches all task sessions simultaneously instead of sequentially, with per-task error handling that doesn't pause the entire run
+- **Continuous Mode Dismiss Flow** — Sessions stay alive after completion so users can review agent summaries; a new "Dismiss" action in the bar closes all related sessions at once
+- **Continuous Mode Bar in Sessions** — The continuous mode progress bar now appears in both the Tasks and Sessions views
+- **Task Detail Redesign** — Redesigned TaskDetail view with task activity log stored in DB, GitHub comments display, and direct GitHub issue creation from the app
+- **Kanban Dependency Nesting** — Tasks with dependencies are now visually nested (indented) under their parent in all Kanban columns, with ghost parent cards shown for cross-column dependencies
+- **MCP Task Management Tools** — New `update_task` and `list_tasks` MCP tools allowing agents to update task metadata and query project tasks with status/label filters
+- **Plugins Tab** — New plugins management tab in Skills & Rules view for browsing and managing agent plugins
+- **Rule Editor & Tree Panel** — Dedicated rule editor with tree-based navigation panel for organizing and editing rules
+- **Create Rule Dialog** — Dialog for creating new rules with template support
+
+### Changed
+
+- **Continuous Mode Prompts** — Updated prompts to use MCP `get_task` tool instead of file-based task injection, with explicit autonomous mode and `report_complete` instructions
+- **Continuous Mode Dialog** — Updated description and strategy labels to clarify parallel vs sequential behavior
+- **Sidebar Projects** — Added visual separators and color dots between sidebar projects, moved expand/collapse chevron to right side, dimmed empty state text, and persisted open/closed state across app restarts
+- **GitHub Changes Tab** — Added collapsible Committed/Changes sections
+- **Usage API Polling** — Reduced from 60s to 5min to avoid 429 rate limit errors
+- **Skills & Rules Backend Overhaul** — Major refactor of skills commands with new plugin system support and expanded backend capabilities
+- **Rules Tab Redesign** — Simplified and reorganized Rules tab UI with tree panel navigation and inline editor
+- **Skills & Rules View** — Updated view layout with Plugins tab alongside Skills and Rules
+
+### Fixed
+
+- **Continuous Mode Stuck Bar** — Fixed continuous mode bar remaining visible after manually stopping a session by properly emitting cleanup events
+- **User-Friendly Error Messages** — Improved error messages across the entire app with contextual hints and formatting
+- **Redundant Agent Detection** — Fixed unnecessary agent detection when opening the Rules tab
+- **Build Warnings** — Resolved Rust clippy warnings and frontend build warnings
+- **Project Switch State Reset** — Reset stale task view and activeTaskId when switching projects to prevent "Task not found" errors
+- **Kanban Task Ordering** — Fixed DFS tree ordering for in-column task nesting so children always appear directly after their actual parent
+- **GitHub Issue Import DB Lock** — Released DB lock during GitHub issue import file I/O to prevent blocking other Tauri commands during batch imports
+- **GitHub Sync Safety** — Disabled GitHub sync button when task has unsaved changes to prevent syncing stale content
+- **TODOS.md Regeneration** — Always regenerate TODOS.md after GitHub issue import, even when all selected issues are skipped
+
+## [0.8.0] - 2026-03-03
 
 ### Added
 

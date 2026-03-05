@@ -17,6 +17,7 @@ interface ConfirmDialogProps {
   variant: "danger" | "default";
   onConfirm: () => void;
   onCancel: () => void;
+  children?: React.ReactNode;
 }
 
 export default function ConfirmDialog({
@@ -25,6 +26,7 @@ export default function ConfirmDialog({
   variant,
   onConfirm,
   onCancel,
+  children,
 }: ConfirmDialogProps) {
   const accentColor = useProjectAccentColor();
   return (
@@ -48,6 +50,8 @@ export default function ConfirmDialog({
         </DialogHeader>
 
         <p className="text-xs leading-relaxed text-dim-foreground">{message}</p>
+
+        {children}
 
         <DialogFooter>
           <DialogClose

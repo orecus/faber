@@ -18,9 +18,10 @@ import { useGitHubIssues, type IssueStateFilter } from "./useGitHubIssues";
 
 interface IssuesTabProps {
   projectId: string | null;
+  hasRemote: boolean;
 }
 
-export default function IssuesTab({ projectId }: IssuesTabProps) {
+export default function IssuesTab({ projectId, hasRemote }: IssuesTabProps) {
   const ghAuthStatus = useAppStore((s) => s.ghAuthStatus);
   const refreshGhAuth = useAppStore((s) => s.refreshGhAuth);
   const {
@@ -63,6 +64,19 @@ export default function IssuesTab({ projectId }: IssuesTabProps) {
     importableCount > 0 && selectedNumbers.size === importableCount;
 
   if (!projectId) return null;
+
+  // Show no-remote state for local-only repos
+  if (!hasRemote) {
+    return (
+      <div className="flex flex-1 h-full flex-col items-center justify-center text-muted-foreground">
+        <CircleDot className="mb-3 size-10 opacity-30" />
+        <p className="text-sm font-medium text-foreground">No remote configured</p>
+        <p className="mt-1 text-xs text-center max-w-xs">
+          This project has no git remote. Add a remote to browse GitHub issues.
+        </p>
+      </div>
+    );
+  }
 
   // Show auth error state instead of attempting API calls
   if (authBroken) {

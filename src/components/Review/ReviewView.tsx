@@ -1,6 +1,6 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { GitCompareArrows } from "lucide-react";
+import { GitBranch, GitCompareArrows } from "lucide-react";
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAppStore } from "../../store/appStore";
 import { ViewLayout } from "../Shell/ViewLayout";
@@ -11,6 +11,7 @@ import FileList from "./FileList";
 import ReviewPanel from "./ReviewPanel";
 import CreatePRDialog from "./CreatePRDialog";
 import ConfirmDialog from "./ConfirmDialog";
+import MergeBranchDialog from "./MergeBranchDialog";
 import type { WorktreeInfo } from "../../types";
 
 export default function ReviewView() {
@@ -38,6 +39,11 @@ export default function ReviewView() {
     variant: "danger" | "default";
     onConfirm: () => Promise<void>;
   } | null>(null);
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [hasRemote, setHasRemote] = useState(true);
+  const [isMerged, setIsMerged] = useState(false);
+  const [deleteBranchToo, setDeleteBranchToo] = useState(false);
+  const deleteBranchRef = useRef(false);
   const [feedback, setFeedback] = useState<{
     type: "success" | "error";
     text: string;
@@ -68,9 +74,42 @@ export default function ReviewView() {
     (t) => t.worktree_path === reviewWorktreePath,
   );
 
+  // Detect remote availability and branch merge status
+  const checkRepoStatus = useCallback(async () => {
+    if (!activeProjectId || !reviewWorktreePath || !branchName) return;
+    try {
+      const [remote, projectBranch] = await Promise.all([
+        invoke<boolean>("has_remote", { projectId: activeProjectId }),
+        invoke<string>("get_project_branch", { projectId: activeProjectId }),
+      ]);
+      setHasRemote(remote);
+
+      // Check if the worktree branch has been merged into the project's current branch
+      try {
+        const merged = await invoke<boolean>("is_branch_merged", {
+          projectId: activeProjectId,
+          worktreePath: reviewWorktreePath,
+          targetBranch: projectBranch,
+        });
+        setIsMerged(merged);
+      } catch {
+        setIsMerged(false);
+      }
+    } catch {
+      // Non-fatal — default to optimistic values
+    }
+  }, [activeProjectId, reviewWorktreePath, branchName]);
+
+  useEffect(() => {
+    setIsMerged(false);
+    setHasRemote(true);
+    checkRepoStatus();
+  }, [checkRepoStatus]);
+
   // Check PR merge status on refresh (best-effort)
   const handleRefresh = useCallback(async () => {
     refresh();
+    checkRepoStatus();
     if (associatedTask?.github_pr && activeProjectId) {
       try {
         await invoke("check_pr_merged", {
@@ -81,7 +120,7 @@ export default function ReviewView() {
         // Non-fatal
       }
     }
-  }, [refresh, associatedTask, activeProjectId]);
+  }, [refresh, checkRepoStatus, associatedTask, activeProjectId]);
 
   const showFeedback = useCallback(
     (type: "success" | "error", text: string) => {
@@ -131,54 +170,60 @@ export default function ReviewView() {
 
   const handleMerge = useCallback(() => {
     if (!reviewWorktreePath || !activeProjectId || merging) return;
-    setConfirmAction({
-      title: "Merge into main",
-      message: `Merge branch "${branchName}" into the current branch of the main repository? This is a local operation.`,
-      variant: "default",
-      onConfirm: async () => {
-        setMerging(true);
-        setFeedback(null);
-        const { addBackgroundTask, removeBackgroundTask } = useAppStore.getState();
-        addBackgroundTask("Merging branch");
-        try {
-          await invoke<string>("merge_worktree_branch", {
-            projectId: activeProjectId,
-            worktreePath: reviewWorktreePath,
-          });
-          showFeedback("success", `Merged ${branchName} into main`);
-        } catch (err) {
-          showFeedback(
-            "error",
-            err instanceof Error ? err.message : String(err),
-          );
-        } finally {
-          setMerging(false);
-          removeBackgroundTask("Merging branch");
-        }
-      },
-    });
-  }, [
-    reviewWorktreePath,
-    activeProjectId,
-    merging,
-    branchName,
-    showFeedback,
-  ]);
+    setShowMergeDialog(true);
+  }, [reviewWorktreePath, activeProjectId, merging]);
+
+  const handleMergeConfirm = useCallback(
+    async (targetBranch: string) => {
+      if (!reviewWorktreePath || !activeProjectId) return;
+      setShowMergeDialog(false);
+      setMerging(true);
+      setFeedback(null);
+      const { addBackgroundTask, removeBackgroundTask } =
+        useAppStore.getState();
+      addBackgroundTask("Merging branch");
+      try {
+        await invoke<string>("merge_worktree_branch", {
+          projectId: activeProjectId,
+          worktreePath: reviewWorktreePath,
+          targetBranch,
+        });
+        showFeedback(
+          "success",
+          `Merged ${branchName} into ${targetBranch}`,
+        );
+        setIsMerged(true);
+      } catch (err) {
+        showFeedback(
+          "error",
+          err instanceof Error ? err.message : String(err),
+        );
+      } finally {
+        setMerging(false);
+        removeBackgroundTask("Merging branch");
+      }
+    },
+    [reviewWorktreePath, activeProjectId, branchName, showFeedback],
+  );
 
   const handleDelete = useCallback(() => {
     if (!reviewWorktreePath || !activeProjectId) return;
+    setDeleteBranchToo(false);
+    deleteBranchRef.current = false;
     setConfirmAction({
       title: "Delete worktree",
-      message: `Permanently delete worktree "${branchName ?? reviewWorktreePath}"? This removes the worktree directory. The branch will remain.`,
+      message: `Permanently delete worktree "${branchName ?? reviewWorktreePath}"? This removes the worktree directory.`,
       variant: "danger",
       onConfirm: async () => {
         setFeedback(null);
         const { addBackgroundTask, removeBackgroundTask } = useAppStore.getState();
+        const shouldDeleteBranch = deleteBranchRef.current;
         addBackgroundTask("Deleting worktree");
         try {
           await invoke("delete_worktree", {
             projectId: activeProjectId,
             worktreePath: reviewWorktreePath,
+            deleteBranch: shouldDeleteBranch,
           });
           setReviewWorktreePath(null);
           setActiveView("dashboard");
@@ -237,6 +282,8 @@ export default function ReviewView() {
         pushing={pushing}
         merging={merging}
         loading={loading}
+        hasRemote={hasRemote}
+        isMerged={isMerged}
       />
 
       {/* Content card */}
@@ -293,6 +340,16 @@ export default function ReviewView() {
         />
       )}
 
+      {/* Merge branch dialog */}
+      {showMergeDialog && activeProjectId && branchName && (
+        <MergeBranchDialog
+          projectId={activeProjectId}
+          sourceBranch={branchName}
+          onConfirm={handleMergeConfirm}
+          onCancel={() => setShowMergeDialog(false)}
+        />
+      )}
+
       {/* Confirm dialog */}
       {confirmAction && (
         <ConfirmDialog
@@ -305,7 +362,32 @@ export default function ReviewView() {
             await action.onConfirm();
           }}
           onCancel={() => setConfirmAction(null)}
-        />
+        >
+          {confirmAction.title === "Delete worktree" && branchName && (
+            <label className="flex items-center gap-2 mt-1 cursor-pointer select-none group">
+              <input
+                type="checkbox"
+                checked={deleteBranchToo}
+                onChange={(e) => {
+                  setDeleteBranchToo(e.target.checked);
+                  deleteBranchRef.current = e.target.checked;
+                }}
+                className="sr-only peer"
+              />
+              <div className="flex size-4 shrink-0 items-center justify-center rounded-[4px] border border-input shadow-xs transition-colors peer-checked:bg-destructive peer-checked:border-destructive peer-focus-visible:ring-2 peer-focus-visible:ring-ring/50">
+                {deleteBranchToo && (
+                  <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round" className="size-3 text-white">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
+                )}
+              </div>
+              <span className="flex items-center gap-1.5 text-xs text-dim-foreground group-hover:text-foreground transition-colors">
+                <GitBranch className="size-3" />
+                Also delete branch "{branchName}"
+              </span>
+            </label>
+          )}
+        </ConfirmDialog>
       )}
     </ViewLayout>
   );

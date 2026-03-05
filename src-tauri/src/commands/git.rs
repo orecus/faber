@@ -108,12 +108,40 @@ pub async fn delete_worktree(
     state: State<'_, DbState>,
     project_id: String,
     worktree_path: String,
+    delete_branch: Option<bool>,
 ) -> Result<(), AppError> {
     let project_path = get_project_path(&state, &project_id)?;
     let validated_wt = validate_worktree_path(&project_path, &worktree_path)?;
-    tokio::task::spawn_blocking(move || git::delete_worktree(&project_path, &validated_wt))
-        .await
-        .map_err(|e| AppError::Io(e.to_string()))?
+
+    tokio::task::spawn_blocking(move || {
+        let repo_path = Path::new(&project_path);
+
+        // Find the branch name before deleting the worktree
+        let branch_name = if delete_branch.unwrap_or(false) {
+            let worktrees = git::list_worktrees(repo_path)?;
+            worktrees
+                .iter()
+                .find(|w| w.path == worktree_path)
+                .and_then(|w| w.branch.clone())
+        } else {
+            None
+        };
+
+        // Delete the worktree
+        git::delete_worktree(repo_path, &validated_wt)?;
+
+        // Delete the branch if requested
+        if let Some(branch) = branch_name {
+            if let Err(e) = git::delete_branch(repo_path, &branch) {
+                tracing::warn!(branch = %branch, error = %e, "Failed to delete branch after worktree removal");
+                // Non-fatal — worktree is already gone
+            }
+        }
+
+        Ok(())
+    })
+    .await
+    .map_err(|e| AppError::Io(e.to_string()))?
 }
 
 #[tauri::command]
@@ -264,6 +292,7 @@ pub async fn merge_worktree_branch(
     state: State<'_, DbState>,
     project_id: String,
     worktree_path: String,
+    target_branch: Option<String>,
 ) -> Result<String, AppError> {
     let project_path = get_project_path(&state, &project_id)?;
     let _validated_wt = validate_worktree_path(&project_path, &worktree_path)?;
@@ -277,12 +306,78 @@ pub async fn merge_worktree_branch(
             .find(|w| w.path == worktree_path)
             .ok_or_else(|| AppError::NotFound(format!("Worktree {worktree_path}")))?;
 
+        let source_branch = wt
+            .branch
+            .as_deref()
+            .ok_or_else(|| AppError::Git("Worktree has no branch".to_string()))?;
+
+        // If a target branch is specified and differs from the current branch,
+        // checkout the target first, merge, then restore the original branch.
+        if let Some(ref target) = target_branch {
+            let current = git::get_current_branch(repo_path)?;
+            if target != &current {
+                git::checkout_branch(repo_path, target, false)?;
+                let result = git::merge_branch(repo_path, source_branch);
+                if result.is_err() {
+                    // Restore the original branch on failure
+                    let _ = git::checkout_branch(repo_path, &current, false);
+                }
+                return result;
+            }
+        }
+
+        git::merge_branch(repo_path, source_branch)
+    })
+    .await
+    .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_project_branch(
+    state: State<'_, DbState>,
+    project_id: String,
+) -> Result<String, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    tokio::task::spawn_blocking(move || git::get_current_branch(Path::new(&project_path)))
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn has_remote(
+    state: State<'_, DbState>,
+    project_id: String,
+) -> Result<bool, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    tokio::task::spawn_blocking(move || Ok(git::has_remote(Path::new(&project_path))))
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn is_branch_merged(
+    state: State<'_, DbState>,
+    project_id: String,
+    worktree_path: String,
+    target_branch: String,
+) -> Result<bool, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    let _validated_wt = validate_worktree_path(&project_path, &worktree_path)?;
+
+    tokio::task::spawn_blocking(move || {
+        let repo_path = Path::new(&project_path);
+        let worktrees = git::list_worktrees(repo_path)?;
+        let wt = worktrees
+            .iter()
+            .find(|w| w.path == worktree_path)
+            .ok_or_else(|| AppError::NotFound(format!("Worktree {worktree_path}")))?;
+
         let branch = wt
             .branch
             .as_deref()
             .ok_or_else(|| AppError::Git("Worktree has no branch".to_string()))?;
 
-        git::merge_branch(repo_path, branch)
+        Ok(git::is_branch_merged(repo_path, branch, &target_branch))
     })
     .await
     .map_err(|e| AppError::Io(e.to_string()))?

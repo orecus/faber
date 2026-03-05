@@ -349,6 +349,14 @@ pub fn delete_worktree(repo_path: &Path, worktree_path: &Path) -> Result<(), App
     Ok(())
 }
 
+/// Delete a local branch.
+///
+/// Uses `-D` (force delete) since the branch may not be fully merged.
+pub fn delete_branch(repo_path: &Path, branch: &str) -> Result<(), AppError> {
+    run_git(repo_path, &["branch", "-D", branch])?;
+    Ok(())
+}
+
 // ── Worktree cleanliness check ──
 
 /// Check if a worktree is clean: no uncommitted changes and no commits ahead of base.
@@ -897,6 +905,33 @@ pub fn commit_detail(repo_path: &Path, commit_hash: &str) -> Result<CommitDetail
 pub fn head_hash(repo_path: &Path) -> Result<String, AppError> {
     let output = run_git(repo_path, &["rev-parse", "HEAD"])?;
     Ok(output.trim().to_string())
+}
+
+// ── Remote detection ──
+
+/// Check if the repository has any remotes configured.
+pub fn has_remote(repo_path: &Path) -> bool {
+    match run_git(repo_path, &["remote"]) {
+        Ok(output) => !output.trim().is_empty(),
+        Err(_) => false,
+    }
+}
+
+/// Check if a branch has been fully merged into a target branch.
+///
+/// Uses `git merge-base --is-ancestor <branch> <target>` which returns
+/// exit code 0 if the branch tip is an ancestor of (i.e. merged into) the target.
+pub fn is_branch_merged(repo_path: &Path, branch: &str, target: &str) -> bool {
+    match std::process::Command::new("git")
+        .args(["merge-base", "--is-ancestor", branch, target])
+        .current_dir(repo_path)
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .status()
+    {
+        Ok(status) => status.success(),
+        Err(_) => false,
+    }
 }
 
 // ── Merge operations ──

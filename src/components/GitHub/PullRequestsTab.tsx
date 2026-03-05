@@ -19,6 +19,7 @@ import PullRequestDetailPanel from "./PullRequestDetailPanel";
 
 interface PullRequestsTabProps {
   projectId: string | null;
+  hasRemote: boolean;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -64,6 +65,7 @@ function reviewIcon(decision: string | null) {
 
 export default function PullRequestsTab({
   projectId,
+  hasRemote,
 }: PullRequestsTabProps) {
   const ghAuthStatus = useAppStore((s) => s.ghAuthStatus);
   const refreshGhAuth = useAppStore((s) => s.refreshGhAuth);
@@ -111,6 +113,19 @@ export default function PullRequestsTab({
   );
 
   if (!projectId) return null;
+
+  // Show no-remote state for local-only repos
+  if (!hasRemote) {
+    return (
+      <div className="flex flex-1 h-full flex-col items-center justify-center text-muted-foreground">
+        <GitPullRequestArrow className="mb-3 size-10 opacity-30" />
+        <p className="text-sm font-medium text-foreground">No remote configured</p>
+        <p className="mt-1 text-xs text-center max-w-xs">
+          This project has no git remote. Add a remote to browse pull requests.
+        </p>
+      </div>
+    );
+  }
 
   if (authBroken) {
     return (

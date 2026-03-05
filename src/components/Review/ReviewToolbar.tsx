@@ -34,6 +34,8 @@ interface ReviewToolbarProps {
   pushing: boolean;
   merging: boolean;
   loading: boolean;
+  hasRemote: boolean;
+  isMerged: boolean;
 }
 
 export default function ReviewToolbar({
@@ -51,6 +53,8 @@ export default function ReviewToolbar({
   pushing,
   merging,
   loading,
+  hasRemote,
+  isMerged,
 }: ReviewToolbarProps) {
   const accentColor = useProjectAccentColor();
   const toggleFormat = useCallback(() => {
@@ -136,12 +140,12 @@ export default function ReviewToolbar({
       {/* Separator */}
       <div className="mx-1 h-4 w-px bg-border" />
 
-      {/* Merge to main (local) */}
+      {/* Merge branch (local) */}
       <Button
         variant="outline"
         size="sm"
         onClick={onMerge}
-        disabled={merging || committedFileCount === 0}
+        disabled={merging || isMerged || committedFileCount === 0}
         leftIcon={
           merging ? (
             <Loader2 className="size-3.5 animate-spin" />
@@ -151,9 +155,9 @@ export default function ReviewToolbar({
         }
         hoverEffect="scale"
         clickEffect="scale"
-        title="Merge branch to main"
+        title={isMerged ? "Branch already merged" : "Merge branch into another branch"}
       >
-        {merging ? "Merging..." : "Merge"}
+        {merging ? "Merging..." : isMerged ? "Merged" : "Merge"}
       </Button>
 
       {/* Push to remote */}
@@ -161,7 +165,7 @@ export default function ReviewToolbar({
         variant="outline"
         size="sm"
         onClick={onPush}
-        disabled={pushing}
+        disabled={pushing || !hasRemote}
         leftIcon={
           pushing ? (
             <Loader2 className="size-3.5 animate-spin" />
@@ -171,21 +175,22 @@ export default function ReviewToolbar({
         }
         hoverEffect="scale"
         clickEffect="scale"
-        title="Push to remote"
+        title={hasRemote ? "Push to remote" : "No remote configured"}
       >
         {pushing ? "Pushing..." : "Push"}
       </Button>
 
       {/* Create PR (remote) */}
       <Button
-        variant="color"
-        color={accentColor}
+        variant={hasRemote ? "color" : "outline"}
+        color={hasRemote ? accentColor : undefined}
         size="sm"
         onClick={onCreatePR}
+        disabled={!hasRemote}
         leftIcon={<GitPullRequestArrow className="size-3.5" />}
-        hoverEffect="scale-glow"
+        hoverEffect={hasRemote ? "scale-glow" : "scale"}
         clickEffect="scale"
-        title="Create pull request"
+        title={hasRemote ? "Create pull request" : "No remote configured"}
       >
         Create PR
       </Button>

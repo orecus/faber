@@ -44,6 +44,7 @@ export default function GitHubView() {
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
   const [pulling, setPulling] = useState(false);
   const [pushing, setPushing] = useState(false);
+  const [hasRemote, setHasRemote] = useState(true);
 
   const {
     commits,
@@ -72,6 +73,19 @@ export default function GitHubView() {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- trigger on project change or cache presence, not on loadCommits identity
   }, [activeProjectId, commits.length > 0]);
 
+  // Check if repo has a remote configured
+  const checkRemote = useCallback(async () => {
+    if (!activeProjectId) return;
+    try {
+      const remote = await invoke<boolean>("has_remote", {
+        projectId: activeProjectId,
+      });
+      setHasRemote(remote);
+    } catch {
+      setHasRemote(false);
+    }
+  }, [activeProjectId]);
+
   // Fetch sync status
   const fetchSyncStatus = useCallback(async () => {
     if (!activeProjectId) return;
@@ -91,8 +105,9 @@ export default function GitHubView() {
   }, [activeProjectId]);
 
   useEffect(() => {
+    checkRemote();
     fetchSyncStatus();
-  }, [fetchSyncStatus]);
+  }, [checkRemote, fetchSyncStatus]);
 
   const handleToggleBranches = useCallback(
     (all: boolean) => {
@@ -222,7 +237,7 @@ export default function GitHubView() {
           variant="outline"
           size="sm"
           onClick={handlePull}
-          disabled={pulling}
+          disabled={pulling || !hasRemote}
           leftIcon={
             pulling ? (
               <Loader2 className="size-3 animate-spin" />
@@ -232,10 +247,10 @@ export default function GitHubView() {
           }
           hoverEffect="scale"
           clickEffect="scale"
-          title="Pull from remote (fast-forward only)"
+          title={hasRemote ? "Pull from remote (fast-forward only)" : "No remote configured"}
         >
           Pull
-          {syncStatus && syncStatus.behind > 0 && (
+          {hasRemote && syncStatus && syncStatus.behind > 0 && (
             <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-medium text-primary">
               {syncStatus.behind}
             </span>
@@ -247,7 +262,7 @@ export default function GitHubView() {
           variant="outline"
           size="sm"
           onClick={handlePush}
-          disabled={pushing}
+          disabled={pushing || !hasRemote}
           leftIcon={
             pushing ? (
               <Loader2 className="size-3 animate-spin" />
@@ -257,10 +272,10 @@ export default function GitHubView() {
           }
           hoverEffect="scale"
           clickEffect="scale"
-          title="Push to remote"
+          title={hasRemote ? "Push to remote" : "No remote configured"}
         >
           Push
-          {syncStatus && syncStatus.ahead > 0 && (
+          {hasRemote && syncStatus && syncStatus.ahead > 0 && (
             <span className="ml-1 inline-flex items-center justify-center rounded-full bg-success/15 px-1.5 py-px text-[10px] font-medium text-success">
               {syncStatus.ahead}
             </span>
@@ -334,10 +349,10 @@ export default function GitHubView() {
           </div>
         )}
 
-        {activeTab === "issues" && <IssuesTab projectId={activeProjectId} />}
+        {activeTab === "issues" && <IssuesTab projectId={activeProjectId} hasRemote={hasRemote} />}
 
         {activeTab === "pull-requests" && (
-          <PullRequestsTab projectId={activeProjectId} />
+          <PullRequestsTab projectId={activeProjectId} hasRemote={hasRemote} />
         )}
       </div>
     </ViewLayout>
