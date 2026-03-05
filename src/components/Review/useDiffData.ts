@@ -102,7 +102,7 @@ export function useDiffData(worktreePath: string | null, projectId: string | nul
     [worktreePath, projectId],
   );
 
-  // Fetch on worktree change
+  // Fetch file lists on worktree change (but NOT the full diff — wait for file selection)
   useEffect(() => {
     setSelectedFile(null);
     setCommittedFiles([]);
@@ -110,9 +110,8 @@ export function useDiffData(worktreePath: string | null, projectId: string | nul
     setRawDiff("");
     if (worktreePath) {
       fetchFileLists();
-      fetchDiff(null);
     }
-  }, [worktreePath, fetchFileLists, fetchDiff]);
+  }, [worktreePath, fetchFileLists]);
 
   const selectFile = useCallback(
     (path: string, section: FileSection) => {
@@ -128,8 +127,8 @@ export function useDiffData(worktreePath: string | null, projectId: string | nul
 
   const clearSelection = useCallback(() => {
     setSelectedFile(null);
-    fetchDiff(null);
-  }, [fetchDiff]);
+    setRawDiff("");
+  }, []);
 
   const refresh = useCallback(() => {
     fetchFileLists();

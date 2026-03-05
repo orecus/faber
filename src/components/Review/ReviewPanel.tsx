@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { html as diff2Html } from "diff2html";
 import DOMPurify from "dompurify";
 import "diff2html/bundles/css/diff2html.min.css";
+import { FileDiff } from "lucide-react";
 import { Spinner } from "../ui/spinner";
 import type { DiffOutputFormat } from "./ReviewToolbar";
 
@@ -53,9 +54,10 @@ export default function ReviewPanel({
 
   if (!rawDiff) {
     return (
-      <div className="flex flex-1 items-center justify-center">
+      <div className="flex flex-1 flex-col items-center justify-center gap-2">
+        <FileDiff className="size-8 text-muted-foreground opacity-40" />
         <p className="text-sm text-muted-foreground">
-          No changes to display
+          Select a file to view its diff
         </p>
       </div>
     );
