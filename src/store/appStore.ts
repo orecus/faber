@@ -1080,6 +1080,7 @@ export const useAppStore = create<AppState>()(
       eventCleanups.push(
         listen<ContinuousModeUpdate>("continuous-mode-update", (event) => {
           const { project_id, run } = event.payload;
+          // Keep completed runs visible — user must dismiss to close sessions
           get().setContinuousMode(project_id, run);
         }),
       );

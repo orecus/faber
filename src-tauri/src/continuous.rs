@@ -101,8 +101,9 @@ pub async fn find_run_by_session(
 
 // ── Core advance logic ──
 
-/// Launch the next task in the queue, or finish the run.
-/// Called after a session completes successfully.
+/// Advance the continuous run after a session completes.
+/// For chained strategy: launch the next task in sequence.
+/// For independent strategy: mark as complete, check if all are done.
 pub fn try_advance(app: &AppHandle, project_id: &str) -> Result<(), AppError> {
     let cont_state: tauri::State<'_, ContinuousState> = app.state();
     let mut guard = cont_state.blocking_lock();
@@ -117,126 +118,154 @@ pub fn try_advance(app: &AppHandle, project_id: &str) -> Result<(), AppError> {
         return Ok(());
     }
 
-    // Mark current item as completed
-    if run.current_index < run.queue.len() {
-        run.queue[run.current_index].status = QueueItemStatus::Completed;
-    }
+    match run.strategy {
+        BranchingStrategy::Independent => {
+            // For independent mode, mark the current item as completed.
+            // The session_id matching happens in mark_complete_and_advance.
+            // Here we just mark current_index item (set by the caller).
+            if run.current_index < run.queue.len() {
+                run.queue[run.current_index].status = QueueItemStatus::Completed;
+            }
 
-    // Move to next
-    let next_index = run.current_index + 1;
-    if next_index >= run.queue.len() {
-        // All done
-        let completed_count = run.queue.iter()
-            .filter(|i| i.status == QueueItemStatus::Completed)
-            .count();
-        run.status = ContinuousStatus::Completed;
-        let finished_run = run.clone();
-        let pid = project_id.to_string();
+            // Check if all items are finished (completed or error)
+            let all_done = run.queue.iter().all(|i| {
+                matches!(i.status, QueueItemStatus::Completed | QueueItemStatus::Error)
+            });
 
-        // Emit finished before removing
-        let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
-            project_id: pid.clone(),
-            run: finished_run,
-        });
-        tracing::info!(project_id, completed_count, "Continuous mode completed all tasks");
+            if all_done {
+                let completed_count = run.queue.iter()
+                    .filter(|i| i.status == QueueItemStatus::Completed)
+                    .count();
+                run.status = ContinuousStatus::Completed;
+                tracing::info!(project_id, completed_count, "Continuous mode completed all tasks");
 
-        let _ = app.emit("continuous-mode-finished", ContinuousModeFinished {
-            project_id: pid.clone(),
-            completed_count,
-        });
+                // Keep run in state — user must dismiss to close sessions
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: project_id.to_string(),
+                    run: run.clone(),
+                });
+            } else {
+                // Still have running items — just emit an update
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: project_id.to_string(),
+                    run: run.clone(),
+                });
+            }
 
-        guard.remove(project_id);
-        return Ok(());
-    }
-
-    run.current_index = next_index;
-    run.queue[next_index].status = QueueItemStatus::Running;
-
-    let task_id = run.queue[next_index].task_id.clone();
-    tracing::info!(project_id, next_task_id = %task_id, "Continuous mode advancing to next task");
-    let agent = run.agent_name.clone();
-    let model = run.model.clone();
-    let strategy = run.strategy;
-    let base_branch = run.base_branch.clone();
-    let last_branch = run.last_branch.clone();
-    let pid = project_id.to_string();
-
-    // Emit update before launching (shows "running" on next item)
-    let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
-        project_id: pid.clone(),
-        run: run.clone(),
-    });
-
-    // Drop lock before launching session (it acquires DB lock)
-    drop(guard);
-
-    // Launch the next task session
-    let launch_base = match strategy {
-        BranchingStrategy::Independent => base_branch.as_deref(),
-        BranchingStrategy::Chained => last_branch.as_deref().or(base_branch.as_deref()),
-    };
-
-    let session = launch_task_for_continuous(app, &pid, &task_id, agent.as_deref(), model.as_deref(), launch_base)?;
-
-    // Look up the task's branch name for chained strategy
-    let task_branch = if session.worktree_path.is_some() {
-        let db_state: tauri::State<'_, DbState> = app.state();
-        db_state.lock().ok()
-            .and_then(|conn| db::tasks::get(&conn, &task_id, &pid).ok().flatten())
-            .and_then(|t| t.branch)
-    } else {
-        None
-    };
-
-    // Update the queue item with the session ID + record branch for chaining
-    let cont_state: tauri::State<'_, ContinuousState> = app.state();
-    let mut guard = cont_state.blocking_lock();
-    if let Some(run) = guard.get_mut(&pid) {
-        run.queue[next_index].session_id = Some(session.id.clone());
-        if let Some(branch) = task_branch {
-            run.last_branch = Some(branch);
+            Ok(())
         }
+        BranchingStrategy::Chained => {
+            // Mark current item as completed
+            if run.current_index < run.queue.len() {
+                run.queue[run.current_index].status = QueueItemStatus::Completed;
+            }
 
-        let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
-            project_id: pid.clone(),
-            run: run.clone(),
-        });
+            // Move to next
+            let next_index = run.current_index + 1;
+            if next_index >= run.queue.len() {
+                // All done
+                let completed_count = run.queue.iter()
+                    .filter(|i| i.status == QueueItemStatus::Completed)
+                    .count();
+                run.status = ContinuousStatus::Completed;
+                tracing::info!(project_id, completed_count, "Continuous mode completed all tasks");
+
+                // Keep run in state — user must dismiss to close sessions
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: project_id.to_string(),
+                    run: run.clone(),
+                });
+                return Ok(());
+            }
+
+            run.current_index = next_index;
+            run.queue[next_index].status = QueueItemStatus::Running;
+
+            let task_id = run.queue[next_index].task_id.clone();
+            tracing::info!(project_id, next_task_id = %task_id, "Continuous mode advancing to next task");
+            let agent = run.agent_name.clone();
+            let model = run.model.clone();
+            let base_branch = run.base_branch.clone();
+            let last_branch = run.last_branch.clone();
+            let pid = project_id.to_string();
+
+            // Emit update before launching (shows "running" on next item)
+            let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                project_id: pid.clone(),
+                run: run.clone(),
+            });
+
+            // Drop lock before launching session (it acquires DB lock)
+            drop(guard);
+
+            // Chained: branch from the previous task's branch
+            let launch_base = last_branch.as_deref().or(base_branch.as_deref());
+
+            let session = launch_task_for_continuous(app, &pid, &task_id, agent.as_deref(), model.as_deref(), launch_base)?;
+
+            // Look up the task's branch name for chained strategy
+            let task_branch = if session.worktree_path.is_some() {
+                let db_state: tauri::State<'_, DbState> = app.state();
+                db_state.lock().ok()
+                    .and_then(|conn| db::tasks::get(&conn, &task_id, &pid).ok().flatten())
+                    .and_then(|t| t.branch)
+            } else {
+                None
+            };
+
+            // Update the queue item with the session ID + record branch for chaining
+            let cont_state: tauri::State<'_, ContinuousState> = app.state();
+            let mut guard = cont_state.blocking_lock();
+            if let Some(run) = guard.get_mut(&pid) {
+                run.queue[next_index].session_id = Some(session.id.clone());
+                if let Some(branch) = task_branch {
+                    run.last_branch = Some(branch);
+                }
+
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: pid.clone(),
+                    run: run.clone(),
+                });
+            }
+
+            Ok(())
+        }
     }
-
-    Ok(())
 }
 
-/// Stop the completed session and advance the queue.
+/// Mark the completed session's queue item and advance the queue.
 /// Called from the MCP report_complete handler after a delay.
-pub fn stop_current_and_advance(app: &AppHandle, session_id: &str) {
+/// Sessions are NOT stopped here — they stay alive so the user can review
+/// agent summaries. The user dismisses them via the continuous mode bar.
+pub fn mark_complete_and_advance(app: &AppHandle, session_id: &str) {
     let cont_state: tauri::State<'_, ContinuousState> = app.state();
-    let project_id = {
+    let (project_id, item_index) = {
         let guard = cont_state.blocking_lock();
         let mut found = None;
         for (pid, run) in guard.iter() {
-            for item in &run.queue {
+            for (i, item) in run.queue.iter().enumerate() {
                 if item.session_id.as_deref() == Some(session_id) {
-                    found = Some(pid.clone());
+                    found = Some((pid.clone(), i));
                     break;
                 }
             }
             if found.is_some() { break; }
         }
-        found
+        match found {
+            Some(f) => f,
+            None => return,
+        }
     };
 
-    let Some(project_id) = project_id else { return };
-
-    // Stop the session
-    let db_state: tauri::State<'_, DbState> = app.state();
-    let pty_state: tauri::State<'_, PtyState> = app.state();
-    let mcp_state: tauri::State<'_, Arc<TokioMutex<McpState>>> = app.state();
-
-    if let Ok(conn) = db_state.lock() {
-        let _ = session::stop_session(&conn, &pty_state, app, &mcp_state, session_id);
+    // Set current_index to the completed item so try_advance marks the right one
+    {
+        let mut guard = cont_state.blocking_lock();
+        if let Some(run) = guard.get_mut(&project_id) {
+            run.current_index = item_index;
+        }
     }
 
-    // Advance to next task
+    // Advance to next task (or check if all done for independent mode)
     if let Err(e) = try_advance(app, &project_id) {
         tracing::error!(%e, session_id, "Failed to advance continuous mode after session");
         // Pause on error
@@ -252,7 +281,9 @@ pub fn stop_current_and_advance(app: &AppHandle, session_id: &str) {
 }
 
 /// Handle PTY exit for a session that's part of a continuous run.
-/// If the agent didn't call report_complete, this is a crash — pause the run.
+/// If the agent didn't call report_complete, this is a crash.
+/// For chained mode: pause the run.
+/// For independent mode: mark the item as error but continue others; finish if all done.
 pub fn handle_pty_exit(app: &AppHandle, session_id: &str) {
     let cont_state: tauri::State<'_, ContinuousState> = app.state();
     let mcp_state: tauri::State<'_, Arc<TokioMutex<McpState>>> = app.state();
@@ -291,12 +322,12 @@ pub fn handle_pty_exit(app: &AppHandle, session_id: &str) {
         return;
     }
 
-    // Agent crashed without reporting complete — mark error and pause
-    tracing::warn!(session_id, "PTY exited without report_complete, pausing continuous run");
+    // Agent crashed without reporting complete — mark error
+    tracing::warn!(session_id, "PTY exited without report_complete in continuous run");
 
     let mut guard = cont_state.blocking_lock();
     if let Some(run) = guard.get_mut(&project_id) {
-        // Mark current queue item as error
+        // Mark the specific queue item as error
         for item in &mut run.queue {
             if item.session_id.as_deref() == Some(session_id) {
                 item.status = QueueItemStatus::Error;
@@ -304,16 +335,39 @@ pub fn handle_pty_exit(app: &AppHandle, session_id: &str) {
                 break;
             }
         }
-        run.status = ContinuousStatus::Paused;
 
-        let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
-            project_id: project_id.clone(),
-            run: run.clone(),
-        });
+        match run.strategy {
+            BranchingStrategy::Independent => {
+                // Check if all items are finished (completed or error)
+                let all_done = run.queue.iter().all(|i| {
+                    matches!(i.status, QueueItemStatus::Completed | QueueItemStatus::Error)
+                });
+
+                if all_done {
+                    run.status = ContinuousStatus::Completed;
+                }
+
+                // Emit update (keep run in state for user to dismiss)
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: project_id.clone(),
+                    run: run.clone(),
+                });
+            }
+            BranchingStrategy::Chained => {
+                // Chained mode: pause on any error
+                run.status = ContinuousStatus::Paused;
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: project_id.clone(),
+                    run: run.clone(),
+                });
+            }
+        }
     }
 }
 
-/// Handle manual session stop — pause the continuous run.
+/// Handle manual session stop.
+/// For chained mode: pause the entire run.
+/// For independent mode: mark item as error, check if all done, continue otherwise.
 pub fn handle_manual_stop(app: &AppHandle, session_id: &str) {
     let cont_state: tauri::State<'_, ContinuousState> = app.state();
 
@@ -335,15 +389,45 @@ pub fn handle_manual_stop(app: &AppHandle, session_id: &str) {
 
     let Some(project_id) = project_id else { return };
 
-    tracing::info!(session_id, "Continuous mode paused due to manual session stop");
+    tracing::info!(session_id, "Continuous mode: manual session stop");
 
     let mut guard = cont_state.blocking_lock();
     if let Some(run) = guard.get_mut(&project_id) {
-        run.status = ContinuousStatus::Paused;
-        let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
-            project_id: project_id.clone(),
-            run: run.clone(),
-        });
+        // Mark the stopped item
+        for item in &mut run.queue {
+            if item.session_id.as_deref() == Some(session_id) {
+                item.status = QueueItemStatus::Error;
+                item.error = Some("Manually stopped".to_string());
+                break;
+            }
+        }
+
+        match run.strategy {
+            BranchingStrategy::Independent => {
+                // Check if all items are finished
+                let all_done = run.queue.iter().all(|i| {
+                    matches!(i.status, QueueItemStatus::Completed | QueueItemStatus::Error)
+                });
+
+                if all_done {
+                    run.status = ContinuousStatus::Completed;
+                }
+
+                // Emit update (keep run in state for user to dismiss)
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: project_id.clone(),
+                    run: run.clone(),
+                });
+            }
+            BranchingStrategy::Chained => {
+                // Chained mode: pause entire run
+                run.status = ContinuousStatus::Paused;
+                let _ = app.emit("continuous-mode-update", ContinuousModeUpdate {
+                    project_id: project_id.clone(),
+                    run: run.clone(),
+                });
+            }
+        }
     }
 }
 
@@ -366,15 +450,12 @@ fn launch_task_for_continuous(
     let mcp_port = session::get_mcp_port(&mcp_state);
     let conn = db_state.lock().map_err(|e| AppError::Database(e.to_string()))?;
 
-    // Look up task to get the task_file_path for the user prompt
-    let task = db::tasks::get(&conn, task_id, project_id)?
-        .ok_or_else(|| AppError::NotFound(format!("Task {task_id}")))?;
-    let user_prompt = task.task_file_path.as_deref().map(|path| {
-        format!(
-            "Work on task {task_id} located at {path}. \
-             Read the task file and begin working on it."
-        )
-    });
+    let user_prompt = Some(format!(
+        "You are running in continuous mode (chained). \
+         Use the `get_task` MCP tool to fetch task {task_id} details, \
+         then begin working on it autonomously. \
+         Call `report_complete` when finished."
+    ));
 
     session::start_task_session(
         &conn,

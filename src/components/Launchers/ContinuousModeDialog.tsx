@@ -301,7 +301,7 @@ export default function ContinuousModeDialog({
         <DialogHeader>
           <DialogTitle>Continuous Mode</DialogTitle>
           <DialogDescription className="text-dim-foreground">
-            Queue tasks to run sequentially with automatic handoff
+            Launch tasks in parallel (independent) or sequentially (chained)
           </DialogDescription>
         </DialogHeader>
 
@@ -398,7 +398,7 @@ export default function ContinuousModeDialog({
                   Independent
                 </span>
                 <div className="text-[11px] leading-snug text-muted-foreground mt-0.5">
-                  Each task branches from base
+                  All tasks run in parallel, each branching from base
                 </div>
               </div>
             </button>

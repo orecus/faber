@@ -296,6 +296,7 @@ pub fn run() {
             commands::continuous::pause_continuous_mode,
             commands::continuous::resume_continuous_mode,
             commands::continuous::stop_continuous_mode,
+            commands::continuous::dismiss_continuous_mode,
             commands::continuous::get_continuous_mode_status,
             commands::usage::get_agent_usage,
             commands::files::list_directory,

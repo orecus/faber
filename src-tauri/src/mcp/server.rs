@@ -687,7 +687,8 @@ async fn handle_report_complete(
         );
     });
 
-    // Auto-advance continuous mode: stop completed session + launch next task.
+    // Auto-advance continuous mode: mark item complete + launch next task (chained).
+    // Sessions are NOT stopped — they stay alive so the user can review agent output.
     // Only spawn the advance task if this session is actually part of a continuous run.
     let cont_state: tauri::State<'_, ContinuousState> = app.state();
     let is_continuous = continuous::find_run_by_session(&cont_state, session_id).await.is_some();
@@ -697,10 +698,10 @@ async fn handle_report_complete(
         let sid = session_id.to_string();
         tauri::async_runtime::spawn(async move {
             tokio::time::sleep(std::time::Duration::from_secs(2)).await;
-            // Must run on a blocking thread — stop_current_and_advance uses
+            // Must run on a blocking thread — mark_complete_and_advance uses
             // blocking_lock() which panics inside a tokio async context.
             let _ = tokio::task::spawn_blocking(move || {
-                continuous::stop_current_and_advance(&app_clone, &sid);
+                continuous::mark_complete_and_advance(&app_clone, &sid);
             }).await;
         });
     }

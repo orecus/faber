@@ -43,12 +43,10 @@ pub fn start_continuous_mode(
     // Check if there's already an active run for this project
     {
         let guard = cont.blocking_lock();
-        if let Some(existing) = guard.get(&project_id) {
-            if existing.status == ContinuousStatus::Running {
-                return Err(AppError::Validation(
-                    "Continuous mode is already running for this project".into(),
-                ));
-            }
+        if guard.contains_key(&project_id) {
+            return Err(AppError::Validation(
+                "Continuous mode is already active for this project. Dismiss or stop it first.".into(),
+            ));
         }
     }
 
@@ -79,48 +77,89 @@ pub fn start_continuous_mode(
         })
         .collect();
 
-    // Mark first item as running
-    queue[0].status = QueueItemStatus::Running;
+    let mut last_branch: Option<String> = None;
 
-    // Launch first task session
-    let first_task_id = &task_ids[0];
-    // Look up first task to get file path for user prompt
-    let first_task = db::tasks::get(&conn, first_task_id, &project_id)?
-        .ok_or_else(|| AppError::NotFound(format!("Task {first_task_id}")))?;
-    let first_user_prompt = first_task.task_file_path.as_deref().map(|path| {
-        format!(
-            "Work on task {first_task_id} located at {path}. \
-             Read the task file and begin working on it."
-        )
-    });
+    match strategy {
+        BranchingStrategy::Independent => {
+            // Launch ALL tasks in parallel — each gets its own session from base branch
+            for (i, tid) in task_ids.iter().enumerate() {
+                queue[i].status = QueueItemStatus::Running;
 
-    let first_session = session::start_task_session(
-        &conn,
-        &pty,
-        &app,
-        &mcp,
-        mcp_port,
-        &project_id,
-        first_task_id,
-        agent_name.as_deref(),
-        model.as_deref(),
-        true,
-        base_branch.as_deref(),
-        first_user_prompt.as_deref(),
-    )?;
+                let user_prompt = Some(format!(
+                    "You are running in continuous mode (parallel). \
+                     Use the `get_task` MCP tool to fetch task {tid} details, \
+                     then begin working on it autonomously. \
+                     Call `report_complete` when finished."
+                ));
 
-    queue[0].session_id = Some(first_session.id.clone());
+                // Each MCP port lookup needs to be fresh for each session
+                let port = session::get_mcp_port(&mcp);
+                match session::start_task_session(
+                    &conn,
+                    &pty,
+                    &app,
+                    &mcp,
+                    port,
+                    &project_id,
+                    tid,
+                    agent_name.as_deref(),
+                    model.as_deref(),
+                    true,
+                    base_branch.as_deref(),
+                    user_prompt.as_deref(),
+                ) {
+                    Ok(session) => {
+                        queue[i].session_id = Some(session.id.clone());
+                    }
+                    Err(e) => {
+                        tracing::error!(task_id = %tid, %e, "Failed to launch parallel session");
+                        queue[i].status = QueueItemStatus::Error;
+                        queue[i].error = Some(format!("Launch failed: {e}"));
+                    }
+                }
+            }
+        }
+        BranchingStrategy::Chained => {
+            // Sequential — launch only the first task
+            queue[0].status = QueueItemStatus::Running;
 
-    // Record the branch for chaining
-    let last_branch = first_session
-        .worktree_path
-        .as_ref()
-        .and_then(|_| {
-            db::tasks::get(&conn, first_task_id, &project_id)
-                .ok()
-                .flatten()
-                .and_then(|t| t.branch)
-        });
+            let first_task_id = &task_ids[0];
+            let first_user_prompt = Some(format!(
+                "You are running in continuous mode (chained). \
+                 Use the `get_task` MCP tool to fetch task {first_task_id} details, \
+                 then begin working on it autonomously. \
+                 Call `report_complete` when finished."
+            ));
+
+            let first_session = session::start_task_session(
+                &conn,
+                &pty,
+                &app,
+                &mcp,
+                mcp_port,
+                &project_id,
+                first_task_id,
+                agent_name.as_deref(),
+                model.as_deref(),
+                true,
+                base_branch.as_deref(),
+                first_user_prompt.as_deref(),
+            )?;
+
+            queue[0].session_id = Some(first_session.id.clone());
+
+            // Record the branch for chaining
+            last_branch = first_session
+                .worktree_path
+                .as_ref()
+                .and_then(|_| {
+                    db::tasks::get(&conn, first_task_id, &project_id)
+                        .ok()
+                        .flatten()
+                        .and_then(|t| t.branch)
+                });
+        }
+    }
 
     let run = ContinuousRun {
         project_id: project_id.clone(),
@@ -274,24 +313,72 @@ pub fn stop_continuous_mode(
     drop(guard);
     tracing::info!(project_id = %project_id, "Continuous mode stopped");
 
-    // Stop the currently running session if any
-    if let Some(item) = run.queue.get(run.current_index) {
+    // Stop ALL currently running sessions (important for independent mode)
+    let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    for item in &run.queue {
         if item.status == QueueItemStatus::Running {
             if let Some(sid) = &item.session_id {
-                let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
                 let _ = session::stop_session(&conn, &pty, &app, &mcp, sid);
             }
         }
     }
 
-    let mut finished_run = run;
-    finished_run.status = ContinuousStatus::Completed;
+    let completed_count = run.queue.iter()
+        .filter(|i| i.status == QueueItemStatus::Completed)
+        .count();
 
+    // Emit finished event so the frontend properly clears the state
     let _ = app.emit(
-        "continuous-mode-update",
-        ContinuousModeUpdate {
+        "continuous-mode-finished",
+        continuous::ContinuousModeFinished {
             project_id,
-            run: finished_run,
+            completed_count,
+        },
+    );
+
+    Ok(())
+}
+
+/// Dismiss a completed continuous run — stops and removes all related sessions.
+/// Called by the user from the continuous mode bar after reviewing agent output.
+#[tauri::command]
+pub fn dismiss_continuous_mode(
+    db: State<'_, DbState>,
+    pty: State<'_, PtyState>,
+    mcp: State<'_, Arc<TokioMutex<McpState>>>,
+    cont: State<'_, ContinuousState>,
+    app: AppHandle,
+    project_id: String,
+) -> Result<(), AppError> {
+    let mut guard = cont.blocking_lock();
+    let run = match guard.remove(&project_id) {
+        Some(r) => r,
+        None => return Ok(()), // no active run
+    };
+    drop(guard);
+    tracing::info!(project_id = %project_id, "Continuous mode dismissed");
+
+    // Stop and remove ALL sessions that are still alive
+    let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    for item in &run.queue {
+        if let Some(sid) = &item.session_id {
+            // stop_and_remove handles already-stopped sessions gracefully
+            let _ = session::stop_and_remove_session(&conn, &pty, &app, &mcp, sid);
+        }
+    }
+
+    let completed_count = run
+        .queue
+        .iter()
+        .filter(|i| i.status == QueueItemStatus::Completed)
+        .count();
+
+    // Emit finished event to clear frontend state
+    let _ = app.emit(
+        "continuous-mode-finished",
+        continuous::ContinuousModeFinished {
+            project_id,
+            completed_count,
         },
     );
 

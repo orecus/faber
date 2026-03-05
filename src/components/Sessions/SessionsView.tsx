@@ -14,6 +14,7 @@ import { useAppStore } from "../../store/appStore";
 import { ptyBuffer } from "../../lib/ptyBuffer";
 import type { GridLayoutState } from "../../store/appStore";
 import type { Session } from "../../types";
+import ContinuousModeBar from "../Shell/ContinuousModeBar";
 import { ViewLayout } from "../Shell/ViewLayout";
 import SessionsToolbar from "./SessionsToolbar";
 import SessionGrid from "./SessionGrid";
@@ -25,6 +26,7 @@ import SessionLauncher from "../Launchers/SessionLauncher";
 export default function SessionsView() {
   const sessions = useAppStore((s) => s.sessions);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const continuousMode = useAppStore((s) => s.continuousMode);
   const gridLayout = useAppStore((s) => s.gridLayout);
   const setGridLayout = useAppStore((s) => s.setGridLayout);
   const dismissEndedPane = useAppStore((s) => s.dismissEndedPane);
@@ -177,6 +179,8 @@ export default function SessionsView() {
     setShowLauncher(false);
   }, []);
 
+  const hasContinuousRun = !!(activeProjectId && continuousMode[activeProjectId]);
+
   return (
     <ViewLayout>
       <SessionsToolbar
@@ -185,6 +189,10 @@ export default function SessionsView() {
         activeProjectId={activeProjectId}
         onNewSession={() => setShowLauncher(true)}
       />
+
+      {activeProjectId && hasContinuousRun && (
+        <ContinuousModeBar projectId={activeProjectId} />
+      )}
 
       {visibleSessions.length === 0 ? (
         <SessionsEmptyState activeProjectId={activeProjectId} onNewAgent={() => setShowLauncher(true)} />
