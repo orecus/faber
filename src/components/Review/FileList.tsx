@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   FilePen,
   FilePlus2,
   FileQuestion,
@@ -145,6 +147,8 @@ export default function FileList({
   const [commitMsg, setCommitMsg] = useState("");
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
+  const [committedExpanded, setCommittedExpanded] = useState(false);
+  const [changesExpanded, setChangesExpanded] = useState(true);
 
   const stagedFiles = changedFiles.filter((f) => f.staged);
   const allStaged =
@@ -201,7 +205,15 @@ export default function FileList({
         {/* Committed section */}
         {hasCommitted && (
           <>
-            <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+            <div
+              className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 hover:bg-accent/30"
+              onClick={() => setCommittedExpanded((v) => !v)}
+            >
+              {committedExpanded ? (
+                <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+              ) : (
+                <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+              )}
               <CheckCircle2 className="size-3 text-success opacity-60" />
               <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                 Committed
@@ -210,30 +222,41 @@ export default function FileList({
                 {committedFiles.length}
               </span>
             </div>
-            <div className="py-1">
-              {committedFiles.map((file) => (
-                <FileRow
-                  key={`c-${file.path}`}
-                  file={file}
-                  isSelected={
-                    selectedFile?.path === file.path &&
-                    selectedFile?.section === "committed"
-                  }
-                  onSelect={() => onSelectFile(file.path, "committed")}
-                  showCheckbox={false}
-                />
-              ))}
-            </div>
+            {committedExpanded && (
+              <div className="py-1">
+                {committedFiles.map((file) => (
+                  <FileRow
+                    key={`c-${file.path}`}
+                    file={file}
+                    isSelected={
+                      selectedFile?.path === file.path &&
+                      selectedFile?.section === "committed"
+                    }
+                    onSelect={() => onSelectFile(file.path, "committed")}
+                    showCheckbox={false}
+                  />
+                ))}
+              </div>
+            )}
           </>
         )}
 
         {/* Changes section */}
-        <div className="flex items-center gap-2 border-b border-border px-3 py-2">
+        <div
+          className="flex cursor-pointer items-center gap-2 border-b border-border px-3 py-2 hover:bg-accent/30"
+          onClick={() => setChangesExpanded((v) => !v)}
+        >
+          {changesExpanded ? (
+            <ChevronDown className="size-3 shrink-0 text-muted-foreground" />
+          ) : (
+            <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
+          )}
           {hasChanges && (
             <Checkbox
               checked={allStaged}
               indeterminate={someStaged && !allStaged}
               onCheckedChange={handleSelectAll}
+              onClick={(e: React.MouseEvent) => e.stopPropagation()}
               className="size-3.5"
             />
           )}
@@ -245,27 +268,29 @@ export default function FileList({
             {changedFiles.length}
           </span>
         </div>
-        <div className="py-1">
-          {!hasChanges ? (
-            <div className="px-3 py-3 text-center text-[11px] text-muted-foreground">
-              No uncommitted changes
-            </div>
-          ) : (
-            changedFiles.map((file) => (
-              <FileRow
-                key={`w-${file.path}`}
-                file={file}
-                isSelected={
-                  selectedFile?.path === file.path &&
-                  selectedFile?.section === "changes"
-                }
-                onSelect={() => onSelectFile(file.path, "changes")}
-                onToggleStage={() => onToggleStage(file.path, file.staged)}
-                showCheckbox={true}
-              />
-            ))
-          )}
-        </div>
+        {changesExpanded && (
+          <div className="py-1">
+            {!hasChanges ? (
+              <div className="px-3 py-3 text-center text-[11px] text-muted-foreground">
+                No uncommitted changes
+              </div>
+            ) : (
+              changedFiles.map((file) => (
+                <FileRow
+                  key={`w-${file.path}`}
+                  file={file}
+                  isSelected={
+                    selectedFile?.path === file.path &&
+                    selectedFile?.section === "changes"
+                  }
+                  onSelect={() => onSelectFile(file.path, "changes")}
+                  onToggleStage={() => onToggleStage(file.path, file.staged)}
+                  showCheckbox={true}
+                />
+              ))
+            )}
+          </div>
+        )}
       </div>
 
       {/* Commit bar */}

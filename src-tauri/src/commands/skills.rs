@@ -479,8 +479,9 @@ pub fn list_rule_files(
     let project_path = get_project_path(&conn, &project_id)?;
     let home = home_dir();
 
-    // Get agent info for installed status and display names
-    let agents = agent::list_agent_info();
+    // Get agent info without running installation detection — the frontend
+    // already knows which agents are installed and filters accordingly.
+    let agents = agent::list_agent_info_no_detect();
 
     // Build a group per agent
     let mut groups: Vec<AgentRuleGroup> = Vec::new();

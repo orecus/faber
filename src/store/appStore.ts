@@ -227,17 +227,25 @@ export const useAppStore = create<AppState>()(
           state.activeProjectId && validIds.has(state.activeProjectId)
             ? state.activeProjectId
             : openProjectIds[0] ?? null;
+        // Persist if filtered list changed
+        if (openProjectIds.length !== state.openProjectIds.length) {
+          invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
+        }
         return { projects: sorted, openProjectIds, activeProjectId };
       }),
 
     addProject: (project) =>
-      set((state) => ({
-        projects: [...state.projects, project].sort((a, b) =>
-          a.name.localeCompare(b.name),
-        ),
-        openProjectIds: [...state.openProjectIds, project.id],
-        activeProjectId: project.id,
-      })),
+      set((state) => {
+        const openProjectIds = [...state.openProjectIds, project.id];
+        invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
+        return {
+          projects: [...state.projects, project].sort((a, b) =>
+            a.name.localeCompare(b.name),
+          ),
+          openProjectIds,
+          activeProjectId: project.id,
+        };
+      }),
 
     updateProject: (project) =>
       set((state) => ({
@@ -258,6 +266,7 @@ export const useAppStore = create<AppState>()(
         const { [id]: _s, ...restSessions } = state.projectSessions;
         const { [id]: _w, ...restWorktrees } = state.projectWorktrees;
         const { [id]: _g, ...restGitData } = state.projectGitData;
+        invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
         return {
           projects,
           openProjectIds,
@@ -273,6 +282,7 @@ export const useAppStore = create<AppState>()(
         const openProjectIds = state.openProjectIds.includes(id)
           ? state.openProjectIds
           : [...state.openProjectIds, id];
+        invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
         return { openProjectIds, activeProjectId: id };
       }),
 
@@ -287,6 +297,7 @@ export const useAppStore = create<AppState>()(
         const { [id]: _s, ...restSessions } = state.projectSessions;
         const { [id]: _w, ...restWorktrees } = state.projectWorktrees;
         const { [id]: _g, ...restGitData } = state.projectGitData;
+        invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
         return {
           openProjectIds,
           activeProjectId,
@@ -654,11 +665,11 @@ export const useAppStore = create<AppState>()(
         .catch(() => {})
         .finally(() => removeBackgroundTask("Detecting shells"));
 
-      // Fetch agent usage data and start 60s polling
+      // Fetch agent usage data and start 5-minute polling
       get().fetchAgentUsage();
       const usageInterval = setInterval(() => {
         get().fetchAgentUsage();
-      }, 60_000);
+      }, 300_000);
       cleanups.push(() => clearInterval(usageInterval));
 
       // Check GitHub CLI auth status (tracked as background task)
@@ -680,21 +691,35 @@ export const useAppStore = create<AppState>()(
         )
         .finally(() => removeBackgroundTask("Checking GitHub auth"));
 
-      // Load projects, then load sessions/worktrees for all of them
+      // Load projects, then restore persisted open state or open all
       addBackgroundTask("Loading projects");
-      invoke<Project[]>("list_projects")
-        .then((projects) => {
-          // Batch all project state into a single set() to avoid N+1 re-renders
+      Promise.all([
+        invoke<Project[]>("list_projects"),
+        invoke<string | null>("get_setting", { key: "open_project_ids" }),
+      ])
+        .then(([projects, savedOpenIds]) => {
           const sorted = [...projects].sort((a, b) => a.name.localeCompare(b.name));
           const allIds = sorted.map((p) => p.id);
+
+          // Restore persisted open projects, falling back to all
+          let openProjectIds = allIds;
+          if (savedOpenIds) {
+            try {
+              const parsed: string[] = JSON.parse(savedOpenIds);
+              // Filter to only valid project IDs
+              const valid = parsed.filter((id) => allIds.includes(id));
+              if (valid.length > 0) openProjectIds = valid;
+            } catch { /* fall back to all */ }
+          }
+
           set({
             projects: sorted,
-            openProjectIds: allIds,
-            activeProjectId: allIds[0] ?? null,
+            openProjectIds,
+            activeProjectId: openProjectIds[0] ?? null,
           });
           // Load sessions + worktrees for every open project
-          for (const p of projects) {
-            refreshProject(p.id);
+          for (const id of openProjectIds) {
+            refreshProject(id);
           }
         })
         .catch(() => {})

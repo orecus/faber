@@ -379,7 +379,7 @@ const ProjectSessionList = React.memo(function ProjectSessionList({
       </div>
       <div className="text-dim-foreground">
         {sessions.length === 0 ? (
-          <div className="flex items-center gap-1.5 px-1 py-1 text-xs text-dim-foreground">
+          <div className="flex items-center gap-1.5 px-1 py-1 text-xs text-muted-foreground/60">
             <TerminalSquare size={12} />
             <span>No active sessions</span>
           </div>
@@ -423,7 +423,7 @@ const ProjectWorktreeList = React.memo(function ProjectWorktreeList({
       </div>
       <div className="pb-1">
         {nonMainWorktrees.length === 0 ? (
-          <div className="flex items-center gap-1.5 px-1 py-1 text-xs text-dim-foreground">
+          <div className="flex items-center gap-1.5 px-1 py-1 text-xs text-muted-foreground/60">
             <GitFork size={12} />
             <span>No worktrees</span>
           </div>
@@ -489,20 +489,14 @@ const ProjectItem = React.memo(function ProjectItem({
       {/* Project header */}
       <div
         onClick={onSelect}
-        className={`group flex items-center gap-1.5 px-2 h-8 cursor-pointer border-l-[3px] border-solid border-y-0 border-r-0 ${
-          isActive ? "bg-accent/50" : "hover:bg-accent/30 border-l-transparent"
+        className={`group flex items-center gap-1.5 px-2 h-8 cursor-pointer ${
+          isActive ? "bg-accent/50" : "hover:bg-accent/30"
         }`}
-        style={{ borderLeftColor: isActive ? accentHex : undefined }}
       >
         <span
-          onClick={(e) => {
-            e.stopPropagation();
-            setExpanded((prev) => !prev);
-          }}
-          className="inline-flex w-4 justify-center shrink-0 text-muted-foreground hover:text-foreground"
-        >
-          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
-        </span>
+          className="size-2 rounded-full shrink-0"
+          style={{ backgroundColor: accentHex }}
+        />
         {showIcons && (
           <ProjectIcon
             projectId={project.id}
@@ -525,11 +519,20 @@ const ProjectItem = React.memo(function ProjectItem({
         >
           <X size={12} />
         </span>
+        <span
+          onClick={(e) => {
+            e.stopPropagation();
+            setExpanded((prev) => !prev);
+          }}
+          className="inline-flex w-4 justify-center shrink-0 text-muted-foreground hover:text-foreground"
+        >
+          {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
+        </span>
       </div>
 
       {/* Expanded content */}
       {expanded && (
-        <div className="pl-3">
+        <div className="pl-3 pb-1">
           <ProjectSessionList
             projectId={project.id}
             isProjectActive={isActive}
@@ -625,7 +628,7 @@ export default function Sidebar() {
       </div>
 
       {/* ── Scrollable project list ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto">
+      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/40">
         {openProjects.map((project) => (
           <ProjectItem
             key={project.id}

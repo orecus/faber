@@ -97,7 +97,23 @@ pub fn get_adapter(name: &str) -> Option<Box<dyn AgentAdapter>> {
     builtin_adapters().into_iter().find(|a| a.name() == name)
 }
 
-/// Get info for all built-in adapters.
+/// Get basic info for all built-in adapters without running installation detection.
+/// Use this when you only need agent names/display names (e.g. listing rule files).
+pub fn list_agent_info_no_detect() -> Vec<AgentInfo> {
+    builtin_adapters()
+        .iter()
+        .map(|a| AgentInfo {
+            name: a.name().to_string(),
+            display_name: a.display_name().to_string(),
+            command: a.command().to_string(),
+            installed: false, // not checked
+            default_model: a.default_model().map(String::from),
+            supported_models: a.supported_models().iter().map(|s| s.to_string()).collect(),
+        })
+        .collect()
+}
+
+/// Get info for all built-in adapters (runs installation detection).
 pub fn list_agent_info() -> Vec<AgentInfo> {
     let agents: Vec<AgentInfo> = builtin_adapters()
         .iter()
