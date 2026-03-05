@@ -1300,7 +1300,7 @@ pub fn fetch_issue_comments(
                 author_avatar: raw.author.avatar_url,
                 body: raw.body,
                 created_at: raw.created_at.clone(),
-                updated_at: raw.updated_at.unwrap_or_else(|| raw.created_at),
+                updated_at: raw.updated_at.unwrap_or(raw.created_at),
             }
         })
         .collect();

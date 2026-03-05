@@ -20,7 +20,7 @@ impl AppError {
             Self::Database(msg) => map_database_error(msg),
             Self::Git(msg) => map_git_error(msg),
             Self::Io(msg) => map_io_error(msg),
-            Self::Validation(msg) => format!("{msg}"),
+            Self::Validation(msg) => msg.to_string(),
             Self::NotFound(msg) => format!("{msg} not found"),
             Self::Keyring(msg) => map_keyring_error(msg),
         }

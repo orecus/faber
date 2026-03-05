@@ -1,7 +1,7 @@
 {
   "name": "faber",
   "private": true,
-  "version": "0.8.0",
+  "version": "0.8.1",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -9,7 +9,8 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "prepare-sidecar": "node scripts/prepare-sidecar.mjs --debug",
-    "release": "node scripts/release.mjs"
+    "release": "node scripts/release.mjs",
+    "test": "cd src-tauri && cargo test --lib && cargo clippy -- -D warnings"
   },
   "dependencies": {
     "@base-ui/react": "^1.2.0",

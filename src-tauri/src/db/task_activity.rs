@@ -3,6 +3,7 @@ use rusqlite::{params, Connection};
 use super::models::TaskActivity;
 
 /// Insert a new task activity event.
+#[allow(clippy::too_many_arguments)]
 pub fn insert(
     conn: &Connection,
     id: &str,
