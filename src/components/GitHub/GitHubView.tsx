@@ -13,6 +13,7 @@ import {
 import { useCallback, useEffect, useState } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
+import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { useAppStore } from "../../store/appStore";
 import type { ProjectInfo, SyncStatus } from "../../types";
@@ -115,7 +116,7 @@ export default function GitHubView() {
       ]);
     } catch (e) {
       console.error("Pull failed:", e);
-      useAppStore.getState().flashError(`Pull failed: ${e}`);
+      useAppStore.getState().flashError(`Pull failed: ${formatErrorWithHint(e, "git-pull")}`);
     } finally {
       setPulling(false);
       removeBackgroundTask("Pulling from remote");
@@ -132,7 +133,7 @@ export default function GitHubView() {
       await fetchSyncStatus();
     } catch (e) {
       console.error("Push failed:", e);
-      useAppStore.getState().flashError(`Push failed: ${e}`);
+      useAppStore.getState().flashError(`Push failed: ${formatErrorWithHint(e, "git-push")}`);
     } finally {
       setPushing(false);
       removeBackgroundTask("Pushing to remote");

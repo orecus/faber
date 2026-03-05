@@ -2,6 +2,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Loader2, Pause, Play, Square } from "lucide-react";
 import { useCallback, useMemo } from "react";
 
+import { formatError } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
@@ -35,15 +36,21 @@ export default function ContinuousModeBar({ projectId }: ContinuousModeBarProps)
   const isPaused = run?.status === "paused";
 
   const handlePause = useCallback(() => {
-    invoke("pause_continuous_mode", { projectId }).catch(() => {});
+    invoke("pause_continuous_mode", { projectId }).catch((e) => {
+      useAppStore.getState().flashError(`Failed to pause: ${formatError(e)}`);
+    });
   }, [projectId]);
 
   const handleResume = useCallback(() => {
-    invoke("resume_continuous_mode", { projectId }).catch(() => {});
+    invoke("resume_continuous_mode", { projectId }).catch((e) => {
+      useAppStore.getState().flashError(`Failed to resume: ${formatError(e)}`);
+    });
   }, [projectId]);
 
   const handleStop = useCallback(() => {
-    invoke("stop_continuous_mode", { projectId }).catch(() => {});
+    invoke("stop_continuous_mode", { projectId }).catch((e) => {
+      useAppStore.getState().flashError(`Failed to stop: ${formatError(e)}`);
+    });
   }, [projectId]);
 
   if (!run) return null;

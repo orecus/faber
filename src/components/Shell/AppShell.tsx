@@ -13,6 +13,7 @@ import SkillsRulesView from "../SkillsRules/SkillsRulesView";
 import TaskDetailView from "../TaskDetail/TaskDetailView";
 import UpdateNotification from "../Update/UpdateNotification";
 import ApplicationBar from "./ApplicationBar";
+import ErrorBoundary from "./ErrorBoundary";
 import RightSidebar from "./RightSidebar";
 import Sidebar from "./Sidebar";
 import WelcomeScreen from "./WelcomeScreen";
@@ -149,7 +150,9 @@ export default function AppShell() {
       >
         <ApplicationBar />
         <Sidebar />
-        <ViewRouter activeView={activeView} />
+        <ErrorBoundary>
+          <ViewRouter activeView={activeView} />
+        </ErrorBoundary>
         {rightSidebarOpen && <RightSidebar />}
       </div>
 

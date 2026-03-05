@@ -3,6 +3,7 @@ import { FileText, Loader2, Plus, X } from "lucide-react";
 import { useCallback, useMemo, useState } from "react";
 
 import { AgentIcon } from "../../lib/agentIcons";
+import { formatError } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import type { AgentRuleGroup } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
@@ -86,7 +87,7 @@ export default function CreateRuleDialog({
       setDirIndex(0);
     } catch (e) {
       console.error("Failed to create rule file:", e);
-      useAppStore.getState().flashError(`Failed to create: ${e}`);
+      useAppStore.getState().flashError(`Failed to create: ${formatError(e)}`);
     } finally {
       setCreating(false);
       removeBackgroundTask("Creating rule file");

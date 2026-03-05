@@ -11,6 +11,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { open } from "@tauri-apps/plugin-shell";
 
 import { useTheme } from "../../contexts/ThemeContext";
+import { formatError } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
@@ -85,7 +86,7 @@ export default function SkillsTab({ projectId }: Props) {
         setActiveView("sessions");
       } catch (e) {
         console.error("Skill install failed:", e);
-        useAppStore.getState().flashError(`Install failed: ${e}`);
+        useAppStore.getState().flashError(`Install failed: ${formatError(e)}`);
       } finally {
         setInstalling(null);
         removeBackgroundTask(taskLabel);
@@ -109,7 +110,7 @@ export default function SkillsTab({ projectId }: Props) {
         setRefreshKey((k) => k + 1);
       } catch (e) {
         console.error("Skill remove failed:", e);
-        useAppStore.getState().flashError(`Remove failed: ${e}`);
+        useAppStore.getState().flashError(`Remove failed: ${formatError(e)}`);
       } finally {
         removeBackgroundTask(taskLabel);
       }

@@ -11,6 +11,7 @@ import {
 import React, { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
 
+import { formatError } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import type { RuleFileInfo } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
@@ -79,7 +80,7 @@ function RuleEditor({ file, projectId, onFileCreated }: Props) {
       setTimeout(() => setSaved(false), 2000);
     } catch (e) {
       console.error("Failed to save rule file:", e);
-      useAppStore.getState().flashError(`Failed to save: ${e}`);
+      useAppStore.getState().flashError(`Failed to save: ${formatError(e)}`);
     } finally {
       setSaving(false);
       removeBackgroundTask("Saving rule file");
@@ -101,7 +102,7 @@ function RuleEditor({ file, projectId, onFileCreated }: Props) {
       onFileCreated();
     } catch (e) {
       console.error("Failed to create rule file:", e);
-      useAppStore.getState().flashError(`Failed to create: ${e}`);
+      useAppStore.getState().flashError(`Failed to create: ${formatError(e)}`);
     } finally {
       removeBackgroundTask("Creating rule file");
     }

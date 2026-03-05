@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { formatError } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { ViewLayout } from "../Shell/ViewLayout";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
@@ -56,6 +57,7 @@ const SessionsToolbar = memo(function SessionsToolbar({
     invoke("start_shell_session", { projectId: activeProjectId })
       .catch((err) => {
         console.error("[sessions] Failed to start shell session:", err);
+        useAppStore.getState().flashError(`Failed to start terminal: ${formatError(err)}`);
       })
       .finally(() => removeBackgroundTask(label));
   }, [activeProjectId, addBackgroundTask, removeBackgroundTask]);

@@ -1,10 +1,11 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Lightbulb, X } from "lucide-react";
+import { AlertTriangle, Lightbulb, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { AGENT_DESCRIPTIONS } from "../../lib/agentDescriptions";
 import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
+import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import {
   Dialog,
@@ -113,7 +114,7 @@ export default function ResearchTaskDialog({
       });
       onLaunched();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatErrorWithHint(err, "agent-launch"));
     } finally {
       setLaunching(false);
       removeBackgroundTask(taskLabel);
@@ -240,7 +241,12 @@ export default function ResearchTaskDialog({
         </div>
 
         {/* Error */}
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg bg-destructive/10 ring-1 ring-destructive/20 px-3 py-2.5">
+            <AlertTriangle size={14} className="text-destructive shrink-0 mt-0.5" />
+            <p className="text-xs text-destructive whitespace-pre-line">{error}</p>
+          </div>
+        )}
 
         {/* Actions */}
         <DialogFooter>

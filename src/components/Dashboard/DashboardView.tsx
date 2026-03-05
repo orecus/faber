@@ -134,9 +134,11 @@ export default function DashboardView() {
           status: newStatus,
         });
         updateTask(updated);
-      } catch {
-        // Revert on failure
+      } catch (err) {
+        // Revert on failure + notify user
         setTasks(preUpdateTasksRef.current);
+        useAppStore.getState().flashError("Failed to update task status");
+        console.error("Task status update failed:", err);
       }
     },
     [setTasks, updateTask, activeProjectId],

@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { formatError } from "../../lib/errorMessages";
 import {
   AlertTriangle,
   ArrowLeft,
@@ -943,7 +944,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
         await loadPlugins();
       } catch (e) {
         console.error(`${label} failed:`, e);
-        useAppStore.getState().flashError(`${label} failed: ${e}`);
+        useAppStore.getState().flashError(`${label} failed: ${formatError(e)}`);
       } finally {
         removeBackgroundTask(label);
       }

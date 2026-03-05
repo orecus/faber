@@ -3,6 +3,7 @@ import { invoke } from "@tauri-apps/api/core";
 import { Sparkles, TerminalSquare } from "lucide-react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { formatError } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
@@ -26,6 +27,7 @@ export default function SessionsEmptyState({
     invoke("start_shell_session", { projectId: activeProjectId })
       .catch((err) => {
         console.error("[sessions] Failed to start shell session:", err);
+        useAppStore.getState().flashError(`Failed to start terminal: ${formatError(err)}`);
       })
       .finally(() => removeBackgroundTask(label));
   }, [activeProjectId, addBackgroundTask, removeBackgroundTask]);

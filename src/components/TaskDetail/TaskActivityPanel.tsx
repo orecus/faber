@@ -21,6 +21,7 @@ import {
   streamdownPlugins,
   streamdownTheme,
 } from "../../lib/markdown";
+import { formatError } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
 
@@ -371,7 +372,7 @@ function GitHubActivityContent({
       .then(setComments)
       .catch((err) => {
         console.warn("Failed to fetch issue comments:", err);
-        setError(typeof err === "string" ? err : "Failed to load comments");
+        setError(formatError(err) || "Failed to load comments");
         setComments([]);
       })
       .finally(() => {
@@ -403,7 +404,7 @@ function GitHubActivityContent({
       })
       .catch((err) => {
         console.warn("Failed to post comment:", err);
-        setError(typeof err === "string" ? err : "Failed to post comment");
+        setError(formatError(err) || "Failed to post comment");
       })
       .finally(() => setPosting(false));
   }, [projectId, issueNumber, commentBody, fetchComments]);

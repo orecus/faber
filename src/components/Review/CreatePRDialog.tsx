@@ -1,8 +1,9 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ExternalLink, GitPullRequestArrow, Loader2, X } from "lucide-react";
+import { AlertTriangle, ExternalLink, GitPullRequestArrow, Loader2, X } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import {
   Dialog,
@@ -121,8 +122,7 @@ export default function CreatePRDialog({
       setResult(pr);
       setStage("done");
     } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      setError(msg);
+      setError(formatErrorWithHint(err, "github-pr"));
       setStage("form");
     } finally {
       removeBackgroundTask("Creating pull request");
@@ -244,7 +244,12 @@ export default function CreatePRDialog({
             )}
 
             {/* Error */}
-            {error && <p className="text-xs text-destructive">{error}</p>}
+            {error && (
+              <div className="flex items-start gap-2 rounded-lg bg-destructive/10 ring-1 ring-destructive/20 px-3 py-2.5">
+                <AlertTriangle size={14} className="text-destructive shrink-0 mt-0.5" />
+                <p className="text-xs text-destructive whitespace-pre-line">{error}</p>
+              </div>
+            )}
 
             {/* Actions */}
             <DialogFooter>

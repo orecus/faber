@@ -1,5 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
+import { formatError } from "../../lib/errorMessages";
 import {
   AlertTriangle,
   Bot,
@@ -839,7 +840,7 @@ export function ProjectsTab({ agents, onClose }: { agents: AgentInfo[]; onClose?
         updateProjectInStore(result);
       } catch (e) {
         console.error("Failed to update project:", e);
-        useAppStore.getState().flashError(`Failed to update project: ${e}`);
+        useAppStore.getState().flashError(`Failed to update project: ${formatError(e)}`);
       }
     },
     [updateProjectInStore],
@@ -852,7 +853,7 @@ export function ProjectsTab({ agents, onClose }: { agents: AgentInfo[]; onClose?
         removeProjectFromStore(id);
       } catch (e) {
         console.error("Failed to remove project:", e);
-        useAppStore.getState().flashError(`Failed to remove project: ${e}`);
+        useAppStore.getState().flashError(`Failed to remove project: ${formatError(e)}`);
       }
     },
     [removeProjectFromStore],

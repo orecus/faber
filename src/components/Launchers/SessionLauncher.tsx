@@ -1,9 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Play, X } from "lucide-react";
+import { AlertTriangle, Play, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
+import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { Checkbox } from "../ui/checkbox";
 import {
@@ -97,7 +98,7 @@ export default function SessionLauncher({
       });
       onSessionStarted();
     } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
+      setError(formatErrorWithHint(err, "agent-launch"));
     } finally {
       setStarting(false);
       removeBackgroundTask(taskLabel);
@@ -253,7 +254,12 @@ export default function SessionLauncher({
         </div>
 
         {/* Error */}
-        {error && <p className="text-xs text-destructive">{error}</p>}
+        {error && (
+          <div className="flex items-start gap-2 rounded-lg bg-destructive/10 ring-1 ring-destructive/20 px-3 py-2.5">
+            <AlertTriangle size={14} className="text-destructive shrink-0 mt-0.5" />
+            <p className="text-xs text-destructive whitespace-pre-line">{error}</p>
+          </div>
+        )}
 
         {/* Actions */}
         <DialogFooter>
