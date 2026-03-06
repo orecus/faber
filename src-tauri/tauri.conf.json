@@ -1,7 +1,7 @@
 {
   "$schema": "https://raw.githubusercontent.com/niconiahi/tauri-schema/refs/heads/v2-stable/schema.json",
   "productName": "Faber",
-  "version": "0.8.0",
+  "version": "0.8.1",
   "identifier": "com.faber.dev",
   "build": {
     "beforeDevCommand": "node scripts/prepare-sidecar.mjs --debug && pnpm dev",

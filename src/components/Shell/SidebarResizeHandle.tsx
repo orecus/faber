@@ -1,7 +1,7 @@
 import { useCallback, useRef } from "react";
 import { useAppStore } from "../../store/appStore";
 
-const MIN_WIDTH = 180;
+const MIN_WIDTH = 210;
 const MAX_WIDTH = 500;
 
 export default function SidebarResizeHandle() {

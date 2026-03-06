@@ -416,6 +416,22 @@ export interface DocContent {
   body: string;
 }
 
+// ── Prompt Template types ──
+
+export type PromptCategory = "session" | "action";
+
+export interface PromptTemplate {
+  id: string;
+  label: string;
+  icon: string;
+  prompt: string;
+  category: PromptCategory;
+  session_mode?: string;
+  quick_action: boolean;
+  builtin: boolean;
+  sort_order: number;
+}
+
 // ── Continuous Mode types ──
 
 export type BranchingStrategy = "independent" | "chained";

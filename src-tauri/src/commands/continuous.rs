@@ -1,8 +1,10 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::commands::prompts;
 use crate::continuous::{
     self, BranchingStrategy, ContinuousModeUpdate, ContinuousQueueItem, ContinuousRun,
     ContinuousState, ContinuousStatus, QueueItemStatus,
@@ -79,18 +81,19 @@ pub fn start_continuous_mode(
 
     let mut last_branch: Option<String> = None;
 
+    // Load continuous mode template once for all tasks
+    let cont_template = prompts::get_session_prompt(&conn, "continuous");
+
     match strategy {
         BranchingStrategy::Independent => {
             // Launch ALL tasks in parallel — each gets its own session from base branch
             for (i, tid) in task_ids.iter().enumerate() {
                 queue[i].status = QueueItemStatus::Running;
 
-                let user_prompt = Some(format!(
-                    "You are running in continuous mode (parallel). \
-                     Use the `get_task` MCP tool to fetch task {tid} details, \
-                     then begin working on it autonomously. \
-                     Call `report_complete` when finished."
-                ));
+                let mut vars = HashMap::new();
+                vars.insert("task_id", tid.as_str());
+                vars.insert("mode", "parallel");
+                let user_prompt = Some(session::interpolate_vars(&cont_template.prompt, &vars));
 
                 // Each MCP port lookup needs to be fresh for each session
                 let port = session::get_mcp_port(&mcp);
@@ -124,12 +127,10 @@ pub fn start_continuous_mode(
             queue[0].status = QueueItemStatus::Running;
 
             let first_task_id = &task_ids[0];
-            let first_user_prompt = Some(format!(
-                "You are running in continuous mode (chained). \
-                 Use the `get_task` MCP tool to fetch task {first_task_id} details, \
-                 then begin working on it autonomously. \
-                 Call `report_complete` when finished."
-            ));
+            let mut vars = HashMap::new();
+            vars.insert("task_id", first_task_id.as_str());
+            vars.insert("mode", "chained");
+            let first_user_prompt = Some(session::interpolate_vars(&cont_template.prompt, &vars));
 
             let first_session = session::start_task_session(
                 &conn,

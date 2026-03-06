@@ -49,14 +49,24 @@ export default function LaunchTaskDialog({
   const projectInfo = useAppStore((s) => s.projectInfo);
   const addBackgroundTask = useAppStore((s) => s.addBackgroundTask);
   const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
+  const getSessionPrompt = useAppStore((s) => s.getSessionPrompt);
+
+  // Resolve default prompt from template, with client-side {{task_id}} interpolation
+  const defaultPrompt = useMemo(() => {
+    const template = getSessionPrompt("task");
+    if (template) {
+      return template.prompt
+        .replace(/\{\{task_id\}\}/g, task.id)
+        .replace(/\{\{worktree_hint\}\}/g, "");
+    }
+    return `Let's start working on task ${task.id}. Use the \`get_task\` MCP tool to fetch the task details, then return a short summary and ask the user if they are ready to start.`;
+  }, [getSessionPrompt, task.id]);
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [baseBranch, setBaseBranch] = useState<string>("");
   const [createWorktree, setCreateWorktree] = useState(true);
-  const [userPrompt, setUserPrompt] = useState(
-    `Let's start working on task ${task.id}. Use the \`get_task\` MCP tool to fetch the task details, then return a short summary and ask the user if they are ready to start.`,
-  );
+  const [userPrompt, setUserPrompt] = useState(defaultPrompt);
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
 

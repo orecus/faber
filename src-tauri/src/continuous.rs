@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::commands::prompts;
 use crate::db;
 use crate::db::DbState;
 use crate::error::AppError;
@@ -450,12 +451,11 @@ fn launch_task_for_continuous(
     let mcp_port = session::get_mcp_port(&mcp_state);
     let conn = db_state.lock().map_err(|e| AppError::Database(e.to_string()))?;
 
-    let user_prompt = Some(format!(
-        "You are running in continuous mode (chained). \
-         Use the `get_task` MCP tool to fetch task {task_id} details, \
-         then begin working on it autonomously. \
-         Call `report_complete` when finished."
-    ));
+    let template = prompts::get_session_prompt(&conn, "continuous");
+    let mut vars = HashMap::new();
+    vars.insert("task_id", task_id);
+    vars.insert("mode", "chained");
+    let user_prompt = Some(session::interpolate_vars(&template.prompt, &vars));
 
     session::start_task_session(
         &conn,

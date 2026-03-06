@@ -10,6 +10,7 @@ import { useAppStore } from "../../store/appStore";
 import Terminal from "../Terminal";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles, ringColors } from "../ui/orecus.io/lib/color-utils";
+import QuickActionBar from "./QuickActionBar";
 
 import type { Session } from "../../types";
 
@@ -332,8 +333,15 @@ export default React.memo(function SessionPane({
       </div>
 
       {/* Terminal area */}
-      <div className="flex-1 min-h-0 relative">
+      <div className="group/pane flex-1 min-h-0 relative bg-white dark:bg-[#0d1117]">
         <Terminal sessionId={session.id} />
+
+        {/* Quick Action Bar — floating at bottom center on hover */}
+        <QuickActionBar
+          sessionId={session.id}
+          sessionStatus={session.status}
+          sessionMode={session.mode}
+        />
 
         {/* Session Ended Overlay */}
         {isEnded && (

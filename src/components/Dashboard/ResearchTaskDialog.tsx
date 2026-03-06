@@ -47,12 +47,20 @@ export default function ResearchTaskDialog({
   const projectInfo = useAppStore((s) => s.projectInfo);
   const addBackgroundTask = useAppStore((s) => s.addBackgroundTask);
   const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
+  const getSessionPrompt = useAppStore((s) => s.getSessionPrompt);
+
+  // Resolve default prompt from template, with client-side {{task_id}} interpolation
+  const defaultPrompt = useMemo(() => {
+    const template = getSessionPrompt("research");
+    if (template) {
+      return template.prompt.replace(/\{\{task_id\}\}/g, task.id);
+    }
+    return `Task ${task.id} needs to be analyzed and researched together with the user. Start by using the \`get_task\` MCP tool to fetch the task details. The goal is to research the codebase, explore approaches, and then update the task file with a concrete implementation plan using the \`update_task_plan\` MCP tool. Ask the user for next steps.`;
+  }, [getSessionPrompt, task.id]);
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
-  const [userPrompt, setUserPrompt] = useState(
-    `Task ${task.id} needs to be analyzed and researched together with the user. Start by using the \`get_task\` MCP tool to fetch the task details. The goal is to research the codebase, explore approaches, and then update the task file with a concrete implementation plan using the \`update_task_plan\` MCP tool. Ask the user for next steps.`,
-  );
+  const [userPrompt, setUserPrompt] = useState(defaultPrompt);
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
 

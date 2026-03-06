@@ -20,6 +20,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Task Detail Actions** — Status-aware action buttons in the task detail toolbar: Start Task / Research (backlog/ready), View Session (in-progress), Create PR (in-review), Archive / Reopen (done/archived)
 - **Kanban Dependency Nesting** — Tasks with dependencies are now visually nested (indented) under their parent in all Kanban columns, with ghost parent cards shown for cross-column dependencies
 - **MCP Task Management Tools** — New `update_task` and `list_tasks` MCP tools allowing agents to update task metadata and query project tasks with status/label filters
+- **Prompt Templates & Quick Actions** — Unified configurable prompt template system with `{{variable}}` interpolation for all session types (task, research, continuous). Quick Action buttons appear on active session panes on hover, sending one-click prompts to agents. Manage templates and actions from the new Prompts settings dialog in the sidebar
 - **Plugins Tab** — New plugins management tab in Skills & Rules view for browsing and managing agent plugins
 - **Rule Editor & Tree Panel** — Dedicated rule editor with tree-based navigation panel for organizing and editing rules
 - **Create Rule Dialog** — Dialog for creating new rules with template support
@@ -28,6 +29,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Activity History UX** — All long entries (>50 chars) are now expandable with a Lucide chevron icon on the right; text size bumped from 11px to 12px; label stays truncated when expanded with full text shown below; removed internal scrollbar so the panel grows naturally; date separator now shows for every session group (including the first) with date-only format (no time)
 - **Create Issue Button Consolidation** — Removed duplicate "Create Issue" toolbar button; kept only the "+" button in the sidebar GitHub Issue section, which is now hidden when the repo has no remote configured
+- **Unified MCP Prompt Injection** — Consolidated duplicated MCP tool description blocks into a single shared constant across all session types
 - **Continuous Mode Prompts** — Updated prompts to use MCP `get_task` tool instead of file-based task injection, with explicit autonomous mode and `report_complete` instructions
 - **Continuous Mode Dialog** — Updated description and strategy labels to clarify parallel vs sequential behavior
 - **Sidebar Projects** — Added visual separators and color dots between sidebar projects, moved expand/collapse chevron to right side, dimmed empty state text, and persisted open/closed state across app restarts
@@ -48,6 +50,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Issue Import DB Lock** — Released DB lock during GitHub issue import file I/O to prevent blocking other Tauri commands during batch imports
 - **GitHub Sync Safety** — Disabled GitHub sync button when task has unsaved changes to prevent syncing stale content
 - **TODOS.md Regeneration** — Always regenerate TODOS.md after GitHub issue import, even when all selected issues are skipped
+- **Session Pane Bottom Gap** — Terminal area background now matches the xterm theme, eliminating the visible gap below the last terminal row
+- **Obsolete Settings Menu Cleanup** — Removed unused `SettingsMenu.tsx` dropdown component; all settings are now accessed from the sidebar icon bar
 
 ## [0.8.0] - 2026-03-03
 

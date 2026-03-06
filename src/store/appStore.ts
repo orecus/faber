@@ -19,6 +19,7 @@ import type {
   McpWaiting,
   Project,
   ProjectInfo,
+  PromptTemplate,
   RefInfo,
   Session,
   ShellInfo,
@@ -104,6 +105,7 @@ interface AppState {
   continuousMode: Record<string, ContinuousRun>;
   agentUsage: AgentUsageData[];
   agentUsageLoading: boolean;
+  promptTemplates: PromptTemplate[];
 
   // Per-project data (keyed by project ID) — source of truth for sidebar
   projectSessions: Record<string, Session[]>;
@@ -161,6 +163,12 @@ interface AppState {
   /** Re-check gh auth status from backend and update the store. */
   refreshGhAuth: () => Promise<void>;
 
+  // Prompt templates
+  loadPromptTemplates: () => Promise<void>;
+  savePromptTemplates: (templates: PromptTemplate[]) => Promise<void>;
+  resetPromptTemplates: () => Promise<void>;
+  getSessionPrompt: (mode: string) => PromptTemplate | undefined;
+
   // Agent usage
   fetchAgentUsage: () => Promise<void>;
 
@@ -212,6 +220,7 @@ export const useAppStore = create<AppState>()(
     continuousMode: {},
     agentUsage: [],
     agentUsageLoading: false,
+    promptTemplates: [],
     projectSessions: {},
     projectWorktrees: {},
     projectGitData: {},
@@ -555,6 +564,43 @@ export const useAppStore = create<AppState>()(
         };
       }),
 
+    // ── Prompt templates ──
+
+    loadPromptTemplates: async () => {
+      try {
+        const templates = await invoke<PromptTemplate[]>("get_prompt_templates");
+        set({ promptTemplates: templates });
+      } catch (e) {
+        console.error("Failed to load prompt templates:", e);
+      }
+    },
+
+    savePromptTemplates: async (templates: PromptTemplate[]) => {
+      set({ promptTemplates: templates });
+      try {
+        await invoke("set_prompt_templates", { templates });
+      } catch (e) {
+        console.error("Failed to save prompt templates:", e);
+        // Reload from backend on error to stay in sync
+        get().loadPromptTemplates();
+      }
+    },
+
+    resetPromptTemplates: async () => {
+      try {
+        const templates = await invoke<PromptTemplate[]>("reset_prompt_templates");
+        set({ promptTemplates: templates });
+      } catch (e) {
+        console.error("Failed to reset prompt templates:", e);
+      }
+    },
+
+    getSessionPrompt: (mode: string) => {
+      return get().promptTemplates.find(
+        (t) => t.category === "session" && t.session_mode === mode,
+      );
+    },
+
     // ── Agent usage ──
 
     fetchAgentUsage: async () => {
@@ -664,6 +710,9 @@ export const useAppStore = create<AppState>()(
         .then((shells) => set({ shells }))
         .catch(() => {})
         .finally(() => removeBackgroundTask("Detecting shells"));
+
+      // Load prompt templates
+      get().loadPromptTemplates();
 
       // Fetch agent usage data and start 5-minute polling
       get().fetchAgentUsage();

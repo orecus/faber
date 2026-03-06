@@ -23,10 +23,12 @@
 
 ---
 
-<!-- TODO: Replace with actual screenshot / GIF -->
-<!-- <p align="center">
-  <img src="docs/assets/demo.gif" alt="Faber Demo" width="800" />
-</p> -->
+<p align="center">
+  <img src="app-screenshot-1.png" alt="Task Overview" width="800" />
+</p>
+<p align="center">
+  <img src="app-screenshot-2.png" alt="Session Overview" width="800" />
+</p>
 
 ## Features
 
@@ -36,6 +38,7 @@
 - **Multi-pane session grid** — run multiple agent sessions side-by-side with drag-and-drop layout and resizable panes
 - **Four session modes** — Task (structured implementation), Research (explore & plan), Vibe (freeform coding), Shell (raw terminal)
 - **Continuous mode** — auto-launch a queue of ready tasks with independent or chained branching strategies
+- **Prompt templates & quick actions** — configurable prompt templates with `{{variable}}` interpolation for all session types, plus one-click Quick Action buttons on session panes
 - **Skills & rules** — install and manage agent skills and project rules to extend agent capabilities
 - **GitHub integration** — issue import, PR creation, commit graph visualization, and label sync
 - **Review workflow** — diff viewer with file list, change summary, and PR creation dialog

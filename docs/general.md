@@ -99,6 +99,7 @@ A multi-pane terminal grid showing all active agent sessions. Features:
 - Maximize a single pane to full size
 - Drag-and-drop panes to reorder
 - Each pane shows the agent name and MCP status overlay
+- **Quick Action Bar** — hover over an active agent session to reveal floating action buttons (Commit, Fix Errors, Summarize, etc.) that send one-click prompts to the agent. Configure actions in Settings > Prompts.
 - Terminal output is buffered so you can switch views and come back without losing output
 
 ### GitHub
@@ -185,6 +186,14 @@ Clicking a notification takes you directly to the relevant session.
   - **Skip Permissions** — Run the agent in fully autonomous mode (agent-specific flag)
   - **Custom Flags** — Add extra CLI flags to the agent command
   - **Command Preview** — See the exact command that will be executed
+
+### Prompts
+
+Manage prompt templates and quick actions:
+
+- **Session Prompts** — Default prompts used when launching task, research, continuous, and task-continue sessions. Each template supports `{{variable}}` interpolation (e.g., `{{task_id}}`, `{{worktree_hint}}`). Session prompts are protected (cannot be deleted) but fully customizable.
+- **Quick Actions** — Action buttons that appear on active session panes when you hover over them. Click a quick action to send the prompt directly to the agent. Built-in actions include "Commit", "Fix Errors", and "Summarize". You can add, edit, and delete custom actions with configurable labels, icons, and prompts.
+- **Reset to Defaults** — Restore all templates and actions to their built-in defaults.
 
 ### Projects
 

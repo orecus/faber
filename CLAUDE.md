@@ -38,13 +38,13 @@ No frontend test runner is configured yet. Rust tests are inline (`#[cfg(test)]`
 ### Frontend Components (`src/components/`)
 - `Shell/` — AppShell, ApplicationBar (top nav tabs: Tasks/Sessions/GitHub/Skills + window controls), Sidebar (project list, session list, settings), SidebarStatusPanel (MCP + git status), RightSidebar, RightSidebarResizeHandle, SidebarResizeHandle, UsagePanel, UsageProgressBar, ViewLayout (reusable layout wrapper with `.Toolbar`), WelcomeScreen, WindowControls, ContinuousModeBar
 - `Dashboard/` — DashboardView, KanbanBoard, KanbanColumn, TaskCard, FilterBar, SummaryHeader, LaunchTaskDialog, ResearchTaskDialog, LiveStatusIndicator, PriorityBadge, DependencyBadge, DependencyGraph, EmptyState
-- `Sessions/` — SessionsView, SessionGrid, SessionPane, SessionsToolbar, SessionDragOverlay (drag-and-drop via `@dnd-kit/core`), SessionsEmptyState
+- `Sessions/` — SessionsView, SessionGrid, SessionPane, SessionsToolbar, SessionDragOverlay (drag-and-drop via `@dnd-kit/core`), SessionsEmptyState, QuickActionBar
 - `TaskDetail/` — TaskDetailView, CreateTaskDialog, TaskMarkdownEditor, TaskMarkdownPreview, TaskMetadataForm
 - `Review/` — ReviewView, ReviewPanel, ReviewToolbar, FileList, CreatePRDialog, ConfirmDialog, useDiffData
 - `GitHub/` — GitHubView, CommitGraph, GraphCanvas, CommitRow, CommitDetailPanel, BranchFilter, BranchSwitcher, ChangesTab, IssuesTab, PullRequestsTab, PullRequestDetailPanel, useGitHubData, useGitHubIssues, usePullRequests
 - `Help/` — HelpView (in-app documentation)
 - `Launchers/` — SessionLauncher, ContinuousModeDialog
-- `Settings/` — GeneralTab, TerminalTab, NotificationsTab, AgentsTab, ProjectsTab, SettingsMenu (modal dialog from Sidebar)
+- `Settings/` — GeneralTab, TerminalTab, NotificationsTab, AgentsTab, ProjectsTab, PromptsTab (modal dialogs from Sidebar)
 - `CommandPalette/` — CommandPalette, commandRegistry, useCommands (powered by `cmdk`)
 - `SkillsRules/` — SkillsRulesView, SkillsTab, InstalledSkillsList, RulesTab
 - `Files/` — FileTree, FileTreeItem, fileIcons
@@ -199,7 +199,7 @@ Agents can call: `report_status`, `report_progress`, `report_files_changed`, `re
 <!-- Faber:MCP -->
 ## Faber Integration
 
-You have MCP tools provided by the Faber for reporting your progress. You MUST use them throughout your workflow:
+You have MCP tools provided by the Faber IDE for reporting your progress. You MUST use them throughout your workflow:
 
 - `report_status(status, message, activity?)` — Call when you start working (status: "working"). Optional activity: "researching", "exploring", "planning", "coding", "testing", "debugging", "reviewing".
 - `report_progress(current_step, total_steps, description)` — Call before each step

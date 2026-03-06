@@ -22,9 +22,11 @@ use crate::mcp::server::McpSessionData;
 use crate::pty::{self, PtyState};
 use crate::tasks;
 
-// ── MCP system prompt (for agents that support --system-prompt) ──
+// ── MCP tool descriptions (shared between system prompt and instruction files) ──
 
-const MCP_SYSTEM_PROMPT: &str = "\
+/// Core MCP tool description shared by both the system prompt and instruction file section.
+/// This is the single source of truth — both constants below are derived from it.
+const MCP_TOOLS_DESCRIPTION: &str = "\
 You have MCP tools provided by the Faber IDE for reporting your progress. \
 You MUST use them throughout your workflow:
 
@@ -48,27 +50,18 @@ and `report_complete` when done.";
 const MCP_INSTRUCTION_MARKER_START: &str = "<!-- Faber:MCP -->";
 const MCP_INSTRUCTION_MARKER_END: &str = "<!-- /Faber:MCP -->";
 
-const MCP_INSTRUCTION_SECTION: &str = "\
-<!-- Faber:MCP -->
-## Faber Integration
+/// Build the MCP system prompt string (for agents that support --system-prompt).
+fn mcp_system_prompt_text() -> String {
+    MCP_TOOLS_DESCRIPTION.to_string()
+}
 
-You have MCP tools provided by the Faber for reporting your progress. You MUST use them throughout your workflow:
-
-- `report_status(status, message, activity?)` — Call when you start working (status: \"working\"). Optional activity: \"researching\", \"exploring\", \"planning\", \"coding\", \"testing\", \"debugging\", \"reviewing\".
-- `report_progress(current_step, total_steps, description)` — Call before each step
-- `report_files_changed(files)` — Call after modifying files
-- `report_error(error, details?)` — Call if you encounter an error or blocker
-- `report_waiting(question)` — Call if you need user input
-- `report_complete(summary)` — Call when finished
-- `get_task(task_id?)` — Fetch task metadata and body. Omit task_id to get current session's task.
-- `update_task(task_id?, status?, priority?, title?, labels?, depends_on?, github_issue?, github_pr?)` — Update task metadata (status, priority, labels, etc.). Omit task_id to use current session's task.
-- `update_task_plan(plan, task_id?)` — Update the implementation plan in the task file.
-- `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task in the current project (always created as backlog).
-- `list_tasks(status?, label?)` — List all tasks in the current project with optional filters. Returns compact metadata (no body).
-
-Always call `report_status` first, then `report_progress` as you work, \
-and `report_complete` when done.
-<!-- /Faber:MCP -->";
+/// Build the MCP instruction section for agent instruction files (CLAUDE.md, etc.).
+fn mcp_instruction_section() -> String {
+    format!(
+        "{}\n## Faber Integration\n\n{}\n{}",
+        MCP_INSTRUCTION_MARKER_START, MCP_TOOLS_DESCRIPTION, MCP_INSTRUCTION_MARKER_END
+    )
+}
 
 /// Map agent names to their native instruction file names.
 pub fn agent_instruction_filename(agent_name: &str) -> Option<&'static str> {
@@ -114,7 +107,8 @@ pub fn upsert_mcp_section(content: &str, section: &str) -> String {
 pub fn write_instruction_file(dir: &Path, filename: &str) {
     let path = dir.join(filename);
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    let updated = upsert_mcp_section(&existing, MCP_INSTRUCTION_SECTION);
+    let section = mcp_instruction_section();
+    let updated = upsert_mcp_section(&existing, &section);
     if updated != existing {
         let _ = std::fs::write(&path, &updated);
         tracing::info!(filename, dir = %dir.display(), "Updated instruction file");
@@ -125,7 +119,6 @@ pub fn write_instruction_file(dir: &Path, filename: &str) {
 
 /// Replace `{{key}}` placeholders with values from `vars`.
 /// Unknown keys are left as-is.
-#[cfg(test)]
 pub fn interpolate_vars(template: &str, vars: &HashMap<&str, &str>) -> String {
     let mut result = template.to_string();
     for (key, value) in vars {
@@ -146,7 +139,7 @@ pub(crate) struct SessionStatusChanged {
 /// Returns the MCP system prompt if the agent supports the system prompt flag.
 fn mcp_system_prompt(adapter: &dyn agent::AgentAdapter, mcp_connected: bool) -> Option<String> {
     if mcp_connected && adapter.supports_system_prompt_flag() {
-        Some(MCP_SYSTEM_PROMPT.to_string())
+        Some(mcp_system_prompt_text())
     } else {
         None
     }
@@ -325,22 +318,27 @@ pub fn start_task_session(
         )));
     }
 
-    // 10. Generate user prompt (use provided or auto-generate with task file path)
+    // 10. Generate user prompt from template (use provided or auto-generate)
     let worktree_hint = worktree_path.as_deref().map(|wt| {
         format!(
-            " You are working in worktree {wt}, read the task but ensure all your work \
-             is performed within the worktree folder and not the main branch/folder the task is in."
+            "You are working in worktree {wt}, read the task by using the provided MCP tools \
+             and work on the task within the assigned worktree."
         )
     }).unwrap_or_default();
 
     let user_prompt_str = if user_prompt.is_none_or(|s| s.trim().is_empty()) {
-        Some(format!(
-            "Let's start working on task {task_id}. \
-             Use the `get_task` MCP tool to fetch the task details, \
-             then return a short summary and ask the user if they are ready to start.{worktree_hint}"
-        ))
+        let template = crate::commands::prompts::get_session_prompt(conn, "task");
+        let mut vars = HashMap::new();
+        vars.insert("task_id", task_id);
+        vars.insert("worktree_hint", worktree_hint.as_str());
+        Some(interpolate_vars(&template.prompt, &vars))
     } else {
-        Some(format!("{}{worktree_hint}", user_prompt.unwrap().trim()))
+        let trimmed = user_prompt.unwrap().trim().to_string();
+        if worktree_hint.is_empty() {
+            Some(trimmed)
+        } else {
+            Some(format!("{trimmed} {worktree_hint}"))
+        }
     };
 
     // 10. Build launch spec
@@ -621,16 +619,12 @@ pub fn start_research_session(
     // 8. Inject MCP config
     let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), Some(opts.task_id));
 
-    // 9. Generate user prompt (research-focused)
+    // 9. Generate user prompt from template (research-focused)
     let user_prompt_str = if opts.user_prompt.is_none_or(|s| s.trim().is_empty()) {
-        Some(format!(
-            "Task {} needs to be analyzed and researched together with the user. \
-             Start by using the `get_task` MCP tool to fetch the task details. \
-             The goal is to research the codebase, explore approaches, \
-             and then update the task file with a concrete implementation plan \
-             using the `update_task_plan` MCP tool. Ask the user for next steps.",
-            opts.task_id
-        ))
+        let template = crate::commands::prompts::get_session_prompt(conn, "research");
+        let mut vars = HashMap::new();
+        vars.insert("task_id", opts.task_id);
+        Some(interpolate_vars(&template.prompt, &vars))
     } else {
         opts.user_prompt.map(|s| s.to_string())
     };
@@ -919,20 +913,21 @@ pub fn relaunch_session(
                 extra_env.insert("FABER_MCP_SECRET".to_string(), conn_info.secret.clone());
             }
 
-            // Generate a continuation prompt with task file path
+            // Generate a continuation prompt from template
             let relaunch_worktree_hint = old.worktree_path.as_deref()
                 .filter(|p| Path::new(p).exists())
                 .map(|wt| {
                     format!(
-                        " You are working in worktree {wt}, read the task but ensure all your work \
-                         is performed within the worktree folder and not the main branch/folder the task is in."
+                        "You are working in worktree {wt}, read the task by using the provided MCP tools \
+                         and work on the task within the assigned worktree."
                     )
                 }).unwrap_or_default();
 
-            let relaunch_prompt = Some(format!(
-                "Continue working on task {task_id}. \
-                 Use the `get_task` MCP tool to fetch the task details and continue where you left off.{relaunch_worktree_hint}"
-            ));
+            let template = crate::commands::prompts::get_session_prompt(conn, "task-continue");
+            let mut vars = HashMap::new();
+            vars.insert("task_id", task_id);
+            vars.insert("worktree_hint", relaunch_worktree_hint.as_str());
+            let relaunch_prompt = Some(interpolate_vars(&template.prompt, &vars));
 
             let launch_config = AgentLaunchConfig {
                 system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
@@ -1231,7 +1226,8 @@ mod tests {
 
     #[test]
     fn upsert_mcp_section_appends_to_empty() {
-        let result = upsert_mcp_section("", MCP_INSTRUCTION_SECTION);
+        let section = mcp_instruction_section();
+        let result = upsert_mcp_section("", &section);
         assert!(result.contains(MCP_INSTRUCTION_MARKER_START));
         assert!(result.contains(MCP_INSTRUCTION_MARKER_END));
     }
@@ -1239,7 +1235,8 @@ mod tests {
     #[test]
     fn upsert_mcp_section_appends_to_existing() {
         let existing = "# My Project\n\nSome content here.\n";
-        let result = upsert_mcp_section(existing, MCP_INSTRUCTION_SECTION);
+        let section = mcp_instruction_section();
+        let result = upsert_mcp_section(existing, &section);
         assert!(result.starts_with("# My Project"));
         assert!(result.contains(MCP_INSTRUCTION_MARKER_START));
     }
@@ -1250,7 +1247,8 @@ mod tests {
             "# Header\n\n{}\nold content\n{}\n\n# Footer\n",
             MCP_INSTRUCTION_MARKER_START, MCP_INSTRUCTION_MARKER_END
         );
-        let result = upsert_mcp_section(&existing, MCP_INSTRUCTION_SECTION);
+        let section = mcp_instruction_section();
+        let result = upsert_mcp_section(&existing, &section);
         assert!(result.contains("# Header"));
         assert!(result.contains("# Footer"));
         assert!(result.contains("report_status"));

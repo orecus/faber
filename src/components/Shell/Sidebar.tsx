@@ -16,6 +16,7 @@ import {
   Lightbulb,
   Loader2,
   MessageCircle,
+  MessageSquare,
   Plus,
   Settings,
   SlidersHorizontal,
@@ -34,6 +35,7 @@ import { AgentsTab } from "../Settings/AgentsTab";
 import { GeneralTab } from "../Settings/GeneralTab";
 import { NotificationsTab } from "../Settings/NotificationsTab";
 import { ProjectsTab } from "../Settings/ProjectsTab";
+import { PromptsTab } from "../Settings/PromptsTab";
 import { TerminalTab } from "../Settings/TerminalTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
@@ -58,6 +60,7 @@ type SettingsDialogId =
   | "terminal"
   | "notifications"
   | "agents"
+  | "prompts"
   | "projects";
 
 const SETTINGS_ITEMS: {
@@ -93,6 +96,13 @@ const SETTINGS_ITEMS: {
     icon: Bot,
     title: "Agent Configuration",
     tooltip: "Agents",
+    maxWidth: "sm:max-w-2xl",
+  },
+  {
+    id: "prompts",
+    icon: MessageSquare,
+    title: "Prompt Templates & Quick Actions",
+    tooltip: "Prompts",
     maxWidth: "sm:max-w-2xl",
   },
 ];
@@ -166,6 +176,7 @@ function SettingsBar({
               {openDialog === "terminal" && <TerminalTab />}
               {openDialog === "notifications" && <NotificationsTab />}
               {openDialog === "agents" && <AgentsTab agents={agents} />}
+              {openDialog === "prompts" && <PromptsTab />}
               {openDialog === "projects" && (
                 <ProjectsTab
                   agents={agents}
