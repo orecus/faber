@@ -55,6 +55,15 @@ export function useTaskDetail() {
   const [syncing, setSyncing] = useState(false);
   const [syncSuccess, setSyncSuccess] = useState(false);
   const [creatingIssue, setCreatingIssue] = useState(false);
+  const [hasRemote, setHasRemote] = useState(true);
+
+  // Check if the repo has a remote configured
+  useEffect(() => {
+    if (!activeProjectId) return;
+    invoke<boolean>("has_remote", { projectId: activeProjectId })
+      .then(setHasRemote)
+      .catch(() => setHasRemote(false));
+  }, [activeProjectId]);
 
   // Compute isDirty
   const isDirty =
@@ -342,6 +351,7 @@ export function useTaskDetail() {
     syncSuccess,
     creatingIssue,
     ghAuthOk,
+    hasRemote,
     isDirty,
 
     // Setters

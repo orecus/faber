@@ -3,6 +3,7 @@ import {
   Activity,
   AlertCircle,
   CheckCircle2,
+  ChevronDown,
   Clock,
   FolderSync,
   Github,
@@ -225,19 +226,17 @@ function HistorySection({
       </div>
 
       {/* Timeline entries */}
-      <div className="flex flex-col max-h-[240px] overflow-y-auto">
+      <div className="flex flex-col">
         {grouped.map((group, gi) => (
           <div key={group.sessionId ?? gi} className="flex flex-col">
             {/* Session header */}
-            {gi > 0 && (
-              <div className="flex items-center gap-1.5 py-1.5 mt-1">
-                <div className="flex-1 border-t border-border/20" />
-                <span className="text-[9px] text-muted-foreground/40 shrink-0">
-                  {formatSessionLabel(group)}
-                </span>
-                <div className="flex-1 border-t border-border/20" />
-              </div>
-            )}
+            <div className={`flex items-center gap-1.5 py-1.5 ${gi > 0 ? "mt-1" : ""}`}>
+              <div className="flex-1 border-t border-border/20" />
+              <span className="text-[9px] text-muted-foreground/40 shrink-0">
+                {formatSessionLabel(group)}
+              </span>
+              <div className="flex-1 border-t border-border/20" />
+            </div>
             {group.events.map((event) => (
               <HistoryEntry key={event.id} event={event} />
             ))}
@@ -259,38 +258,43 @@ function HistoryEntry({ event }: { event: TaskActivity }) {
   const { icon, label, details, color } = display;
   const [expanded, setExpanded] = useState(false);
 
-  const hasDetails = details != null && details !== label;
+  const EXPANDABLE_THRESHOLD = 50;
+  const hasSeparateDetails = details != null && details !== label;
+  const isExpandable = hasSeparateDetails || label.length > EXPANDABLE_THRESHOLD;
 
   return (
     <div
-      className={`group py-[3px] ${hasDetails ? "cursor-pointer" : ""}`}
-      onClick={hasDetails ? () => setExpanded((v) => !v) : undefined}
+      className={`group py-[3px] ${isExpandable ? "cursor-pointer" : ""}`}
+      onClick={isExpandable ? () => setExpanded((v) => !v) : undefined}
     >
-      {/* First row — icon, time, label all vertically centered */}
+      {/* First row — icon, time, label, chevron all vertically centered */}
       <div className="flex items-center gap-1.5">
-        <span className="text-[10px] leading-none tabular-nums text-muted-foreground/60 w-[38px] shrink-0">
+        <span className="text-[11px] leading-none tabular-nums text-muted-foreground/60 w-[38px] shrink-0">
           {time}
         </span>
         <span className={`shrink-0 flex items-center ${color}`}>
           {icon}
         </span>
         <p
-          className={`text-[11px] leading-none text-muted-foreground flex-1 min-w-0 transition-colors ${
-            hasDetails ? "group-hover:text-foreground" : ""
-          } ${expanded ? "" : "truncate"}`}
+          className={`text-xs leading-none text-muted-foreground flex-1 min-w-0 truncate transition-colors ${
+            isExpandable ? "group-hover:text-foreground" : ""
+          }`}
         >
           {label}
-          {hasDetails && !expanded && (
-            <span className="ml-1 text-[9px] text-muted-foreground/40">
-              &#x25BC;
-            </span>
-          )}
         </p>
+        {isExpandable && (
+          <ChevronDown
+            size={12}
+            className={`shrink-0 text-muted-foreground/40 transition-transform duration-150 ${
+              expanded ? "rotate-180" : ""
+            }`}
+          />
+        )}
       </div>
       {/* Expanded details — indented to align with label text */}
-      {expanded && details && (
-        <p className="text-[11px] text-muted-foreground/80 leading-snug mt-1 ml-[54px] whitespace-pre-wrap break-words">
-          {details}
+      {expanded && (
+        <p className="text-xs text-muted-foreground/80 leading-snug mt-1 ml-[54px] whitespace-pre-wrap break-words">
+          {hasSeparateDetails ? details : label}
         </p>
       )}
     </div>
@@ -607,9 +611,13 @@ function formatSessionLabel(group: SessionGroup): string {
 
   try {
     const d = new Date(first.timestamp);
-    const dateStr = d.toLocaleDateString([], { month: "short", day: "numeric" });
-    const timeStr = d.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
-    return `${dateStr}, ${timeStr}`;
+    const now = new Date();
+    const sameYear = d.getFullYear() === now.getFullYear();
+    return d.toLocaleDateString([], {
+      month: "short",
+      day: "numeric",
+      ...(sameYear ? {} : { year: "numeric" }),
+    });
   } catch {
     return `session ${group.sessionId?.slice(-6) ?? ""}`;
   }

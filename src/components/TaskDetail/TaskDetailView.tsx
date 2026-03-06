@@ -47,6 +47,7 @@ export default function TaskDetailView() {
     syncSuccess,
     creatingIssue,
     ghAuthOk,
+    hasRemote,
     isDirty,
     setFormData,
     setBody,
@@ -217,28 +218,6 @@ export default function TaskDetailView() {
           </Button>
         )}
 
-        {/* Create GitHub Issue (when no issue is linked) */}
-        {!formData.github_issue && (
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={creatingIssue || !ghAuthOk}
-            onClick={handleCreateGitHubIssue}
-            title={!ghAuthOk ? "GitHub CLI not authenticated. Run `gh auth login` first." : undefined}
-            leftIcon={
-              creatingIssue ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Github className="size-3.5" />
-              )
-            }
-            hoverEffect="scale"
-            clickEffect="scale"
-          >
-            {creatingIssue ? "Creating..." : "Create Issue"}
-          </Button>
-        )}
-
         {/* Save */}
         <Button
           variant="color"
@@ -312,7 +291,7 @@ export default function TaskDetailView() {
               taskId={activeTaskId}
               tasks={tasks}
               onNavigateToTask={navigateToTask}
-              onCreateGitHubIssue={ghAuthOk ? handleCreateGitHubIssue : undefined}
+              onCreateGitHubIssue={ghAuthOk && hasRemote ? handleCreateGitHubIssue : undefined}
               creatingIssue={creatingIssue}
             />
           </div>

@@ -26,6 +26,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Activity History UX** — All long entries (>50 chars) are now expandable with a Lucide chevron icon on the right; text size bumped from 11px to 12px; label stays truncated when expanded with full text shown below; removed internal scrollbar so the panel grows naturally; date separator now shows for every session group (including the first) with date-only format (no time)
+- **Create Issue Button Consolidation** — Removed duplicate "Create Issue" toolbar button; kept only the "+" button in the sidebar GitHub Issue section, which is now hidden when the repo has no remote configured
 - **Continuous Mode Prompts** — Updated prompts to use MCP `get_task` tool instead of file-based task injection, with explicit autonomous mode and `report_complete` instructions
 - **Continuous Mode Dialog** — Updated description and strategy labels to clarify parallel vs sequential behavior
 - **Sidebar Projects** — Added visual separators and color dots between sidebar projects, moved expand/collapse chevron to right side, dimmed empty state text, and persisted open/closed state across app restarts
