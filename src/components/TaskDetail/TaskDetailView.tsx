@@ -9,16 +9,18 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { useAppStore } from "../../store/appStore";
 import { ViewLayout } from "../Shell/ViewLayout";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 import TaskActivityPanel from "./TaskActivityPanel";
 import TaskBody from "./TaskBody";
+import TaskDetailActions from "./TaskDetailActions";
 import TaskMetadataSidebar from "./TaskMetadataSidebar";
 import TaskTitle from "./TaskTitle";
 import { useTaskDetail } from "./useTaskDetail";
@@ -26,6 +28,7 @@ import { useTaskDetail } from "./useTaskDetail";
 export default function TaskDetailView() {
   const { isGlass } = useTheme();
   const accentColor = useProjectAccentColor();
+  const storeTasks = useAppStore((s) => s.tasks);
 
   const {
     activeTaskId,
@@ -79,6 +82,12 @@ export default function TaskDetailView() {
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, [isDirty, saving, handleSave, handleBack]);
+
+  // Get the full task object for action buttons
+  const currentTask = useMemo(
+    () => storeTasks.find((t) => t.id === activeTaskId) ?? null,
+    [storeTasks, activeTaskId],
+  );
 
   const handleOpenIssue = useCallback(() => {
     if (!formData?.github_issue) return;
@@ -178,6 +187,11 @@ export default function TaskDetailView() {
         )}
 
         <div className="flex-1" />
+
+        {/* Task actions (status-aware: start, research, view session, create PR, archive, reopen) */}
+        {currentTask && activeProjectId && (
+          <TaskDetailActions task={currentTask} projectId={activeProjectId} />
+        )}
 
         {/* Sync to GitHub (when issue is linked) */}
         {formData.github_issue && (

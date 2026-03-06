@@ -9,10 +9,15 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Merge Branch Dialog** — Merge button in the Review view now opens a dialog where you can choose which branch to merge into, instead of always targeting main
+- **Remote Detection** — Push, Create PR, Pull, and Push buttons are automatically disabled for local-only repos (no git remote), with "No remote configured" empty states in the Issues and Pull Requests tabs
+- **Merge Status Detection** — Merge button detects when a branch has already been merged and disables itself with a "Merged" label
+- **Delete Branch with Worktree** — Worktree delete confirmation dialog now includes an optional "Also delete branch" checkbox to clean up the branch alongside the worktree
 - **Parallel Continuous Mode** — Independent branching strategy now launches all task sessions simultaneously instead of sequentially, with per-task error handling that doesn't pause the entire run
 - **Continuous Mode Dismiss Flow** — Sessions stay alive after completion so users can review agent summaries; a new "Dismiss" action in the bar closes all related sessions at once
 - **Continuous Mode Bar in Sessions** — The continuous mode progress bar now appears in both the Tasks and Sessions views
 - **Task Detail Redesign** — Redesigned TaskDetail view with task activity log stored in DB, GitHub comments display, and direct GitHub issue creation from the app
+- **Task Detail Actions** — Status-aware action buttons in the task detail toolbar: Start Task / Research (backlog/ready), View Session (in-progress), Create PR (in-review), Archive / Reopen (done/archived)
 - **Kanban Dependency Nesting** — Tasks with dependencies are now visually nested (indented) under their parent in all Kanban columns, with ghost parent cards shown for cross-column dependencies
 - **MCP Task Management Tools** — New `update_task` and `list_tasks` MCP tools allowing agents to update task metadata and query project tasks with status/label filters
 - **Plugins Tab** — New plugins management tab in Skills & Rules view for browsing and managing agent plugins
