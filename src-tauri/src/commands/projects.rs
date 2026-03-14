@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::path::Path;
 
 use rusqlite::Connection;
@@ -284,6 +285,24 @@ pub fn read_svg_icon(path: String) -> Result<Option<String>, AppError> {
     }
     let content = std::fs::read_to_string(&p)?;
     Ok(Some(content))
+}
+
+/// Get the current branch name for multiple projects at once.
+/// Returns a map of project_id → branch_name (or null if unavailable).
+#[tauri::command]
+pub fn get_project_branches(
+    state: State<'_, DbState>,
+    project_ids: Vec<String>,
+) -> Result<HashMap<String, Option<String>>, AppError> {
+    let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let mut result = HashMap::new();
+    for id in project_ids {
+        let branch = db::projects::get(&conn, &id)?
+            .map(|p| current_branch(Path::new(&p.path)))
+            .unwrap_or(None);
+        result.insert(id, branch);
+    }
+    Ok(result)
 }
 
 #[tauri::command]

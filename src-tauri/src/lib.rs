@@ -197,6 +197,7 @@ pub fn run() {
             commands::projects::remove_project,
             commands::projects::get_project_info,
             commands::projects::read_instruction_file,
+            commands::projects::get_project_branches,
             commands::projects::resolve_project_icon,
             commands::projects::read_svg_icon,
             commands::git::list_branches,

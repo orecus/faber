@@ -111,6 +111,7 @@ interface AppState {
   projectSessions: Record<string, Session[]>;
   projectWorktrees: Record<string, WorktreeInfo[]>;
   projectGitData: Record<string, ProjectGitData>;
+  projectBranches: Record<string, string | null>;
 
   // Actions — state setters
   setProjects: (projects: Project[]) => void;
@@ -147,6 +148,7 @@ interface AppState {
   updateProjectWorktrees: (projectId: string, worktrees: WorktreeInfo[]) => void;
   updateProjectGitData: (projectId: string, data: Partial<ProjectGitData>) => void;
   clearProjectGitData: (projectId: string) => void;
+  refreshProjectBranches: () => void;
 
   // Sidebar
   setSidebarCollapsed: (v: boolean) => void;
@@ -224,6 +226,7 @@ export const useAppStore = create<AppState>()(
     projectSessions: {},
     projectWorktrees: {},
     projectGitData: {},
+    projectBranches: {},
 
     // ── Actions ──
 
@@ -486,6 +489,14 @@ export const useAppStore = create<AppState>()(
         const { [projectId]: _, ...rest } = state.projectGitData;
         return { projectGitData: rest };
       }),
+
+    refreshProjectBranches: () => {
+      const ids = get().openProjectIds;
+      if (ids.length === 0) return;
+      invoke<Record<string, string | null>>("get_project_branches", { projectIds: ids })
+        .then((branches) => set({ projectBranches: branches }))
+        .catch(() => {});
+    },
 
     // ── Sidebar persistence ──
 
@@ -770,6 +781,8 @@ export const useAppStore = create<AppState>()(
           for (const id of openProjectIds) {
             refreshProject(id);
           }
+          // Fetch branch names for all open projects
+          get().refreshProjectBranches();
         })
         .catch(() => {})
         .finally(() => removeBackgroundTask("Loading projects"));
@@ -819,6 +832,9 @@ export const useAppStore = create<AppState>()(
             .then((info) => set({ projectInfo: info }))
             .catch(() => set({ projectInfo: null }))
             .finally(() => rmBg("Loading project info"));
+
+          // Refresh branch names (lightweight, no spinner needed)
+          get().refreshProjectBranches();
 
           deferredLoadTimer = setTimeout(() => {
             // Bail if the active project changed while we waited
@@ -1104,6 +1120,9 @@ export const useAppStore = create<AppState>()(
             get().activeView,
             project_id === get().activeProjectId,
           );
+
+          // Refresh branches — agent may have created/switched branches
+          get().refreshProjectBranches();
         }),
       );
 

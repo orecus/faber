@@ -23,8 +23,9 @@ import {
   TerminalSquare,
   X,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
+import { listen } from "@tauri-apps/api/event";
 
 import { usePersistedBoolean } from "../../hooks/usePersistedState";
 import { useProjectIcon } from "../../hooks/useProjectIcon";
@@ -46,7 +47,7 @@ import SidebarStatusPanel from "./SidebarStatusPanel";
 import UsagePanel from "./UsagePanel";
 
 import type { LucideIcon } from "lucide-react";
-import type { McpSessionState, SessionStatus, WorktreeInfo } from "../../types";
+import type { ChangedFile, McpSessionState, SessionStatus, WorktreeInfo } from "../../types";
 import type { ThemeColor } from "../ui/orecus.io/lib/color-utils";
 
 // Stable empty arrays to prevent unnecessary re-renders from selector
@@ -490,6 +491,46 @@ const ProjectItem = React.memo(function ProjectItem({
   onClose: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
+  const branch = useAppStore((s) => s.projectBranches[project.id] ?? null);
+
+  // Change count — only tracked for the active project (lightweight)
+  const [changeCount, setChangeCount] = useState<number | null>(null);
+  const projectPathRef = useRef(project.path);
+  projectPathRef.current = project.path;
+  const projectIdRef = useRef(project.id);
+  projectIdRef.current = project.id;
+
+  const refreshChangeCount = useCallback(() => {
+    const path = projectPathRef.current;
+    const pid = projectIdRef.current;
+    if (!path || !pid) {
+      setChangeCount(null);
+      return;
+    }
+    invoke<ChangedFile[]>("get_changed_files", { projectId: pid, worktreePath: path })
+      .then((files) => setChangeCount(files.length))
+      .catch(() => setChangeCount(null));
+  }, []);
+
+  useEffect(() => {
+    if (!isActive) {
+      setChangeCount(null);
+      return;
+    }
+    refreshChangeCount();
+
+    let unlisten: (() => void) | undefined;
+    listen("mcp-files-changed", () => refreshChangeCount()).then((fn) => {
+      unlisten = fn;
+    });
+
+    const interval = setInterval(refreshChangeCount, 30_000);
+
+    return () => {
+      unlisten?.();
+      clearInterval(interval);
+    };
+  }, [isActive, refreshChangeCount]);
 
   const themeColor = (project.color as ThemeColor) || "primary";
   const accentHex =
@@ -519,6 +560,15 @@ const ProjectItem = React.memo(function ProjectItem({
           className={`text-[13px] truncate min-w-0 flex-1 ${isActive ? "text-foreground font-medium" : "text-dim-foreground"}`}
         >
           {project.name}
+          {branch && (
+            <>
+              <span className="text-muted-foreground/60 mx-1">·</span>
+              <span className="text-[10px] text-muted-foreground font-normal">{branch}</span>
+            </>
+          )}
+          {isActive && changeCount != null && changeCount > 0 && (
+            <span className="text-[10px] text-warning font-normal ml-1">{changeCount}∆</span>
+          )}
         </span>
         <span
           onClick={(e) => {
