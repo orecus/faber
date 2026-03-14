@@ -786,52 +786,36 @@ pub fn start_skill_install_session(
     };
     let session = db::sessions::create(conn, &new_session)?;
 
-    // On Windows, npx is a .cmd script so we need to go through cmd.exe.
-    // On Unix, call npx directly with login-shell wrapping for PATH resolution.
-    #[cfg(windows)]
-    let (command, args) = {
-        (
-            "cmd.exe".to_string(),
-            vec![
-                "/d".to_string(),
-                "/c".to_string(),
-                "npx".to_string(),
-                "--yes".to_string(),
-                "skills".to_string(),
-                "add".to_string(),
-                source.to_string(),
-                "-s".to_string(),
-                skill_name.to_string(),
-            ],
-        )
-    };
-    #[cfg(not(windows))]
-    let (command, args) = {
-        (
-            "npx".to_string(),
-            vec![
-                "--yes".to_string(),
-                "skills".to_string(),
-                "add".to_string(),
-                source.to_string(),
-                "-s".to_string(),
-                skill_name.to_string(),
-            ],
-        )
-    };
+    // Detect user's shell (same logic as start_shell_session)
+    let shell = db::settings::get_value(conn, "global", None, "terminal_shell")
+        .ok()
+        .flatten()
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| {
+            if cfg!(windows) {
+                std::env::var("COMSPEC").unwrap_or_else(|_| "cmd.exe".to_string())
+            } else {
+                std::env::var("SHELL").unwrap_or_else(|_| "/bin/sh".to_string())
+            }
+        });
 
+    // Spawn an interactive shell (stays open after command completes)
     pty::spawn(
         pty_state,
         app,
         session.id.clone(),
-        &command,
-        &args,
+        &shell,
+        &[],
         Some(&project.path),
         None,
         80,
         24,
-        cfg!(not(windows)), // login shell wrapping on Unix for PATH
+        false, // no login shell wrapping — already a shell
     )?;
+
+    // Write the install command into the running shell
+    let install_cmd = format!("npx --yes skills add {} -s {}\n", source, skill_name);
+    pty::write(pty_state, &session.id, &install_cmd)?;
 
     db::sessions::update_status(conn, &session.id, SessionStatus::Running)?;
 
