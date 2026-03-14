@@ -1,3 +1,4 @@
+import { startTransition } from "react";
 import { create } from "zustand";
 import { subscribeWithSelector } from "zustand/middleware";
 import { invoke } from "@tauri-apps/api/core";
@@ -321,7 +322,8 @@ export const useAppStore = create<AppState>()(
 
     setActiveProject: (id) => set({ activeProjectId: id }),
 
-    setActiveView: (view) => set({ activeView: view }),
+    setActiveView: (view) =>
+      startTransition(() => set({ activeView: view })),
 
     setSessions: (sessions) =>
       set((state) => {

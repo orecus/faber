@@ -13,6 +13,32 @@ export default defineConfig(async () => ({
     },
   },
 
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          // Terminal emulator — large, only needed by Sessions view
+          "vendor-xterm": [
+            "@xterm/xterm",
+            "@xterm/addon-webgl",
+            "@xterm/addon-canvas",
+            "@xterm/addon-fit",
+            "@xterm/addon-unicode11",
+            "@xterm/addon-web-links",
+          ],
+          // Diff rendering — only needed by Review view
+          "vendor-diff": ["diff2html", "dompurify"],
+          // Markdown + syntax highlighting — used by 3 views
+          "vendor-markdown": ["streamdown", "@streamdown/code"],
+          // UI/interaction libraries
+          "vendor-ui": ["motion", "@dnd-kit/core", "cmdk", "lucide-react"],
+          // React core — changes rarely, good cache target
+          "vendor-react": ["react", "react-dom", "zustand"],
+        },
+      },
+    },
+  },
+
   clearScreen: false,
   server: {
     port: 1420,
