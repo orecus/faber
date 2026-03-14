@@ -1,6 +1,5 @@
 import {
   AlertCircle,
-  Bell,
   Bot,
   Bug,
   CheckCircle2,
@@ -34,7 +33,7 @@ import { useAppStore } from "../../store/appStore";
 import { pickProjectFolder } from "../../utils/pickProjectFolder";
 import { AgentsTab } from "../Settings/AgentsTab";
 import { GeneralTab } from "../Settings/GeneralTab";
-import { NotificationsTab } from "../Settings/NotificationsTab";
+
 import { ProjectsTab } from "../Settings/ProjectsTab";
 import { PromptsTab } from "../Settings/PromptsTab";
 import { TerminalTab } from "../Settings/TerminalTab";
@@ -59,7 +58,6 @@ const EMPTY_WORKTREES: WorktreeInfo[] = [];
 type SettingsDialogId =
   | "general"
   | "terminal"
-  | "notifications"
   | "agents"
   | "prompts"
   | "projects";
@@ -76,20 +74,13 @@ const SETTINGS_ITEMS: {
     icon: SlidersHorizontal,
     title: "General Settings",
     tooltip: "General",
-    maxWidth: "sm:max-w-lg",
+    maxWidth: "sm:max-w-xl",
   },
   {
     id: "terminal",
     icon: TerminalSquare,
     title: "Terminal Settings",
     tooltip: "Terminal",
-    maxWidth: "sm:max-w-md",
-  },
-  {
-    id: "notifications",
-    icon: Bell,
-    title: "Notifications",
-    tooltip: "Notifications",
     maxWidth: "sm:max-w-md",
   },
   {
@@ -175,7 +166,6 @@ function SettingsBar({
             <div className="max-h-[70vh] overflow-y-auto -mx-6 px-6">
               {openDialog === "general" && <GeneralTab />}
               {openDialog === "terminal" && <TerminalTab />}
-              {openDialog === "notifications" && <NotificationsTab />}
               {openDialog === "agents" && <AgentsTab agents={agents} />}
               {openDialog === "prompts" && <PromptsTab />}
               {openDialog === "projects" && (

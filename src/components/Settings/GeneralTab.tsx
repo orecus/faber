@@ -1,14 +1,26 @@
 import { useCallback, useEffect, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
-import { Loader2, RefreshCw, ChevronDown, FolderOpen } from "lucide-react";
+import {
+  Bell,
+  ChevronDown,
+  FolderOpen,
+  Loader2,
+  Monitor,
+  Palette,
+  RefreshCw,
+  Wrench,
+} from "lucide-react";
 
 import { type Theme, useTheme } from "../../contexts/ThemeContext";
 import { usePersistedBoolean } from "../../hooks/usePersistedState";
-
+import { updateNotificationSettings } from "../../lib/notifications";
 import { useUpdateStore } from "../../store/updateStore";
 import { Checkbox } from "../ui/checkbox";
 import { Card, CardContent } from "../ui/orecus.io/cards/card";
+import { Tabs } from "../ui/orecus.io/navigation/tabs";
 import { sectionHeadingClass, inputClass } from "./shared";
+
+type GeneralTabId = "appearance" | "notifications" | "updates" | "system";
 
 const COLOR_MODES: { value: "dark" | "light"; label: string; gradient: string }[] = [
   {
@@ -32,6 +44,32 @@ const CHECK_INTERVALS = [
   { value: 24, label: "Every 24 hours" },
 ];
 
+const NOTIF_TOGGLES: {
+  key: string;
+  settingsKey: "on_complete" | "on_error" | "on_waiting";
+  label: string;
+  description: string;
+}[] = [
+  {
+    key: "notifications_on_complete",
+    settingsKey: "on_complete",
+    label: "Session Complete",
+    description: "Notify when an agent session finishes its task.",
+  },
+  {
+    key: "notifications_on_error",
+    settingsKey: "on_error",
+    label: "Session Error",
+    description: "Notify when an agent session encounters an error.",
+  },
+  {
+    key: "notifications_on_waiting",
+    settingsKey: "on_waiting",
+    label: "Input Needed",
+    description: "Notify when an agent is waiting for user input.",
+  },
+];
+
 function formatLastChecked(timestamp: number | null): string {
   if (!timestamp) return "Never";
   const seconds = Math.floor((Date.now() - timestamp) / 1000);
@@ -42,9 +80,10 @@ function formatLastChecked(timestamp: number | null): string {
   return `${hours}h ago`;
 }
 
-export function GeneralTab() {
-  const { theme, setTheme, isGlass } = useTheme();
+// ── Appearance Panel ──
 
+function AppearancePanel() {
+  const { theme, setTheme, isGlass } = useTheme();
   const colorMode = theme.startsWith("dark") ? "dark" : "light";
 
   const handleColorModeChange = (mode: "dark" | "light") => {
@@ -55,62 +94,16 @@ export function GeneralTab() {
     setTheme(`${colorMode}-${enabled ? "glass" : "flat"}` as Theme);
   };
 
-  // Display settings
   const [showIcons, setShowIcons] = usePersistedBoolean(
     "show_project_icons",
     true,
   );
 
-  // Update settings
-  const [appVersion, setAppVersion] = useState("");
-  const updateStatus = useUpdateStore((s) => s.status);
-  const lastCheckedAt = useUpdateStore((s) => s.lastCheckedAt);
-  const autoCheckEnabled = useUpdateStore((s) => s.autoCheckEnabled);
-  const checkIntervalHours = useUpdateStore((s) => s.checkIntervalHours);
-  const customEndpoint = useUpdateStore((s) => s.customEndpoint);
-  const checkForUpdates = useUpdateStore((s) => s.checkForUpdates);
-  const setAutoCheckEnabled = useUpdateStore((s) => s.setAutoCheckEnabled);
-  const setCheckIntervalHours = useUpdateStore((s) => s.setCheckIntervalHours);
-  const setCustomEndpoint = useUpdateStore((s) => s.setCustomEndpoint);
-
-  const [advancedOpen, setAdvancedOpen] = useState(false);
-  const [endpointInput, setEndpointInput] = useState(customEndpoint ?? "");
-
-  useEffect(() => {
-    invoke<string>("get_app_version").then(setAppVersion).catch(() => {});
-  }, []);
-
-  useEffect(() => {
-    setEndpointInput(customEndpoint ?? "");
-  }, [customEndpoint]);
-
-  const handleCheckNow = useCallback(() => {
-    checkForUpdates();
-  }, [checkForUpdates]);
-
-  const handleEndpointSave = useCallback(() => {
-    const trimmed = endpointInput.trim();
-    setCustomEndpoint(trimmed || null);
-  }, [endpointInput, setCustomEndpoint]);
-
-  const handleEndpointReset = useCallback(() => {
-    setEndpointInput("");
-    setCustomEndpoint(null);
-  }, [setCustomEndpoint]);
-
-  const handleOpenLogFolder = useCallback(async () => {
-    try {
-      await invoke("open_log_directory");
-    } catch {
-      // silently ignore if log directory is unavailable
-    }
-  }, []);
-
   return (
     <div className="flex flex-col gap-7">
       {/* Theme Picker */}
       <section>
-        <div className={sectionHeadingClass}>Appearance</div>
+        <div className={sectionHeadingClass}>Theme</div>
         <div className="flex flex-col gap-4">
           {/* Color mode cards */}
           <div className="grid grid-cols-2 gap-2.5">
@@ -183,134 +176,316 @@ export function GeneralTab() {
           </div>
         </label>
       </section>
+    </div>
+  );
+}
 
-      {/* Updates */}
+// ── Notifications Panel ──
+
+function NotificationsPanel() {
+  const [enabled, setEnabled] = usePersistedBoolean(
+    "notifications_enabled",
+    true,
+  );
+  const [onComplete, setOnComplete] = usePersistedBoolean(
+    "notifications_on_complete",
+    true,
+  );
+  const [onError, setOnError] = usePersistedBoolean(
+    "notifications_on_error",
+    true,
+  );
+  const [onWaiting, setOnWaiting] = usePersistedBoolean(
+    "notifications_on_waiting",
+    true,
+  );
+
+  // Sync cached settings in the notification module whenever toggles change
+  useEffect(() => {
+    updateNotificationSettings({
+      enabled,
+      on_complete: onComplete,
+      on_error: onError,
+      on_waiting: onWaiting,
+    });
+  }, [enabled, onComplete, onError, onWaiting]);
+
+  const toggles = [
+    { value: onComplete, setter: setOnComplete, ...NOTIF_TOGGLES[0] },
+    { value: onError, setter: setOnError, ...NOTIF_TOGGLES[1] },
+    { value: onWaiting, setter: setOnWaiting, ...NOTIF_TOGGLES[2] },
+  ];
+
+  return (
+    <div className="flex flex-col gap-7">
+      {/* Master toggle */}
       <section>
-        <div className={sectionHeadingClass}>Updates</div>
-        <div className="flex flex-col gap-3">
-          {/* Version + Check button */}
-          <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
-            <div>
-              <div className="text-[13px] font-medium text-foreground">
-                Current version
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
-                {appVersion || "..."}
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-              <span className="text-[10px] text-muted-foreground">
-                {formatLastChecked(lastCheckedAt)}
-              </span>
-              <button
-                onClick={handleCheckNow}
-                disabled={updateStatus === "checking"}
-                className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/50 text-xs text-foreground hover:bg-accent transition-colors disabled:opacity-50"
-              >
-                {updateStatus === "checking" ? (
-                  <Loader2 size={12} className="animate-spin" />
-                ) : (
-                  <RefreshCw size={12} />
-                )}
-                Check now
-              </button>
-            </div>
-          </div>
-
-          {/* Auto-check toggle */}
-          <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
-            <Checkbox
-              checked={autoCheckEnabled}
-              onCheckedChange={(checked) => setAutoCheckEnabled(checked === true)}
-              className="mt-0.5"
-            />
-            <div>
-              <div className="text-[13px] font-medium text-foreground">
-                Automatically check for updates
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-                Periodically check for new versions in the background.
-              </div>
-            </div>
-          </label>
-
-          {/* Check interval */}
-          {autoCheckEnabled && (
-            <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
-              <div className="text-[13px] text-foreground">Check frequency</div>
-              <select
-                value={checkIntervalHours}
-                onChange={(e) => setCheckIntervalHours(Number(e.target.value))}
-                className={`${inputClass} w-40`}
-              >
-                {CHECK_INTERVALS.map((opt) => (
-                  <option key={opt.value} value={opt.value}>
-                    {opt.label}
-                  </option>
-                ))}
-              </select>
-            </div>
-          )}
-
-          {/* Advanced section */}
-          <button
-            onClick={() => setAdvancedOpen(!advancedOpen)}
-            className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
-          >
-            <ChevronDown
-              size={12}
-              className={`transition-transform duration-200 ${advancedOpen ? "rotate-0" : "-rotate-90"}`}
-            />
-            Advanced
-          </button>
-
-          {advancedOpen && (
-            <div className="flex flex-col gap-2 p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
-              <div className="text-[11px] text-muted-foreground">
-                Custom update endpoint URL
-              </div>
-              <div className="flex gap-2">
-                <input
-                  type="text"
-                  value={endpointInput}
-                  onChange={(e) => setEndpointInput(e.target.value)}
-                  onBlur={handleEndpointSave}
-                  placeholder="https://..."
-                  className={`${inputClass} flex-1`}
-                />
-                <button
-                  onClick={handleEndpointReset}
-                  className="px-2 py-1 text-[11px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
-                >
-                  Reset
-                </button>
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* Diagnostics */}
-      <section>
-        <div className={sectionHeadingClass}>Diagnostics</div>
-        <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+        <div className={sectionHeadingClass}>Notifications</div>
+        <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
+          <Checkbox
+            checked={enabled}
+            onCheckedChange={(checked) => setEnabled(checked === true)}
+            className="mt-0.5"
+          />
           <div>
             <div className="text-[13px] font-medium text-foreground">
-              Log files
+              Enable notifications
             </div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">
-              Open the folder containing backend log files for debugging.
+            <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
+              Send OS-native notifications for agent events. Notifications are
+              suppressed when the app is focused on the relevant terminal.
             </div>
           </div>
-          <button
-            onClick={handleOpenLogFolder}
-            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/50 text-xs text-foreground hover:bg-accent transition-colors cursor-pointer"
-          >
-            <FolderOpen size={12} />
-            Open Log Folder
-          </button>
+        </label>
+      </section>
+
+      {/* Per-event toggles */}
+      <section>
+        <div className={sectionHeadingClass}>Event Types</div>
+        <div className="flex flex-col gap-2.5">
+          {toggles.map((t) => (
+            <label
+              key={t.key}
+              className={`flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer ${!enabled ? "opacity-50 pointer-events-none" : ""}`}
+            >
+              <Checkbox
+                checked={t.value}
+                onCheckedChange={(checked) => t.setter(checked === true)}
+                disabled={!enabled}
+                className="mt-0.5"
+              />
+              <div>
+                <div className="text-[13px] font-medium text-foreground">
+                  {t.label}
+                </div>
+                <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
+                  {t.description}
+                </div>
+              </div>
+            </label>
+          ))}
         </div>
       </section>
+    </div>
+  );
+}
+
+// ── Updates Panel ──
+
+function UpdatesPanel() {
+  const [appVersion, setAppVersion] = useState("");
+  const updateStatus = useUpdateStore((s) => s.status);
+  const lastCheckedAt = useUpdateStore((s) => s.lastCheckedAt);
+  const autoCheckEnabled = useUpdateStore((s) => s.autoCheckEnabled);
+  const checkIntervalHours = useUpdateStore((s) => s.checkIntervalHours);
+  const customEndpoint = useUpdateStore((s) => s.customEndpoint);
+  const checkForUpdates = useUpdateStore((s) => s.checkForUpdates);
+  const setAutoCheckEnabled = useUpdateStore((s) => s.setAutoCheckEnabled);
+  const setCheckIntervalHours = useUpdateStore((s) => s.setCheckIntervalHours);
+  const setCustomEndpoint = useUpdateStore((s) => s.setCustomEndpoint);
+
+  const [advancedOpen, setAdvancedOpen] = useState(false);
+  const [endpointInput, setEndpointInput] = useState(customEndpoint ?? "");
+
+  useEffect(() => {
+    invoke<string>("get_app_version").then(setAppVersion).catch(() => {});
+  }, []);
+
+  useEffect(() => {
+    setEndpointInput(customEndpoint ?? "");
+  }, [customEndpoint]);
+
+  const handleCheckNow = useCallback(() => {
+    checkForUpdates();
+  }, [checkForUpdates]);
+
+  const handleEndpointSave = useCallback(() => {
+    const trimmed = endpointInput.trim();
+    setCustomEndpoint(trimmed || null);
+  }, [endpointInput, setCustomEndpoint]);
+
+  const handleEndpointReset = useCallback(() => {
+    setEndpointInput("");
+    setCustomEndpoint(null);
+  }, [setCustomEndpoint]);
+
+  return (
+    <div className="flex flex-col gap-3">
+      {/* Version + Check button */}
+      <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+        <div>
+          <div className="text-[13px] font-medium text-foreground">
+            Current version
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            {appVersion || "..."}
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] text-muted-foreground">
+            {formatLastChecked(lastCheckedAt)}
+          </span>
+          <button
+            onClick={handleCheckNow}
+            disabled={updateStatus === "checking"}
+            className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/50 text-xs text-foreground hover:bg-accent transition-colors disabled:opacity-50"
+          >
+            {updateStatus === "checking" ? (
+              <Loader2 size={12} className="animate-spin" />
+            ) : (
+              <RefreshCw size={12} />
+            )}
+            Check now
+          </button>
+        </div>
+      </div>
+
+      {/* Auto-check toggle */}
+      <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
+        <Checkbox
+          checked={autoCheckEnabled}
+          onCheckedChange={(checked) => setAutoCheckEnabled(checked === true)}
+          className="mt-0.5"
+        />
+        <div>
+          <div className="text-[13px] font-medium text-foreground">
+            Automatically check for updates
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
+            Periodically check for new versions in the background.
+          </div>
+        </div>
+      </label>
+
+      {/* Check interval */}
+      {autoCheckEnabled && (
+        <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+          <div className="text-[13px] text-foreground">Check frequency</div>
+          <select
+            value={checkIntervalHours}
+            onChange={(e) => setCheckIntervalHours(Number(e.target.value))}
+            className={`${inputClass} w-40`}
+          >
+            {CHECK_INTERVALS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+        </div>
+      )}
+
+      {/* Advanced section */}
+      <button
+        onClick={() => setAdvancedOpen(!advancedOpen)}
+        className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors"
+      >
+        <ChevronDown
+          size={12}
+          className={`transition-transform duration-200 ${advancedOpen ? "rotate-0" : "-rotate-90"}`}
+        />
+        Advanced
+      </button>
+
+      {advancedOpen && (
+        <div className="flex flex-col gap-2 p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+          <div className="text-[11px] text-muted-foreground">
+            Custom update endpoint URL
+          </div>
+          <div className="flex gap-2">
+            <input
+              type="text"
+              value={endpointInput}
+              onChange={(e) => setEndpointInput(e.target.value)}
+              onBlur={handleEndpointSave}
+              placeholder="https://..."
+              className={`${inputClass} flex-1`}
+            />
+            <button
+              onClick={handleEndpointReset}
+              className="px-2 py-1 text-[11px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+            >
+              Reset
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── System Panel ──
+
+function SystemPanel() {
+  const handleOpenLogFolder = useCallback(async () => {
+    try {
+      await invoke("open_log_directory");
+    } catch {
+      // silently ignore if log directory is unavailable
+    }
+  }, []);
+
+  return (
+    <div className="flex flex-col gap-3">
+      <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+        <div>
+          <div className="text-[13px] font-medium text-foreground">
+            Log files
+          </div>
+          <div className="text-[11px] text-muted-foreground mt-0.5">
+            Open the folder containing backend log files for debugging.
+          </div>
+        </div>
+        <button
+          onClick={handleOpenLogFolder}
+          className="flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-accent/50 text-xs text-foreground hover:bg-accent transition-colors cursor-pointer"
+        >
+          <FolderOpen size={12} />
+          Open Log Folder
+        </button>
+      </div>
+    </div>
+  );
+}
+
+// ── Main GeneralTab ──
+
+export function GeneralTab() {
+  const [activeTab, setActiveTab] = useState<GeneralTabId>("appearance");
+
+  return (
+    <div className="flex flex-col gap-5">
+      <Tabs<GeneralTabId>
+        value={activeTab}
+        onChange={setActiveTab}
+        animation="slide"
+        variant="none"
+        indicatorVariant="color"
+        size="sm"
+        align="start"
+        barRadius="md"
+        tabRadius="md"
+      >
+        <Tabs.Tab value="appearance" icon={<Palette size={13} />}>
+          Appearance
+        </Tabs.Tab>
+        <Tabs.Tab value="notifications" icon={<Bell size={13} />}>
+          Notifications
+        </Tabs.Tab>
+        <Tabs.Tab value="updates" icon={<Monitor size={13} />}>
+          Updates
+        </Tabs.Tab>
+        <Tabs.Tab value="system" icon={<Wrench size={13} />}>
+          System
+        </Tabs.Tab>
+      </Tabs>
+
+      <div className="min-h-[375px]">
+        {activeTab === "appearance" && <AppearancePanel />}
+        {activeTab === "notifications" && <NotificationsPanel />}
+        {activeTab === "updates" && <UpdatesPanel />}
+        {activeTab === "system" && <SystemPanel />}
+      </div>
     </div>
   );
 }
