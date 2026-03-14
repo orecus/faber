@@ -279,6 +279,7 @@ pub fn run() {
             commands::github::close_github_issue,
             commands::github::reopen_github_issue,
             commands::github::fetch_repo_labels,
+            commands::github::create_repo_label,
             commands::github::check_pr_merged,
             commands::github::set_task_github_pr,
             commands::github::list_pull_requests,

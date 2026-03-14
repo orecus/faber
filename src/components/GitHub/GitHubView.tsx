@@ -9,6 +9,7 @@ import {
   Github,
   Loader2,
   RefreshCw,
+  Settings,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -22,6 +23,8 @@ import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
 import BranchSelect from "../ui/BranchSelect";
+import { GitHubTab as GitHubSettingsTab } from "../Settings/GitHubTab";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import BranchFilter from "./BranchFilter";
 import ChangesTab from "./ChangesTab";
 import CommitDetailPanel from "./CommitDetailPanel";
@@ -39,6 +42,9 @@ export default function GitHubView() {
   const projectInfo = useAppStore((s) => s.projectInfo);
   const setProjectInfo = useAppStore((s) => s.setProjectInfo);
   const [activeTab, setActiveTab] = useState<GitHubTab>("changes");
+  const [settingsOpen, setSettingsOpen] = useState(false);
+
+  const handleOpenSettings = useCallback(() => setSettingsOpen(true), []);
 
   // Sync status
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -294,7 +300,31 @@ export default function GitHubView() {
         >
           Sync
         </Button>
+
+        {/* GitHub settings */}
+        <Button
+          variant="ghost"
+          size="icon-sm"
+          onClick={handleOpenSettings}
+          title="GitHub settings"
+          hoverEffect="scale"
+          clickEffect="scale"
+        >
+          <Settings className="size-3.5" />
+        </Button>
       </ViewLayout.Toolbar>
+
+      {/* GitHub Settings Dialog */}
+      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
+        <DialogContent className="sm:max-w-xl">
+          <DialogHeader>
+            <DialogTitle>GitHub Settings</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-[70vh] overflow-y-auto -mx-6 px-6">
+            <GitHubSettingsTab />
+          </div>
+        </DialogContent>
+      </Dialog>
 
       {/* Content card */}
       <div
@@ -349,10 +379,10 @@ export default function GitHubView() {
           </div>
         )}
 
-        {activeTab === "issues" && <IssuesTab projectId={activeProjectId} hasRemote={hasRemote} />}
+        {activeTab === "issues" && <IssuesTab projectId={activeProjectId} hasRemote={hasRemote} onOpenSettings={handleOpenSettings} />}
 
         {activeTab === "pull-requests" && (
-          <PullRequestsTab projectId={activeProjectId} hasRemote={hasRemote} />
+          <PullRequestsTab projectId={activeProjectId} hasRemote={hasRemote} onOpenSettings={handleOpenSettings} />
         )}
       </div>
     </ViewLayout>

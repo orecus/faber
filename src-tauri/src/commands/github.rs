@@ -231,6 +231,23 @@ pub async fn fetch_repo_labels(
 }
 
 #[tauri::command]
+pub async fn create_repo_label(
+    state: State<'_, DbState>,
+    project_id: String,
+    name: String,
+    color: String,
+    description: String,
+) -> Result<(), AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+
+    tokio::task::spawn_blocking(move || {
+        github::create_label(Path::new(&project_path), &name, &color, &description)
+    })
+    .await
+    .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
 pub async fn check_pr_merged(
     state: State<'_, DbState>,
     project_id: String,

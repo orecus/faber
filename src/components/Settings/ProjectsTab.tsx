@@ -2,7 +2,6 @@ import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
 import { formatError } from "../../lib/errorMessages";
 import {
-  AlertTriangle,
   Bot,
   ChevronDown,
   Cpu,
@@ -10,9 +9,7 @@ import {
   FileText,
   FolderCode,
   GitBranch,
-  Github,
   Image,
-  Loader2,
   Trash2,
   X,
 } from "lucide-react";
@@ -38,7 +35,7 @@ import {
 import { Separator } from "../ui/separator";
 import { sectionHeadingClass } from "./shared";
 
-import type { AgentInfo, GitHubLabelFull, GitHubLabelMapping, Project, TaskStatus } from "../../types";
+import type { AgentInfo, Project } from "../../types";
 import type { ThemeColor } from "../ui/orecus.io/lib/color-utils";
 
 const TAB_COLORS: { value: ThemeColor; label: string }[] = [
@@ -476,10 +473,6 @@ function ProjectSettingsCard({
             />
           </section>
 
-          {/* GitHub Sync */}
-          <Separator className="mt-1" />
-          <GitHubSyncSection projectId={project.id} />
-
           {/* Delete Project */}
           <Separator className="mt-1" />
           <section className="pt-5">
@@ -570,254 +563,6 @@ function ToggleRow({
         />
       </button>
     </label>
-  );
-}
-
-// ── GitHub Sync Section ──
-
-const TASK_STATUSES: TaskStatus[] = [
-  "backlog",
-  "ready",
-  "in-progress",
-  "in-review",
-  "done",
-];
-
-function GitHubSyncSection({ projectId }: { projectId: string }) {
-  const ghAuthStatus = useAppStore((s) => s.ghAuthStatus);
-  const [syncEnabled, setSyncEnabled] = useState(false);
-  const [autoClose, setAutoClose] = useState(true);
-  const [autoReopen, setAutoReopen] = useState(true);
-  const [prClosesRef, setPrClosesRef] = useState(true);
-  const [labelSync, setLabelSync] = useState(false);
-  const [mergeDetection, setMergeDetection] = useState(true);
-  const [labelMapping, setLabelMapping] = useState<GitHubLabelMapping>({});
-  const [repoLabels, setRepoLabels] = useState<GitHubLabelFull[]>([]);
-  const [fetchingLabels, setFetchingLabels] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-
-  // Load settings on mount
-  useEffect(() => {
-    let cancelled = false;
-    const load = async () => {
-      try {
-        const get = (key: string) =>
-          invoke<string | null>("get_project_setting", { projectId, key });
-
-        const [se, ac, ar, pcr, ls, md, lm] = await Promise.all([
-          get("github_sync_enabled"),
-          get("github_auto_close"),
-          get("github_auto_reopen"),
-          get("github_pr_closes_ref"),
-          get("github_label_sync"),
-          get("github_merge_detection"),
-          get("github_label_mapping"),
-        ]);
-
-        if (cancelled) return;
-        setSyncEnabled(se === "true");
-        setAutoClose(ac !== "false");
-        setAutoReopen(ar !== "false");
-        setPrClosesRef(pcr !== "false");
-        setLabelSync(ls === "true");
-        setMergeDetection(md !== "false");
-        if (lm) {
-          try {
-            setLabelMapping(JSON.parse(lm));
-          } catch {
-            // ignore
-          }
-        }
-        setLoaded(true);
-      } catch {
-        if (!cancelled) setLoaded(true);
-      }
-    };
-    load();
-    return () => { cancelled = true; };
-  }, [projectId]);
-
-  const saveSetting = useCallback(
-    (key: string, value: string) => {
-      invoke("set_project_setting", { projectId, key, value }).catch(() => {});
-    },
-    [projectId],
-  );
-
-  const handleToggle = useCallback(
-    (key: string, setter: (v: boolean) => void, value: boolean) => {
-      setter(value);
-      saveSetting(key, value ? "true" : "false");
-    },
-    [saveSetting],
-  );
-
-  const handleFetchLabels = useCallback(async () => {
-    setFetchingLabels(true);
-    try {
-      const labels = await invoke<GitHubLabelFull[]>("fetch_repo_labels", {
-        projectId,
-      });
-      setRepoLabels(labels);
-    } catch {
-      // ignore
-    } finally {
-      setFetchingLabels(false);
-    }
-  }, [projectId]);
-
-  const handleLabelMappingChange = useCallback(
-    (status: TaskStatus, label: string) => {
-      setLabelMapping((prev) => {
-        const next = { ...prev };
-        if (label) {
-          next[status] = label;
-        } else {
-          delete next[status];
-        }
-        saveSetting("github_label_mapping", JSON.stringify(next));
-        return next;
-      });
-    },
-    [saveSetting],
-  );
-
-  if (!loaded) return null;
-
-  return (
-    <section className="pt-3">
-      <div className={`${sectionHeadingClass} mb-2.5 flex items-center gap-2`}>
-        <Github className="size-4" />
-        GitHub Sync
-      </div>
-
-      {/* Auth warning */}
-      {ghAuthStatus && (!ghAuthStatus.installed || !ghAuthStatus.authenticated || ghAuthStatus.has_scope_warnings) && (
-        <div className="flex items-start gap-2 rounded-md px-3 py-2 mb-2 text-xs bg-[color-mix(in_oklch,var(--warning)_10%,transparent)] text-warning">
-          <AlertTriangle className="size-3.5 shrink-0 mt-0.5" />
-          <span>
-            {!ghAuthStatus.installed
-              ? "GitHub CLI (gh) is not installed. GitHub sync features will not work."
-              : !ghAuthStatus.authenticated
-                ? "GitHub CLI is not authenticated. Run `gh auth login` to enable sync."
-                : `Token is missing required scopes: ${ghAuthStatus.missing_scopes.join(", ")}. Some sync features may fail.`}
-          </span>
-        </div>
-      )}
-
-      <div className="flex flex-col gap-1">
-        <ToggleRow
-          label="Enable GitHub Sync"
-          description="Sync task status changes to linked GitHub issues"
-          checked={syncEnabled}
-          onChange={(v) => handleToggle("github_sync_enabled", setSyncEnabled, v)}
-        />
-
-        {syncEnabled && (
-          <div className="ml-3 border-l-2 border-border pl-4 flex flex-col gap-1 mt-1">
-            <ToggleRow
-              label="Auto-close issues"
-              description="Close GitHub issue when task moves to Done (without a PR)"
-              checked={autoClose}
-              onChange={(v) =>
-                handleToggle("github_auto_close", setAutoClose, v)
-              }
-            />
-            <ToggleRow
-              label="Auto-reopen issues"
-              description="Reopen GitHub issue when task moves back from Done"
-              checked={autoReopen}
-              onChange={(v) =>
-                handleToggle("github_auto_reopen", setAutoReopen, v)
-              }
-            />
-            <ToggleRow
-              label='Add "Closes #N" to PR body'
-              description="Pre-populate PR description with close reference"
-              checked={prClosesRef}
-              onChange={(v) =>
-                handleToggle("github_pr_closes_ref", setPrClosesRef, v)
-              }
-            />
-            <ToggleRow
-              label="Auto-detect merged PRs"
-              description="Check PR status on Review refresh"
-              checked={mergeDetection}
-              onChange={(v) =>
-                handleToggle("github_merge_detection", setMergeDetection, v)
-              }
-            />
-            <ToggleRow
-              label="Sync status labels"
-              description="Add/remove labels on GitHub issues when task status changes"
-              checked={labelSync}
-              onChange={(v) =>
-                handleToggle("github_label_sync", setLabelSync, v)
-              }
-            />
-
-            {labelSync && (
-              <div className="mt-2 ml-1">
-                <div className="flex items-center gap-2 mb-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleFetchLabels}
-                    loading={fetchingLabels}
-                    leftIcon={
-                      fetchingLabels ? (
-                        <Loader2 className="size-3.5 animate-spin" />
-                      ) : undefined
-                    }
-                  >
-                    {repoLabels.length > 0
-                      ? "Refresh Labels"
-                      : "Fetch Labels"}
-                  </Button>
-                  {repoLabels.length > 0 && (
-                    <span className="text-[11px] text-muted-foreground">
-                      {repoLabels.length} labels available
-                    </span>
-                  )}
-                </div>
-
-                {repoLabels.length > 0 && (
-                  <div className="flex flex-col gap-1.5">
-                    {TASK_STATUSES.map((status) => (
-                      <div
-                        key={status}
-                        className="flex items-center gap-3"
-                      >
-                        <span className="text-[12px] text-dim-foreground w-24 shrink-0">
-                          {status}
-                        </span>
-                        <select
-                          value={labelMapping[status] ?? ""}
-                          onChange={(e) =>
-                            handleLabelMappingChange(
-                              status,
-                              e.target.value,
-                            )
-                          }
-                          className="flex-1 max-w-60 h-7 rounded-[var(--radius-element)] border border-border bg-popover px-2 text-xs text-foreground focus:border-primary focus:outline-none"
-                        >
-                          <option value="">None</option>
-                          {repoLabels.map((l) => (
-                            <option key={l.name} value={l.name}>
-                              {l.name}
-                            </option>
-                          ))}
-                        </select>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
-          </div>
-        )}
-      </div>
-    </section>
   );
 }
 

@@ -1,6 +1,5 @@
 import { useEffect, useCallback } from "react";
 import {
-  AlertTriangle,
   GitPullRequestArrow,
   GitMerge,
   GitPullRequestClosed,
@@ -16,10 +15,12 @@ import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { useAppStore } from "../../store/appStore";
 import { usePullRequests, type PRStateFilter } from "./usePullRequests";
 import PullRequestDetailPanel from "./PullRequestDetailPanel";
+import GitHubAuthGate from "./GitHubAuthGate";
 
 interface PullRequestsTabProps {
   projectId: string | null;
   hasRemote: boolean;
+  onOpenSettings?: () => void;
 }
 
 function formatRelativeTime(dateStr: string): string {
@@ -66,8 +67,8 @@ function reviewIcon(decision: string | null) {
 export default function PullRequestsTab({
   projectId,
   hasRemote,
+  onOpenSettings,
 }: PullRequestsTabProps) {
-  const ghAuthStatus = useAppStore((s) => s.ghAuthStatus);
   const refreshGhAuth = useAppStore((s) => s.refreshGhAuth);
   const {
     prs,
@@ -107,54 +108,15 @@ export default function PullRequestsTab({
     [selectPR, selectedPR],
   );
 
-  // Auth is broken if not installed, not authenticated, or has scope warnings
-  const authBroken = ghAuthStatus && (
-    !ghAuthStatus.installed || !ghAuthStatus.authenticated || ghAuthStatus.has_scope_warnings
-  );
-
   if (!projectId) return null;
 
-  // Show no-remote state for local-only repos
-  if (!hasRemote) {
-    return (
-      <div className="flex flex-1 h-full flex-col items-center justify-center text-muted-foreground">
-        <GitPullRequestArrow className="mb-3 size-10 opacity-30" />
-        <p className="text-sm font-medium text-foreground">No remote configured</p>
-        <p className="mt-1 text-xs text-center max-w-xs">
-          This project has no git remote. Add a remote to browse pull requests.
-        </p>
-      </div>
-    );
-  }
-
-  if (authBroken) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
-        <AlertTriangle className="mb-3 size-10 opacity-40 text-warning" />
-        <p className="text-sm font-medium text-foreground">GitHub authentication issue</p>
-        <p className="mt-1 text-xs text-center max-w-xs">
-          {!ghAuthStatus?.installed
-            ? "GitHub CLI (gh) is not installed. Install it to browse pull requests."
-            : !ghAuthStatus?.authenticated
-              ? "GitHub CLI is not authenticated. Run `gh auth login` to browse pull requests."
-              : `Token is missing required scopes: ${ghAuthStatus.missing_scopes.join(", ")}. Update your token to browse pull requests.`}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={refreshGhAuth}
-          leftIcon={<RefreshCw className="size-3" />}
-          hoverEffect="scale"
-          clickEffect="scale"
-        >
-          Re-check auth
-        </Button>
-      </div>
-    );
-  }
-
   return (
+    <GitHubAuthGate
+      feature="pull requests"
+      icon={GitPullRequestArrow}
+      hasRemote={hasRemote}
+      onOpenSettings={onOpenSettings}
+    >
     <div className="flex flex-1 flex-col overflow-hidden min-h-0 h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-1.5">
@@ -337,5 +299,6 @@ export default function PullRequestsTab({
         </div>
       )}
     </div>
+    </GitHubAuthGate>
   );
 }

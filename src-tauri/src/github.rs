@@ -771,6 +771,23 @@ pub fn fetch_repo_labels(repo_path: &Path) -> Result<Vec<GitHubLabelFull>, AppEr
     Ok(labels)
 }
 
+/// Create a label on the repository. If it already exists, update its color/description.
+pub fn create_label(repo_path: &Path, name: &str, color: &str, description: &str) -> Result<(), AppError> {
+    // Try to create first
+    let output = cmd_no_window("gh")
+        .args(["label", "create", name, "--color", color, "--description", description, "--force"])
+        .current_dir(repo_path)
+        .output()
+        .map_err(|e| AppError::Io(format!("Failed to run gh label create: {e}")))?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(AppError::Git(format!("gh label create failed: {stderr}")));
+    }
+
+    Ok(())
+}
+
 // ── Pull Request types ──
 
 /// A GitHub PR as returned by `gh pr list --json ...`.

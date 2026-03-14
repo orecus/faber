@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import {
-  AlertTriangle,
   CircleDot,
   ListFilter,
   RefreshCw,
@@ -15,14 +14,15 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { useAppStore } from "../../store/appStore";
 import { useGitHubIssues, type IssueStateFilter } from "./useGitHubIssues";
+import GitHubAuthGate from "./GitHubAuthGate";
 
 interface IssuesTabProps {
   projectId: string | null;
   hasRemote: boolean;
+  onOpenSettings?: () => void;
 }
 
-export default function IssuesTab({ projectId, hasRemote }: IssuesTabProps) {
-  const ghAuthStatus = useAppStore((s) => s.ghAuthStatus);
+export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: IssuesTabProps) {
   const refreshGhAuth = useAppStore((s) => s.refreshGhAuth);
   const {
     issues,
@@ -54,59 +54,19 @@ export default function IssuesTab({ projectId, hasRemote }: IssuesTabProps) {
   }, [error, refreshGhAuth]);
 
 
-  // Auth is broken if not installed, not authenticated, or has scope warnings
-  const authBroken = ghAuthStatus && (
-    !ghAuthStatus.installed || !ghAuthStatus.authenticated || ghAuthStatus.has_scope_warnings
-  );
-
   const importableCount = issues.filter((i) => !i.already_imported).length;
   const allSelected =
     importableCount > 0 && selectedNumbers.size === importableCount;
 
   if (!projectId) return null;
 
-  // Show no-remote state for local-only repos
-  if (!hasRemote) {
-    return (
-      <div className="flex flex-1 h-full flex-col items-center justify-center text-muted-foreground">
-        <CircleDot className="mb-3 size-10 opacity-30" />
-        <p className="text-sm font-medium text-foreground">No remote configured</p>
-        <p className="mt-1 text-xs text-center max-w-xs">
-          This project has no git remote. Add a remote to browse GitHub issues.
-        </p>
-      </div>
-    );
-  }
-
-  // Show auth error state instead of attempting API calls
-  if (authBroken) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
-        <AlertTriangle className="mb-3 size-10 opacity-40 text-warning" />
-        <p className="text-sm font-medium text-foreground">GitHub authentication issue</p>
-        <p className="mt-1 text-xs text-center max-w-xs">
-          {!ghAuthStatus?.installed
-            ? "GitHub CLI (gh) is not installed. Install it to browse issues."
-            : !ghAuthStatus?.authenticated
-              ? "GitHub CLI is not authenticated. Run `gh auth login` to browse issues."
-              : `Token is missing required scopes: ${ghAuthStatus.missing_scopes.join(", ")}. Update your token to browse issues.`}
-        </p>
-        <Button
-          variant="outline"
-          size="sm"
-          className="mt-3"
-          onClick={refreshGhAuth}
-          leftIcon={<RefreshCw className="size-3" />}
-          hoverEffect="scale"
-          clickEffect="scale"
-        >
-          Re-check auth
-        </Button>
-      </div>
-    );
-  }
-
   return (
+    <GitHubAuthGate
+      feature="issues"
+      icon={CircleDot}
+      hasRemote={hasRemote}
+      onOpenSettings={onOpenSettings}
+    >
     <div className="flex flex-1 flex-col overflow-hidden min-h-0 h-full">
       {/* Toolbar */}
       <div className="flex items-center gap-2 border-b border-border bg-card px-3 py-1.5">
@@ -320,5 +280,6 @@ export default function IssuesTab({ projectId, hasRemote }: IssuesTabProps) {
         </div>
       )}
     </div>
+    </GitHubAuthGate>
   );
 }
