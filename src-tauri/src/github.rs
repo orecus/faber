@@ -78,85 +78,193 @@ pub fn check_gh_auth() -> GhAuthStatus {
         String::from_utf8_lossy(&output.stderr),
     );
 
-    // If exit code is non-zero AND every account line shows "X Failed to log in",
-    // then authentication is truly broken.
-    if !output.status.success() {
-        // Log full error details server-side only; send generic message to frontend
-        // to avoid leaking internal auth details (partial tokens, scope info, etc.)
-        tracing::debug!(output = %text.trim(), "gh auth status failed");
-        return GhAuthStatus {
-            installed: true,
-            authenticated: false,
-            username: None,
-            error: Some("GitHub CLI authentication failed. Run `gh auth login` to authenticate.".to_string()),
-            token_source: None,
-            missing_scopes: vec![],
-            has_scope_warnings: false,
-        };
+    let exit_ok = output.status.success();
+    tracing::debug!(exit_ok, output = %text.trim(), "gh auth status output");
+
+    // ── Parse per-account blocks ──
+    // gh auth status outputs blocks like:
+    //   ✓ Logged in to github.com account user1 (GITHUB_TOKEN)
+    //   - Active account: true
+    //   - Token scopes: 'repo', 'workflow'
+    //
+    //   X Failed to log in to github.com account user2 (keyring)
+    //   - Active account: false
+    //
+    // We parse each account entry and pick the best one.
+
+    struct AccountInfo {
+        username: Option<String>,
+        token_source: Option<String>,
+        is_active: bool,
+        is_success: bool,
+        missing_scopes: Vec<String>,
     }
 
-    // ── Parse token source ──
-    // gh outputs lines like:
-    //   "✓ Logged in to github.com account foo (GITHUB_TOKEN)"
-    //   "✓ Logged in to github.com account foo (keyring)"
-    let token_source = text.lines().find_map(|line| {
-        if let Some(pos) = line.rfind('(') {
-            if let Some(end) = line[pos..].find(')') {
-                let source = &line[pos + 1..pos + end];
-                if !source.is_empty() {
-                    return Some(source.to_string());
-                }
-            }
-        }
-        None
-    });
-
-    // ── Parse missing scopes ──
-    // gh outputs lines like:
-    //   "! Missing required token scopes: 'read:org', 'admin:public_key'"
-    //   "- Missing required scopes: 'read:org'"
     let missing_scopes_re = Regex::new(
         r"(?i)missing\s+required\s+(?:token\s+)?scopes?:\s*(.+)"
     ).unwrap();
-
     let scope_re = Regex::new(r"'([^']+)'").unwrap();
-    let mut missing_scopes: Vec<String> = Vec::new();
-    for line in text.lines() {
-        if let Some(caps) = missing_scopes_re.captures(line) {
-            let scopes_str = &caps[1];
-            // Extract quoted scope names: 'read:org', 'admin:public_key'
-            for scope_cap in scope_re.captures_iter(scopes_str) {
-                let scope = scope_cap[1].to_string();
-                if !missing_scopes.contains(&scope) {
-                    missing_scopes.push(scope);
+
+    let mut accounts: Vec<AccountInfo> = Vec::new();
+
+    // Collect lines into the current account being parsed
+    let lines: Vec<&str> = text.lines().collect();
+    let mut i = 0;
+    while i < lines.len() {
+        let line = lines[i].trim();
+
+        // Detect an account line: starts with ✓ or X (or unicode checkmark variants)
+        let is_success_line = line.contains("Logged in to") && !line.contains("Failed");
+        let is_failure_line = line.contains("Failed to log in");
+
+        if is_success_line || is_failure_line {
+            // Extract username: "account <username> ("
+            let username = if let Some(pos) = line.find("account ") {
+                let after = &line[pos + 8..];
+                let name = after.split_whitespace().next().unwrap_or("");
+                if !name.is_empty() { Some(name.to_string()) } else { None }
+            } else {
+                None
+            };
+
+            // Extract token source from parentheses at end of line
+            let token_source = if let Some(pos) = line.rfind('(') {
+                if let Some(end) = line[pos..].find(')') {
+                    let source = &line[pos + 1..pos + end];
+                    if !source.is_empty() { Some(source.to_string()) } else { None }
+                } else {
+                    None
                 }
+            } else {
+                None
+            };
+
+            // Parse subsequent metadata lines for this account
+            let mut is_active = false;
+            let mut missing_scopes: Vec<String> = Vec::new();
+            let mut j = i + 1;
+            while j < lines.len() {
+                let meta = lines[j].trim();
+                // Stop at the next account line or empty line followed by another account
+                if meta.is_empty() {
+                    j += 1;
+                    continue;
+                }
+                if meta.contains("Logged in to") || meta.contains("Failed to log in") {
+                    break;
+                }
+                // Check for "Active account: true"
+                if meta.contains("Active account: true") {
+                    is_active = true;
+                }
+                // Check for missing scopes
+                if let Some(caps) = missing_scopes_re.captures(meta) {
+                    let scopes_str = &caps[1];
+                    for scope_cap in scope_re.captures_iter(scopes_str) {
+                        let scope = scope_cap[1].to_string();
+                        if !missing_scopes.contains(&scope) {
+                            missing_scopes.push(scope);
+                        }
+                    }
+                }
+                j += 1;
             }
+
+            accounts.push(AccountInfo {
+                username,
+                token_source,
+                is_active,
+                is_success: is_success_line,
+                missing_scopes,
+            });
+
+            i = j;
+        } else {
+            i += 1;
         }
     }
 
-    let has_scope_warnings = !missing_scopes.is_empty();
+    // ── Select best account ──
+    // Priority: active + successful > any successful > none
+    let best = accounts
+        .iter()
+        .filter(|a| a.is_success)
+        .max_by_key(|a| (a.is_active as u8, 1u8));
 
-    // ── Extract username ──
-    let username = text.lines().find_map(|line| {
-        // gh outputs: "Logged in to github.com account username (..."
-        if let Some(pos) = line.find("account ") {
-            let after = &line[pos + 8..];
-            let name = after.split_whitespace().next().unwrap_or("");
-            if !name.is_empty() {
-                return Some(name.to_string());
-            }
+    if let Some(account) = best {
+        let has_scope_warnings = !account.missing_scopes.is_empty();
+        let failed_sources: Vec<&str> = accounts
+            .iter()
+            .filter(|a| !a.is_success)
+            .filter_map(|a| a.token_source.as_deref())
+            .collect();
+
+        let error = if !exit_ok && !failed_sources.is_empty() {
+            Some(format!(
+                "Note: authentication via {} failed, using {}",
+                failed_sources.join(", "),
+                account.token_source.as_deref().unwrap_or("unknown"),
+            ))
+        } else {
+            None
+        };
+
+        GhAuthStatus {
+            installed: true,
+            authenticated: true,
+            username: account.username.clone(),
+            error,
+            token_source: account.token_source.clone(),
+            missing_scopes: account.missing_scopes.clone(),
+            has_scope_warnings,
         }
-        None
-    });
-
-    GhAuthStatus {
-        installed: true,
-        authenticated: true,
-        username,
-        error: None,
-        token_source,
-        missing_scopes,
-        has_scope_warnings,
+    } else if exit_ok {
+        // Exit code 0 but we couldn't parse any account blocks — still treat as authenticated
+        // (fallback for unusual gh output formats)
+        let token_source = text.lines().find_map(|line| {
+            if let Some(pos) = line.rfind('(') {
+                if let Some(end) = line[pos..].find(')') {
+                    let source = &line[pos + 1..pos + end];
+                    if !source.is_empty() {
+                        return Some(source.to_string());
+                    }
+                }
+            }
+            None
+        });
+        let username = text.lines().find_map(|line| {
+            if let Some(pos) = line.find("account ") {
+                let after = &line[pos + 8..];
+                let name = after.split_whitespace().next().unwrap_or("");
+                if !name.is_empty() {
+                    return Some(name.to_string());
+                }
+            }
+            None
+        });
+        GhAuthStatus {
+            installed: true,
+            authenticated: true,
+            username,
+            error: None,
+            token_source,
+            missing_scopes: vec![],
+            has_scope_warnings: false,
+        }
+    } else {
+        // No successful account found and exit code is non-zero
+        GhAuthStatus {
+            installed: true,
+            authenticated: false,
+            username: None,
+            error: Some(
+                "GitHub CLI authentication failed. Run `gh auth login` to authenticate."
+                    .to_string(),
+            ),
+            token_source: None,
+            missing_scopes: vec![],
+            has_scope_warnings: false,
+        }
     }
 }
 
