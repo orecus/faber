@@ -1179,19 +1179,35 @@ pub fn create_issue(
 }
 
 /// Update an existing GitHub issue using `gh issue edit`.
+///
+/// All fields are optional — only the ones provided will be updated.
 pub fn update_issue(
     repo_path: &Path,
     number: u64,
-    title: &str,
-    body: &str,
+    title: Option<&str>,
+    body: Option<&str>,
 ) -> Result<(), AppError> {
+    // Nothing to update
+    if title.is_none() && body.is_none() {
+        return Ok(());
+    }
+
     let number_str = number.to_string();
+    let mut args = vec!["issue", "edit", &number_str];
+
+    // Owned strings so references in `args` stay valid
+    let title_owned = title.map(|t| t.to_string());
+    let body_owned = body.map(|b| b.to_string());
+
+    if let Some(ref t) = title_owned {
+        args.extend(["--title", t]);
+    }
+    if let Some(ref b) = body_owned {
+        args.extend(["--body", b]);
+    }
+
     let output = cmd_no_window("gh")
-        .args([
-            "issue", "edit", &number_str,
-            "--title", title,
-            "--body", body,
-        ])
+        .args(&args)
         .current_dir(repo_path)
         .output()
         .map_err(|e| AppError::Io(format!("Failed to run gh issue edit: {e}")))?;

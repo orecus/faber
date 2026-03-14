@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppStore } from "../../store/appStore";
 import type { GitHubIssueCreated, Task, TaskFileContent } from "../../types";
 import type { TaskFormData } from "./TaskMetadataForm";
+import type { SyncOptions } from "./SyncToGitHubDialog";
 
 function taskToFormData(task: Task): TaskFormData {
   return {
@@ -200,44 +201,67 @@ export function useTaskDetail() {
     handleDelete();
   }, [confirmDelete, handleDelete]);
 
-  // Sync task to GitHub issue
-  const handleSyncToGitHub = useCallback(async () => {
-    if (!activeProjectId || !activeTaskId || !formData) return;
-    const issueRef = formData.github_issue;
-    if (!issueRef) return;
+  // Sync task to GitHub issue (with granular field selection)
+  const handleSyncToGitHub = useCallback(
+    async (options: SyncOptions) => {
+      if (!activeProjectId || !activeTaskId || !formData) return;
+      const issueRef = formData.github_issue;
+      if (!issueRef) return;
 
-    const num = issueRef.split("#").pop();
-    if (!num) return;
-    const issueNumber = parseInt(num, 10);
-    if (isNaN(issueNumber)) return;
+      const num = issueRef.split("#").pop();
+      if (!num) return;
+      const issueNumber = parseInt(num, 10);
+      if (isNaN(issueNumber)) return;
 
-    setSyncing(true);
-    setSyncSuccess(false);
-    setError(null);
-    addBackgroundTask("Syncing to GitHub");
-    try {
-      await invoke("update_github_issue", {
-        projectId: activeProjectId,
-        issueNumber,
-        title: formData.title,
-        body,
-      });
-      setSyncSuccess(true);
-      setTimeout(() => setSyncSuccess(false), 2000);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setSyncing(false);
-      removeBackgroundTask("Syncing to GitHub");
-    }
-  }, [
-    activeProjectId,
-    activeTaskId,
-    formData,
-    body,
-    addBackgroundTask,
-    removeBackgroundTask,
-  ]);
+      setSyncing(true);
+      setSyncSuccess(false);
+      setError(null);
+      addBackgroundTask("Syncing to GitHub");
+      try {
+        // Map task status to GitHub issue state
+        let statusValue: string | null = null;
+        if (options.status) {
+          statusValue =
+            formData.status === "done" || formData.status === "archived"
+              ? "closed"
+              : "open";
+        }
+
+        // Parse labels
+        let labelsValue: string[] | null = null;
+        if (options.labels) {
+          labelsValue = formData.labels
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean);
+        }
+
+        await invoke("update_github_issue", {
+          projectId: activeProjectId,
+          issueNumber,
+          title: options.title ? formData.title : null,
+          body: options.body ? body : null,
+          status: statusValue,
+          labels: labelsValue,
+        });
+        setSyncSuccess(true);
+        setTimeout(() => setSyncSuccess(false), 2000);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setSyncing(false);
+        removeBackgroundTask("Syncing to GitHub");
+      }
+    },
+    [
+      activeProjectId,
+      activeTaskId,
+      formData,
+      body,
+      addBackgroundTask,
+      removeBackgroundTask,
+    ],
+  );
 
   // Create a new GitHub issue from this task
   const handleCreateGitHubIssue = useCallback(async () => {

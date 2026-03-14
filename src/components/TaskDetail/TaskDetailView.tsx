@@ -9,7 +9,7 @@ import {
   Save,
   Trash2,
 } from "lucide-react";
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
@@ -18,6 +18,8 @@ import { ViewLayout } from "../Shell/ViewLayout";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import SyncToGitHubDialog from "./SyncToGitHubDialog";
+import type { SyncOptions } from "./SyncToGitHubDialog";
 import TaskActivityPanel from "./TaskActivityPanel";
 import TaskBody from "./TaskBody";
 import TaskDetailActions from "./TaskDetailActions";
@@ -88,6 +90,18 @@ export default function TaskDetailView() {
   const currentTask = useMemo(
     () => storeTasks.find((t) => t.id === activeTaskId) ?? null,
     [storeTasks, activeTaskId],
+  );
+
+  // Sync dialog state
+  const [syncDialogOpen, setSyncDialogOpen] = useState(false);
+
+  const handleSyncWithOptions = useCallback(
+    (options: SyncOptions) => {
+      handleSyncToGitHub(options).then(() => {
+        setSyncDialogOpen(false);
+      });
+    },
+    [handleSyncToGitHub],
   );
 
   const handleOpenIssue = useCallback(() => {
@@ -200,7 +214,7 @@ export default function TaskDetailView() {
             variant="outline"
             size="sm"
             disabled={syncing || isDirty}
-            onClick={handleSyncToGitHub}
+            onClick={() => setSyncDialogOpen(true)}
             title={isDirty ? "Save changes before syncing to GitHub" : undefined}
             leftIcon={
               syncing ? (
@@ -297,6 +311,25 @@ export default function TaskDetailView() {
           </div>
         </div>
       </div>
+
+      {/* Sync to GitHub confirmation dialog */}
+      {formData.github_issue && activeProjectId && (
+        <SyncToGitHubDialog
+          open={syncDialogOpen}
+          onOpenChange={setSyncDialogOpen}
+          onSync={handleSyncWithOptions}
+          syncing={syncing}
+          taskTitle={formData.title}
+          taskBody={body}
+          taskStatus={formData.status}
+          taskLabels={formData.labels
+            .split(",")
+            .map((s) => s.trim())
+            .filter(Boolean)}
+          issueRef={formData.github_issue}
+          projectId={activeProjectId}
+        />
+      )}
     </ViewLayout>
   );
 }

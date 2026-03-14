@@ -453,16 +453,75 @@ pub async fn update_github_issue(
     state: State<'_, DbState>,
     project_id: String,
     issue_number: u64,
-    title: String,
-    body: String,
+    title: Option<String>,
+    body: Option<String>,
+    status: Option<String>,
+    labels: Option<Vec<String>>,
 ) -> Result<(), AppError> {
     let project_path = get_project_path(&state, &project_id)?;
 
-    tokio::task::spawn_blocking(move || {
-        github::update_issue(Path::new(&project_path), issue_number, &title, &body)
-    })
-    .await
-    .map_err(|e| AppError::Io(e.to_string()))?
+    let pp = project_path.clone();
+    let t = title.clone();
+    let b = body.clone();
+
+    // Update title/body if provided
+    if t.is_some() || b.is_some() {
+        let pp2 = pp.clone();
+        tokio::task::spawn_blocking(move || {
+            github::update_issue(
+                Path::new(&pp2),
+                issue_number,
+                t.as_deref(),
+                b.as_deref(),
+            )
+        })
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))??;
+    }
+
+    // Update status (close/reopen) if provided
+    if let Some(ref s) = status {
+        let pp2 = pp.clone();
+        let number_str = issue_number.to_string();
+        // We need the issue ref in format "number" for close/reopen
+        let issue_ref_for_status = number_str;
+        match s.as_str() {
+            "closed" => {
+                let pp3 = pp2;
+                let ir = issue_ref_for_status;
+                tokio::task::spawn_blocking(move || {
+                    github::close_issue(Path::new(&pp3), &ir, None)
+                })
+                .await
+                .map_err(|e| AppError::Io(e.to_string()))??;
+            }
+            "open" => {
+                let pp3 = pp2;
+                let ir = issue_ref_for_status;
+                tokio::task::spawn_blocking(move || {
+                    github::reopen_issue(Path::new(&pp3), &ir)
+                })
+                .await
+                .map_err(|e| AppError::Io(e.to_string()))??;
+            }
+            _ => {}
+        }
+    }
+
+    // Update labels if provided
+    if let Some(label_list) = labels {
+        for label in label_list {
+            let pp2 = pp.clone();
+            let num_str = issue_number.to_string();
+            tokio::task::spawn_blocking(move || {
+                github::add_label(Path::new(&pp2), &num_str, &label)
+            })
+            .await
+            .map_err(|e| AppError::Io(e.to_string()))??;
+        }
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

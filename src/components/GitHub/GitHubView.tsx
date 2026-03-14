@@ -288,7 +288,7 @@ export default function GitHubView() {
           )}
         </Button>
 
-        {/* Sync button */}
+        {/* Refresh button */}
         <Button
           variant="outline"
           size="sm"
@@ -296,9 +296,9 @@ export default function GitHubView() {
           leftIcon={<RefreshCw className="size-3" />}
           hoverEffect="scale"
           clickEffect="scale"
-          title="Sync git data"
+          title="Refresh git data"
         >
-          Sync
+          Refresh
         </Button>
 
         {/* GitHub settings */}

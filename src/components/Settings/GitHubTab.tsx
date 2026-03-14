@@ -5,6 +5,7 @@ import {
   Loader2,
   Plus,
   RefreshCw,
+  Settings2,
   Shield,
   ShieldAlert,
   ShieldCheck,
@@ -380,6 +381,10 @@ export function GitHubTab() {
   const [prClosesRef, setPrClosesRef] = useState(true);
   const [labelSync, setLabelSync] = useState(false);
   const [mergeDetection, setMergeDetection] = useState(true);
+  const [syncDefaultTitle, setSyncDefaultTitle] = useState(false);
+  const [syncDefaultBody, setSyncDefaultBody] = useState(false);
+  const [syncDefaultStatus, setSyncDefaultStatus] = useState(false);
+  const [syncDefaultLabels, setSyncDefaultLabels] = useState(false);
   const [labelMapping, setLabelMapping] = useState<GitHubLabelMapping>({});
   const [repoLabels, setRepoLabels] = useState<GitHubLabelFull[]>([]);
   const [fetchingLabels, setFetchingLabels] = useState(false);
@@ -400,7 +405,7 @@ export function GitHubTab() {
             key,
           });
 
-        const [se, ac, ar, pcr, ls, md, lm] = await Promise.all([
+        const [se, ac, ar, pcr, ls, md, lm, sdt, sdb, sds, sdl] = await Promise.all([
           get("github_sync_enabled"),
           get("github_auto_close"),
           get("github_auto_reopen"),
@@ -408,6 +413,10 @@ export function GitHubTab() {
           get("github_label_sync"),
           get("github_merge_detection"),
           get("github_label_mapping"),
+          get("github_sync_default_title"),
+          get("github_sync_default_body"),
+          get("github_sync_default_status"),
+          get("github_sync_default_labels"),
         ]);
 
         if (cancelled) return;
@@ -417,6 +426,10 @@ export function GitHubTab() {
         setPrClosesRef(pcr !== "false");
         setLabelSync(ls === "true");
         setMergeDetection(md !== "false");
+        setSyncDefaultTitle(sdt === "true");
+        setSyncDefaultBody(sdb === "true");
+        setSyncDefaultStatus(sds === "true");
+        setSyncDefaultLabels(sdl === "true");
         if (lm) {
           try {
             setLabelMapping(JSON.parse(lm));
@@ -647,6 +660,55 @@ export function GitHubTab() {
             )}
           </div>
         )}
+      </section>
+
+      <Separator />
+
+      {/* ── Manual Sync Defaults ── */}
+      <section>
+        <div className={`${sectionHeadingClass} mb-2.5 flex items-center gap-2`}>
+          <Settings2 className="size-3.5" />
+          Manual Sync Defaults
+        </div>
+
+        <p className="text-[11px] text-muted-foreground mb-3">
+          Pre-checked options when opening the Sync to GitHub dialog.
+        </p>
+
+        <div className="flex flex-col gap-1">
+          <ToggleRow
+            label="Title"
+            description="Pre-check title sync by default"
+            checked={syncDefaultTitle}
+            onChange={(v) =>
+              handleToggle("github_sync_default_title", setSyncDefaultTitle, v)
+            }
+          />
+          <ToggleRow
+            label="Body"
+            description="Pre-check body sync by default"
+            checked={syncDefaultBody}
+            onChange={(v) =>
+              handleToggle("github_sync_default_body", setSyncDefaultBody, v)
+            }
+          />
+          <ToggleRow
+            label="Status"
+            description="Pre-check status (close/reopen) sync by default"
+            checked={syncDefaultStatus}
+            onChange={(v) =>
+              handleToggle("github_sync_default_status", setSyncDefaultStatus, v)
+            }
+          />
+          <ToggleRow
+            label="Labels"
+            description="Pre-check labels sync by default"
+            checked={syncDefaultLabels}
+            onChange={(v) =>
+              handleToggle("github_sync_default_labels", setSyncDefaultLabels, v)
+            }
+          />
+        </div>
       </section>
 
       <Separator />
