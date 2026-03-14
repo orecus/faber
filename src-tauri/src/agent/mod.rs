@@ -1,5 +1,6 @@
 pub mod claude;
 pub mod codex;
+pub mod copilot;
 pub mod cursor;
 pub mod gemini;
 pub mod opencode;
@@ -86,6 +87,7 @@ pub fn builtin_adapters() -> Vec<Box<dyn AgentAdapter>> {
     vec![
         Box::new(claude::ClaudeCodeAdapter),
         Box::new(codex::CodexAdapter),
+        Box::new(copilot::CopilotCliAdapter),
         Box::new(cursor::CursorAgentAdapter),
         Box::new(gemini::GeminiAdapter),
         Box::new(opencode::OpenCodeAdapter),
@@ -159,9 +161,9 @@ mod tests {
     use super::*;
 
     #[test]
-    fn builtin_adapters_has_five() {
+    fn builtin_adapters_has_six() {
         let adapters = builtin_adapters();
-        assert_eq!(adapters.len(), 5);
+        assert_eq!(adapters.len(), 6);
     }
 
     #[test]
@@ -178,6 +180,7 @@ mod tests {
     fn get_adapter_by_name() {
         assert!(get_adapter("claude-code").is_some());
         assert!(get_adapter("codex").is_some());
+        assert!(get_adapter("copilot").is_some());
         assert!(get_adapter("cursor-agent").is_some());
         assert!(get_adapter("gemini").is_some());
         assert!(get_adapter("opencode").is_some());
@@ -187,9 +190,10 @@ mod tests {
     #[test]
     fn list_agent_info_returns_all() {
         let info = list_agent_info();
-        assert_eq!(info.len(), 5);
+        assert_eq!(info.len(), 6);
         assert!(info.iter().any(|a| a.name == "claude-code"));
         assert!(info.iter().any(|a| a.name == "codex"));
+        assert!(info.iter().any(|a| a.name == "copilot"));
         assert!(info.iter().any(|a| a.name == "cursor-agent"));
         assert!(info.iter().any(|a| a.name == "gemini"));
         assert!(info.iter().any(|a| a.name == "opencode"));

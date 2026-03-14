@@ -68,6 +68,7 @@ pub fn agent_instruction_filename(agent_name: &str) -> Option<&'static str> {
     match agent_name {
         "claude-code" => Some("CLAUDE.md"),
         "codex" => Some("AGENTS.md"),
+        "copilot" => Some("AGENTS.md"),
         "cursor-agent" => Some("AGENTS.md"),
         "gemini" => Some("GEMINI.md"),
         "opencode" => Some("AGENTS.md"),
@@ -1265,6 +1266,7 @@ mod tests {
     fn agent_instruction_filename_mapping() {
         assert_eq!(agent_instruction_filename("claude-code"), Some("CLAUDE.md"));
         assert_eq!(agent_instruction_filename("codex"), Some("AGENTS.md"));
+        assert_eq!(agent_instruction_filename("copilot"), Some("AGENTS.md"));
         assert_eq!(agent_instruction_filename("cursor-agent"), Some("AGENTS.md"));
         assert_eq!(agent_instruction_filename("gemini"), Some("GEMINI.md"));
         assert_eq!(agent_instruction_filename("shell"), None);

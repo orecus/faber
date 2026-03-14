@@ -8,6 +8,7 @@ import { TerminalSquare } from "lucide-react";
 const AGENT_ICON_MAP: Record<string, { src: string; srcDark?: string }> = {
   "claude-code": { src: "/claude-ai-icon.svg" },
   codex: { src: "/openai.svg", srcDark: "/openai_dark.svg" },
+  copilot: { src: "/copilot.svg", srcDark: "/copilot_dark.svg" },
   "cursor-agent": { src: "/cursor_light.svg", srcDark: "/cursor_dark.svg" },
   gemini: { src: "/gemini.svg" },
   opencode: { src: "/opencode-logo-light.svg", srcDark: "/opencode-logo-dark.svg" },
@@ -60,6 +61,7 @@ export function AgentIcon({
 export const AGENT_COLORS: Record<string, string> = {
   "claude-code": "#D97757",
   codex: "#10a37f",
+  copilot: "#6e40c9",
   "cursor-agent": "#00A8FF",
   gemini: "#4285F4",
   opencode: "#00DC82",

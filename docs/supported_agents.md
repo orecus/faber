@@ -17,6 +17,7 @@ Faber orchestrates multiple AI coding agents through a unified interface. Each a
 |---|---|---|---|---|
 | **Claude Code** | `claude` | `sonnet` | CLI flag | `.mcp.json` |
 | **Codex CLI** | `codex` | `gpt-5.3-codex` | Instruction file | `.codex/mcp.json` |
+| **Copilot CLI** | `copilot` | *(Copilot default)* | Instruction file | `.copilot/mcp-config.json` |
 | **Cursor Agent** | `agent` / `cursor-agent` | `claude-4-opus` | Instruction file | `.cursor/mcp.json` |
 | **Gemini CLI** | `gemini` | `gemini-2.5-pro` | Instruction file | `.gemini/settings.json` |
 | **OpenCode** | `opencode` | *(user-specified)* | Instruction file | `opencode.json` |
@@ -49,6 +50,21 @@ All agents are auto-detected from your system PATH. You can see which agents are
 - System prompt is written to an `AGENTS.md` file in the working directory (Codex reads this automatically)
 - MCP config is written to `.codex/mcp.json`
 - Model is selected with the `--model` flag
+
+---
+
+## Copilot CLI
+
+[Copilot CLI](https://github.com/features/copilot/cli) is GitHub's agentic coding assistant for the terminal.
+
+**Supported models:** `claude-sonnet-4-5`, `claude-opus-4-6`, `gpt-5.3-codex`, `gemini-3-pro`
+
+**How it works:**
+- System prompt is written to an `AGENTS.md` file in the working directory (Copilot reads this automatically)
+- MCP config is written to `.copilot/mcp-config.json`
+- Model is selected with the `--model=MODEL` flag
+- Uses `-i` (interactive with initial prompt) to keep the session alive and ensure MCP connectivity
+- Supports `--autopilot` for autonomous continuation and `--allow-all-tools` to skip tool confirmations
 
 ---
 
@@ -98,7 +114,7 @@ All agents are auto-detected from your system PATH. You can see which agents are
 Faber composes a system prompt for each session that includes your project's IDE instructions (from `.agents/prompts/prompt.md`) and MCP tool documentation. How this prompt reaches the agent depends on the agent:
 
 - **CLI flag agents** (Claude Code): The prompt is passed directly as a command-line argument (`--system-prompt`). Faber also writes MCP documentation to `CLAUDE.md` using marker comments.
-- **Instruction file agents** (Codex, Cursor, Gemini, OpenCode): The prompt is written to the agent's instruction file in the working directory (`AGENTS.md` or `GEMINI.md`). Faber uses `<!-- Faber:MCP -->` markers so your own edits to these files are preserved.
+- **Instruction file agents** (Codex, Copilot, Cursor, Gemini, OpenCode): The prompt is written to the agent's instruction file in the working directory (`AGENTS.md` or `GEMINI.md`). Faber uses `<!-- Faber:MCP -->` markers so your own edits to these files are preserved.
 
 When a session ends, Faber cleans up the instruction file — removing only the Faber-managed section.
 
@@ -158,6 +174,7 @@ Each agent must be installed separately and available in your system PATH. See e
 
 - **Claude Code**: [anthropic.com/claude-code](https://docs.anthropic.com/en/docs/claude-code/overview)
 - **Codex CLI**: [github.com/openai/codex](https://github.com/openai/codex)
+- **Copilot CLI**: [github.com/features/copilot/cli](https://github.com/features/copilot/cli)
 - **Cursor Agent**: [cursor.com/docs/cli](https://cursor.com/docs/cli/overview)
 - **Gemini CLI**: [github.com/google-gemini/gemini-cli](https://github.com/google-gemini/gemini-cli)
 - **OpenCode**: [opencode.ai/docs](https://opencode.ai/docs/#install)

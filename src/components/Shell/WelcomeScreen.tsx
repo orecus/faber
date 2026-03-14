@@ -1,27 +1,25 @@
 import {
   ChevronRight,
+  Circle,
+  CircleCheck,
   FolderCode,
   FolderOpen,
   GitCompareArrows,
   LayoutDashboard,
   Loader2,
   type LucideIcon,
-  Plus,
   TerminalSquare,
 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useMemo } from "react";
 
-import { AgentIcon } from "../../lib/agentIcons";
+import { AGENT_DESCRIPTIONS } from "../../lib/agentDescriptions";
+import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
 import { handleDragRegionMouseDown } from "../../lib/platform";
 import { useAppStore } from "../../store/appStore";
 import { pickProjectFolder } from "../../utils/pickProjectFolder";
-import { Badge } from "../ui/badge";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "../ui/input-group";
+// Shared logo component — see src/components/ui/FaberLogo.tsx
+import { FaberLogo } from "../ui/FaberLogo";
 import { Card, CardContent } from "../ui/orecus.io/cards/card";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { EASE, STAGGER_DELAYS } from "../ui/orecus.io/lib/animation";
@@ -29,7 +27,6 @@ import {
   type ThemeColor,
   gradientHexColors,
 } from "../ui/orecus.io/lib/color-utils";
-import { Separator } from "../ui/separator";
 import WindowControls from "./WindowControls";
 
 const CAPABILITIES: { icon: LucideIcon; label: string; description: string }[] =
@@ -51,13 +48,14 @@ const CAPABILITIES: { icon: LucideIcon; label: string; description: string }[] =
     },
   ];
 
-const AGENTS: { name: string; key: string }[] = [
-  { name: "Claude Code", key: "claude-code" },
-  { name: "Codex CLI", key: "codex" },
-  { name: "Cursor Agent", key: "cursor-agent" },
-  { name: "Gemini CLI", key: "gemini" },
-  { name: "OpenCode", key: "opencode" },
-];
+const AGENT_KEYS = [
+  "claude-code",
+  "codex",
+  "copilot",
+  "cursor-agent",
+  "gemini",
+  "opencode",
+] as const;
 
 const LOADING_LABELS = [
   "Loading projects",
@@ -65,19 +63,20 @@ const LOADING_LABELS = [
   "Detecting shells",
 ];
 
-// Shared logo component — see src/components/ui/FaberLogo.tsx
-import { FaberLogo } from "../ui/FaberLogo";
-
 export default function WelcomeScreen() {
   const addProjectFromPath = useAppStore((s) => s.addProjectFromPath);
   const projects = useAppStore((s) => s.projects);
   const openProject = useAppStore((s) => s.openProject);
   const backgroundTasks = useAppStore((s) => s.backgroundTasks);
-  const [path, setPath] = useState("");
-  const [error, setError] = useState<string | null>(null);
+  const agents = useAppStore((s) => s.agents);
 
   const isLoading = useMemo(
     () => backgroundTasks.some((t) => LOADING_LABELS.includes(t)),
+    [backgroundTasks],
+  );
+
+  const isDetectingAgents = useMemo(
+    () => backgroundTasks.includes("Detecting agents"),
     [backgroundTasks],
   );
 
@@ -85,6 +84,17 @@ export default function WelcomeScreen() {
     () => backgroundTasks.find((t) => LOADING_LABELS.includes(t)) ?? null,
     [backgroundTasks],
   );
+
+  // Build a lookup: agent key -> { installed, display_name }
+  const agentDetection = useMemo(() => {
+    const map = new Map<string, { installed: boolean; displayName: string }>();
+    for (const a of agents) {
+      map.set(a.name, { installed: a.installed, displayName: a.display_name });
+    }
+    return map;
+  }, [agents]);
+
+  const detectionDone = agents.length > 0 && !isDetectingAgents;
 
   const hasProjects = projects.length > 0;
   const showProjects = hasProjects && !isLoading;
@@ -95,26 +105,9 @@ export default function WelcomeScreen() {
   );
 
   async function handlePickFolder() {
-    try {
-      setError(null);
-      const selected = await pickProjectFolder();
-      if (!selected) return;
-      await addProjectFromPath(selected);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
-  }
-
-  async function handleManualSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    const trimmed = path.trim();
-    if (!trimmed) return;
-    try {
-      setError(null);
-      await addProjectFromPath(trimmed);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : String(err));
-    }
+    const selected = await pickProjectFolder();
+    if (!selected) return;
+    await addProjectFromPath(selected);
   }
 
   return (
@@ -216,56 +209,6 @@ export default function WelcomeScreen() {
                   >
                     Open Project Folder
                   </Button>
-
-                  {/* Divider */}
-                  <div className="flex items-center gap-3 w-full">
-                    <Separator className="flex-1" />
-                    <span className="text-[11px] text-muted-foreground uppercase tracking-wide">
-                      or type a path
-                    </span>
-                    <Separator className="flex-1" />
-                  </div>
-
-                  {/* Manual path input */}
-                  <form
-                    onSubmit={handleManualSubmit}
-                    className="flex gap-2 w-full"
-                  >
-                    <InputGroup className="flex-1">
-                      <InputGroupAddon align="inline-start">
-                        <FolderOpen className="size-4" />
-                      </InputGroupAddon>
-                      <InputGroupInput
-                        type="text"
-                        value={path}
-                        onChange={(e) => setPath(e.target.value)}
-                        placeholder="/path/to/your/project"
-                        className={error ? "border-destructive" : ""}
-                      />
-                    </InputGroup>
-                    <Button
-                      type="submit"
-                      variant="outline"
-                      size="default"
-                      leftIcon={<Plus className="size-4" />}
-                      hoverEffect="scale"
-                      clickEffect="scale"
-                    >
-                      Add
-                    </Button>
-                  </form>
-
-                  {/* Error display */}
-                  {error && (
-                    <motion.p
-                      initial={{ opacity: 0, y: -4 }}
-                      animate={{ opacity: 1, y: 0 }}
-                      transition={{ duration: 0.2 }}
-                      className="text-xs text-destructive text-center w-full"
-                    >
-                      {error}
-                    </motion.p>
-                  )}
                 </CardContent>
               </Card>
 
@@ -299,27 +242,113 @@ export default function WelcomeScreen() {
                 })}
               </div>
 
-              {/* Supported agents */}
+              {/* Supported agents — 3-per-row card grid */}
               <motion.div
                 initial={{ opacity: 0 }}
                 animate={{ opacity: 1 }}
                 transition={{ duration: 0.4, delay: 0.35, ease: EASE.out }}
-                className="mt-5 flex flex-col items-center gap-2"
+                className="mt-5 w-full flex flex-col items-center gap-2.5"
               >
                 <span className="text-[11px] text-muted-foreground">
                   Supported agents
                 </span>
-                <div className="flex gap-1.5 flex-wrap justify-center">
-                  {AGENTS.map((agent) => (
-                    <Badge
-                      key={agent.key}
-                      variant="outline"
-                      className="text-[11px] font-normal text-dim-foreground border-border inline-flex items-center gap-1.5"
-                    >
-                      <AgentIcon agent={agent.key} size={12} />
-                      {agent.name}
-                    </Badge>
-                  ))}
+                <div className="grid grid-cols-3 gap-2.5 w-full">
+                  {AGENT_KEYS.map((key, i) => {
+                    const info = agentDetection.get(key);
+                    const displayName = info?.displayName ?? key;
+                    const description =
+                      AGENT_DESCRIPTIONS[
+                        key === "cursor-agent" ? "cursor" : key
+                      ] ?? "";
+                    const color = getAgentColor(key);
+                    const installed = info?.installed ?? false;
+
+                    return (
+                      <motion.div
+                        key={key}
+                        initial={{ opacity: 0, y: 8 }}
+                        animate={{ opacity: 1, y: 0 }}
+                        transition={{
+                          duration: 0.3,
+                          delay: 0.4 + i * STAGGER_DELAYS.fast,
+                          ease: EASE.out,
+                        }}
+                      >
+                        <Card
+                          type="subtle"
+                          radius="md"
+                          border
+                          hoverEffect="none"
+                          className="h-full"
+                        >
+                          <CardContent className="px-3 flex items-start gap-2.5">
+                            {/* Agent icon with brand-tinted background */}
+                            <div
+                              className="flex items-center justify-center size-8 rounded-md shrink-0"
+                              style={{ backgroundColor: `${color}18` }}
+                            >
+                              <AgentIcon agent={key} size={16} />
+                            </div>
+                            <div className="flex flex-col min-w-0 flex-1 gap-0.5">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[12px] font-medium text-foreground truncate">
+                                  {displayName}
+                                </span>
+                                {/* Detection status indicator */}
+                                <AnimatePresence>
+                                  {detectionDone && (
+                                    <motion.span
+                                      initial={{ opacity: 0, scale: 0.5 }}
+                                      animate={{ opacity: 1, scale: 1 }}
+                                      transition={{
+                                        duration: 0.25,
+                                        delay: i * 0.04,
+                                        ease: EASE.out,
+                                      }}
+                                      className="shrink-0"
+                                      title={
+                                        installed
+                                          ? "Detected on system"
+                                          : "Not found in PATH"
+                                      }
+                                    >
+                                      {installed ? (
+                                        <CircleCheck
+                                          size={12}
+                                          className="text-success"
+                                        />
+                                      ) : (
+                                        <Circle
+                                          size={12}
+                                          className="text-muted-foreground/40"
+                                        />
+                                      )}
+                                    </motion.span>
+                                  )}
+                                  {!detectionDone && isDetectingAgents && (
+                                    <motion.span
+                                      initial={{ opacity: 0 }}
+                                      animate={{ opacity: 1 }}
+                                      exit={{ opacity: 0 }}
+                                      className="shrink-0"
+                                    >
+                                      <Loader2
+                                        size={11}
+                                        className="animate-spin text-muted-foreground/50"
+                                      />
+                                    </motion.span>
+                                  )}
+                                </AnimatePresence>
+                              </div>
+                              <span className="text-[10px] text-muted-foreground leading-snug">
+                                {description}
+                              </span>
+                            </div>
+                          </CardContent>
+                        </Card>
+                      </motion.div>
+                    );
+                  })}
                 </div>
               </motion.div>
             </motion.div>

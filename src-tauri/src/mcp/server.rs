@@ -1462,6 +1462,11 @@ fn build_mcp_entry(agent_name: &str) -> Option<Value> {
             "command": sidecar_str,
             "args": []
         }),
+        "copilot" => json!({
+            "type": "local",
+            "command": sidecar_str,
+            "args": []
+        }),
         "opencode" => json!({
             "type": "local",
             "command": [sidecar_str],
@@ -1616,6 +1621,7 @@ pub fn write_mcp_config(
         "cursor-agent" => cwd.join(".cursor").join("mcp.json"),
         "gemini" => cwd.join(".gemini").join("settings.json"),
         "codex" => cwd.join(".codex").join("mcp.json"),
+        "copilot" => cwd.join(".copilot").join("mcp-config.json"),
         "opencode" => cwd.join("opencode.json"),
         _ => {
             tracing::debug!(agent_name, "Skipping MCP config for unsupported agent");
@@ -1646,6 +1652,7 @@ pub fn write_mcp_config(
 /// as their content is static and will be upserted on next session start.
 pub fn cleanup_mcp_config(cwd: &Path) {
     remove_mcp_entry(&cwd.join(".mcp.json"));
+    remove_mcp_entry(&cwd.join(".copilot").join("mcp-config.json"));
     remove_mcp_entry(&cwd.join(".cursor").join("mcp.json"));
     remove_mcp_entry(&cwd.join(".gemini").join("settings.json"));
     remove_mcp_entry(&cwd.join(".codex").join("mcp.json"));
