@@ -5,6 +5,31 @@ All notable changes to Faber will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.8.2] - 2026-03-xx - WIP
+
+### Added
+
+- **GitHub Copilot CLI Agent** — Added Copilot CLI (`copilot`) as the 6th supported agent with Rust adapter, MCP config (`.copilot/mcp-config.json`), `AGENTS.md` instruction file mapping, frontend icons/colors, and documentation
+- **Sidebar Branch Info** — Branch name and change count shown inline in each sidebar project entry (e.g. `● ProjectName · main 3∆`), with auto-refresh on project load, switch, and MCP events
+- **GitHub Settings Tab** — Dedicated GitHub settings tab accessible from the Git view toolbar, with label mapping color swatches, all 6 status mappings, proper Select components, and one-click "Create default labels" setup
+- **GitHub Sync Dialog** — Safe confirmation dialog for GitHub issue sync with granular field selection (title, body, status, labels), replacing the previous instant sync. Configurable default checkbox states in GitHub Settings
+- **GitHub Auth Gate** — Shared `GitHubAuthGate` component replacing duplicated auth/remote checks in Issues and Pull Requests tabs
+
+### Changed
+
+- **Consolidated Diff Views** — Extracted shared `DiffView` and `DiffToolbar` components from the duplicated ReviewView and ChangesTab implementations. Both views now use the same adaptive component with context-specific actions (worktree: push/merge/PR/delete; main repo: compact inline toolbar)
+- **Smart Back Navigation** — Review view back button now returns to the previous view (Git, Sessions, etc.) instead of always going to Dashboard, via new `previousView` state tracking
+- **GitHub Tab Badges** — Issues and Pull Requests tabs in the Git view now show a subtle GitHub icon to visually distinguish GitHub-dependent features from local-only git tabs
+- **Settings Consolidation** — Merged Notifications into General settings with internal tabs (Appearance, Notifications, Updates, System), reducing sidebar settings icons from 5 to 4. Extracted GitHub sync settings from Projects tab into the new GitHub Settings tab
+- **Git Data Refresh** — Renamed the git data "Sync" button to "Refresh" to avoid confusion with GitHub issue sync
+- **Bundle Optimization** — Split vendor dependencies into cache-friendly manual chunks (xterm, diff, markdown, ui, react) and wrapped view switches in `startTransition` so React keeps the current view visible while lazy chunks load
+- **Welcome Screen Agents** — Redesigned supported agents section from inline badges to a 3-per-row card grid showing agent icon, description, and live detection status (checkmark/empty circle). Removed manual path input
+
+### Fixed
+
+- **Skill Install Shell** — Fixed skill install shell closing immediately by spawning an interactive shell
+- **GitHub Multi-Account Auth** — Fixed `gh auth status` parsing to handle per-account blocks for multi-source authentication
+
 ## [0.8.1] - 2026-03-06
 
 ### Added
