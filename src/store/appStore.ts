@@ -85,6 +85,7 @@ interface AppState {
   openProjectIds: string[];
   activeProjectId: string | null;
   activeView: ViewId;
+  previousView: ViewId | null;
   sessions: Session[];
   tasks: Task[];
   activeTaskId: string | null;
@@ -202,6 +203,7 @@ export const useAppStore = create<AppState>()(
     openProjectIds: [],
     activeProjectId: null,
     activeView: "dashboard",
+    previousView: null,
     sessions: [],
     tasks: [],
     activeTaskId: null,
@@ -323,7 +325,10 @@ export const useAppStore = create<AppState>()(
     setActiveProject: (id) => set({ activeProjectId: id }),
 
     setActiveView: (view) =>
-      startTransition(() => set({ activeView: view })),
+      startTransition(() => {
+        const current = get().activeView;
+        set({ activeView: view, previousView: current !== view ? current : get().previousView });
+      }),
 
     setSessions: (sessions) =>
       set((state) => {
@@ -540,8 +545,10 @@ export const useAppStore = create<AppState>()(
 
     setReviewWorktreePath: (path) => set({ reviewWorktreePath: path }),
 
-    navigateToReview: (worktreePath) =>
-      set({ reviewWorktreePath: worktreePath, activeView: "review" }),
+    navigateToReview: (worktreePath) => {
+      const current = get().activeView;
+      set({ reviewWorktreePath: worktreePath, activeView: "review", previousView: current !== "review" ? current : get().previousView });
+    },
 
     setGhAuthStatus: (status) => set({ ghAuthStatus: status }),
 

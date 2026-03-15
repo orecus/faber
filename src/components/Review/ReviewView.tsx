@@ -1,21 +1,15 @@
 import { useState, useCallback, useEffect, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { GitBranch, GitCompareArrows } from "lucide-react";
-import { useTheme } from "../../contexts/ThemeContext";
 import { useAppStore } from "../../store/appStore";
 import { ViewLayout } from "../Shell/ViewLayout";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
-import { useDiffData } from "./useDiffData";
-import ReviewToolbar, { type DiffOutputFormat } from "./ReviewToolbar";
-import FileList from "./FileList";
-import ReviewPanel from "./ReviewPanel";
+import DiffView from "./DiffView";
 import CreatePRDialog from "./CreatePRDialog";
 import ConfirmDialog from "./ConfirmDialog";
 import MergeBranchDialog from "./MergeBranchDialog";
 import type { WorktreeInfo } from "../../types";
 
 export default function ReviewView() {
-  const { isGlass } = useTheme();
   const reviewWorktreePath = useAppStore(
     (s) => s.reviewWorktreePath,
   );
@@ -23,13 +17,12 @@ export default function ReviewView() {
   const tasks = useAppStore((s) => s.tasks);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const setActiveView = useAppStore((s) => s.setActiveView);
+  const previousView = useAppStore((s) => s.previousView);
   const updateProjectWorktrees = useAppStore((s) => s.updateProjectWorktrees);
   const setReviewWorktreePath = useAppStore(
     (s) => s.setReviewWorktreePath,
   );
 
-  const [outputFormat, setOutputFormat] =
-    useState<DiffOutputFormat>("side-by-side");
   const [showPRDialog, setShowPRDialog] = useState(false);
   const [pushing, setPushing] = useState(false);
   const [merging, setMerging] = useState(false);
@@ -48,20 +41,6 @@ export default function ReviewView() {
     type: "success" | "error";
     text: string;
   } | null>(null);
-
-  const {
-    committedFiles,
-    changedFiles,
-    selectedFile,
-    rawDiff,
-    loading,
-    error,
-    selectFile,
-    refresh,
-    toggleStageFile,
-  } = useDiffData(reviewWorktreePath, activeProjectId);
-
-  const totalFileCount = committedFiles.length + changedFiles.length;
 
   // Find branch name from worktrees
   const worktree = worktrees.find(
@@ -106,9 +85,7 @@ export default function ReviewView() {
     checkRepoStatus();
   }, [checkRepoStatus]);
 
-  // Check PR merge status on refresh (best-effort)
-  const handleRefresh = useCallback(async () => {
-    refresh();
+  const handleRefreshExtra = useCallback(async () => {
     checkRepoStatus();
     if (associatedTask?.github_pr && activeProjectId) {
       try {
@@ -120,7 +97,7 @@ export default function ReviewView() {
         // Non-fatal
       }
     }
-  }, [refresh, checkRepoStatus, associatedTask, activeProjectId]);
+  }, [checkRepoStatus, associatedTask, activeProjectId]);
 
   const showFeedback = useCallback(
     (type: "success" | "error", text: string) => {
@@ -145,8 +122,9 @@ export default function ReviewView() {
   }, [activeProjectId, updateProjectWorktrees]);
 
   const handleBack = useCallback(() => {
-    setActiveView("dashboard");
-  }, [setActiveView]);
+    // Navigate back to where the user came from, defaulting to dashboard
+    setActiveView(previousView ?? "dashboard");
+  }, [setActiveView, previousView]);
 
   const handlePush = useCallback(async () => {
     if (!reviewWorktreePath || pushing) return;
@@ -266,14 +244,11 @@ export default function ReviewView() {
 
   return (
     <ViewLayout>
-      {/* Transparent header with toolbar controls */}
-      <ReviewToolbar
+      <DiffView
+        path={reviewWorktreePath}
+        projectId={activeProjectId}
+        variant="standalone"
         branchName={branchName}
-        fileCount={totalFileCount}
-        committedFileCount={committedFiles.length}
-        outputFormat={outputFormat}
-        onOutputFormatChange={setOutputFormat}
-        onRefresh={handleRefresh}
         onBack={handleBack}
         onCreatePR={() => setShowPRDialog(true)}
         onPush={handlePush}
@@ -281,52 +256,12 @@ export default function ReviewView() {
         onDelete={handleDelete}
         pushing={pushing}
         merging={merging}
-        loading={loading}
         hasRemote={hasRemote}
         isMerged={isMerged}
+        onRefreshExtra={handleRefreshExtra}
+        feedback={feedback}
+        onDismissFeedback={() => setFeedback(null)}
       />
-
-      {/* Content card */}
-      <div className={`flex-1 min-h-0 overflow-hidden rounded-lg ring-1 ring-border/40 flex flex-col ${glassStyles[isGlass ? "normal" : "solid"]}`}>
-        {/* Feedback message */}
-        {feedback && (
-          <div
-            className={`flex items-center justify-between px-3 py-1.5 text-xs shrink-0 ${
-              feedback.type === "success"
-                ? "bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-success"
-                : "bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive"
-            }`}
-          >
-            <span>{feedback.text}</span>
-            <button
-              onClick={() => setFeedback(null)}
-              className="ml-2 opacity-60 hover:opacity-100"
-            >
-              dismiss
-            </button>
-          </div>
-        )}
-
-        {/* Main content: file list + diff panel */}
-        <div className="flex flex-1 overflow-hidden min-h-0">
-          <FileList
-            committedFiles={committedFiles}
-            changedFiles={changedFiles}
-            selectedFile={selectedFile}
-            worktreePath={reviewWorktreePath}
-            projectId={activeProjectId ?? ""}
-            onSelectFile={selectFile}
-            onToggleStage={toggleStageFile}
-            onRefresh={refresh}
-          />
-          <ReviewPanel
-            rawDiff={rawDiff}
-            outputFormat={outputFormat}
-            loading={loading}
-            error={error}
-          />
-        </div>
-      </div>
 
       {/* PR creation dialog */}
       {showPRDialog && (

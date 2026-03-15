@@ -4,7 +4,7 @@ import DOMPurify from "dompurify";
 import "diff2html/bundles/css/diff2html.min.css";
 import { FileDiff } from "lucide-react";
 import { Spinner } from "../ui/spinner";
-import type { DiffOutputFormat } from "./ReviewToolbar";
+import type { DiffOutputFormat } from "./DiffToolbar";
 
 interface ReviewPanelProps {
   rawDiff: string;

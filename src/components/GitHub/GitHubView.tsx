@@ -217,13 +217,19 @@ export default function GitHubView() {
             Commits
           </Tabs.Tab>
           <Tabs.Tab value="issues" icon={<CircleDot size={13} />}>
-            Issues
+            <span className="flex items-center gap-1">
+              Issues
+              <Github size={10} className="opacity-40" />
+            </span>
           </Tabs.Tab>
           <Tabs.Tab
             value="pull-requests"
             icon={<GitPullRequestArrow size={13} />}
           >
-            Pull Requests
+            <span className="flex items-center gap-1">
+              Pull Requests
+              <Github size={10} className="opacity-40" />
+            </span>
           </Tabs.Tab>
         </Tabs>
 
