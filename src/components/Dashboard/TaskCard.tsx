@@ -163,7 +163,7 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
                 <Search className="size-3" />
               </Button>
             )}
-            {task.status === "backlog" && onResearchSession && (
+            {(task.status === "backlog" || task.status === "ready") && onResearchSession && (
               <Button
                 variant="ghost"
                 size="icon-xs"

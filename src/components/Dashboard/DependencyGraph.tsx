@@ -275,7 +275,7 @@ function TreeRow({
 
         {/* Action buttons */}
         <div className="w-14 shrink-0 flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
-          {!isActive && task.status === "backlog" && onResearchSession && (
+          {!isActive && (task.status === "backlog" || task.status === "ready") && onResearchSession && (
             <Button
               variant="ghost"
               size="icon-xs"
