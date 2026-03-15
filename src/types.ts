@@ -357,6 +357,13 @@ export interface GitHubComment {
   updated_at: string;
 }
 
+export interface GitHubIssueDetail {
+  issue: GitHubIssue;
+  already_imported: boolean;
+  existing_task_id: string | null;
+  comments: GitHubComment[];
+}
+
 export interface GitHubIssueCreated {
   number: number;
   url: string;

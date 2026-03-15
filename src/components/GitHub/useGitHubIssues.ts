@@ -1,8 +1,10 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import type {
   GitHubIssue,
   GitHubIssueWithImportStatus,
+  GitHubIssueDetail,
+  GitHubComment,
   ImportResult,
 } from "../../types";
 import { useAppStore } from "../../store/appStore";
@@ -16,12 +18,16 @@ export interface UseGitHubIssues {
   error: string | null;
   stateFilter: IssueStateFilter;
   selectedNumbers: Set<number>;
+  selectedIssue: number | null;
+  issueDetail: GitHubIssueDetail | null;
+  detailLoading: boolean;
   setStateFilter: (filter: IssueStateFilter) => void;
   toggleSelection: (issueNumber: number) => void;
   selectAll: () => void;
   clearSelection: () => void;
   fetchIssues: () => Promise<void>;
   importSelected: () => Promise<ImportResult | null>;
+  selectIssue: (issueNumber: number | null) => void;
 }
 
 export function useGitHubIssues(projectId: string | null): UseGitHubIssues {
@@ -33,6 +39,13 @@ export function useGitHubIssues(projectId: string | null): UseGitHubIssues {
   const [selectedNumbers, setSelectedNumbers] = useState<Set<number>>(
     new Set(),
   );
+
+  // Detail panel state
+  const [selectedIssue, setSelectedIssue] = useState<number | null>(null);
+  const [issueDetail, setIssueDetail] = useState<GitHubIssueDetail | null>(null);
+  const [detailLoading, setDetailLoading] = useState(false);
+
+  const detailCache = useRef<Map<number, GitHubIssueDetail>>(new Map());
 
   const fetchIssues = useCallback(async () => {
     if (!projectId) return;
@@ -60,6 +73,66 @@ export function useGitHubIssues(projectId: string | null): UseGitHubIssues {
       removeBackgroundTask("Loading GitHub issues");
     }
   }, [projectId, stateFilter]);
+
+  const fetchDetail = useCallback(
+    async (issueNumber: number, force = false) => {
+      if (!projectId) return;
+
+      // Check cache
+      if (!force) {
+        const cached = detailCache.current.get(issueNumber);
+        if (cached) {
+          setIssueDetail(cached);
+          return;
+        }
+      }
+
+      setDetailLoading(true);
+      try {
+        // Fetch issue detail and comments in parallel using existing IPC commands
+        const [issue, comments] = await Promise.all([
+          invoke<GitHubIssue>("fetch_github_issue", {
+            projectId,
+            issueNumber,
+          }),
+          invoke<GitHubComment[]>("fetch_issue_comments", {
+            projectId,
+            issueNumber,
+          }),
+        ]);
+
+        // Find import status from the issues list
+        const listEntry = issues.find((i) => i.issue.number === issueNumber);
+
+        const detail: GitHubIssueDetail = {
+          issue,
+          already_imported: listEntry?.already_imported ?? false,
+          existing_task_id: listEntry?.existing_task_id ?? null,
+          comments,
+        };
+        detailCache.current.set(issueNumber, detail);
+        setIssueDetail(detail);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setDetailLoading(false);
+      }
+    },
+    [projectId, issues],
+  );
+
+  const selectIssue = useCallback(
+    (issueNumber: number | null) => {
+      setSelectedIssue(issueNumber);
+      if (issueNumber !== null) {
+        setIssueDetail(null);
+        fetchDetail(issueNumber);
+      } else {
+        setIssueDetail(null);
+      }
+    },
+    [fetchDetail],
+  );
 
   const toggleSelection = useCallback((issueNumber: number) => {
     setSelectedNumbers((prev) => {
@@ -112,6 +185,11 @@ export function useGitHubIssues(projectId: string | null): UseGitHubIssues {
       // Refresh issues to update import status
       await fetchIssues();
 
+      // Invalidate detail cache for imported issues (import status changed)
+      for (const num of selectedNumbers) {
+        detailCache.current.delete(num);
+      }
+
       return result;
     } catch (err) {
       setError(
@@ -131,11 +209,15 @@ export function useGitHubIssues(projectId: string | null): UseGitHubIssues {
     error,
     stateFilter,
     selectedNumbers,
+    selectedIssue,
+    issueDetail,
+    detailLoading,
     setStateFilter,
     toggleSelection,
     selectAll,
     clearSelection,
     fetchIssues,
     importSelected,
+    selectIssue,
   };
 }

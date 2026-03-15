@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useCallback } from "react";
 import {
   CircleDot,
   ListFilter,
@@ -10,11 +10,14 @@ import {
   CircleX,
   User,
 } from "lucide-react";
+import { invoke } from "@tauri-apps/api/core";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { useAppStore } from "../../store/appStore";
 import { useGitHubIssues, type IssueStateFilter } from "./useGitHubIssues";
+import IssueDetailPanel from "./IssueDetailPanel";
 import GitHubAuthGate from "./GitHubAuthGate";
+import type { GitHubIssue, ImportResult, Task } from "../../types";
 
 interface IssuesTabProps {
   projectId: string | null;
@@ -31,12 +34,16 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
     error,
     stateFilter,
     selectedNumbers,
+    selectedIssue,
+    issueDetail,
+    detailLoading,
     setStateFilter,
     toggleSelection,
     selectAll,
     clearSelection,
     fetchIssues,
     importSelected,
+    selectIssue,
   } = useGitHubIssues(projectId);
 
   // Fetch on mount and when filter changes
@@ -53,6 +60,52 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
     }
   }, [error, refreshGhAuth]);
 
+  const handleRowClick = useCallback(
+    (issueNumber: number) => {
+      selectIssue(selectedIssue === issueNumber ? null : issueNumber);
+    },
+    [selectIssue, selectedIssue],
+  );
+
+  const handleCheckboxClick = useCallback(
+    (e: React.MouseEvent, issueNumber: number, alreadyImported: boolean) => {
+      e.stopPropagation();
+      if (!alreadyImported) {
+        toggleSelection(issueNumber);
+      }
+    },
+    [toggleSelection],
+  );
+
+  const handleImportSingle = useCallback(
+    async (issueNumber: number) => {
+      if (!projectId) return;
+      const issueEntry = issues.find((i) => i.issue.number === issueNumber);
+      if (!issueEntry || issueEntry.already_imported) return;
+
+      const { addBackgroundTask, removeBackgroundTask } = useAppStore.getState();
+      addBackgroundTask("Importing GitHub issue");
+      try {
+        const issuesToImport: GitHubIssue[] = [issueEntry.issue];
+        await invoke<ImportResult>("import_github_issues", {
+          projectId,
+          issues: issuesToImport,
+        });
+
+        // Refresh store tasks
+        const tasks = await invoke<Task[]>("list_tasks", { projectId });
+        useAppStore.getState().setTasks(tasks);
+
+        // Refresh issues to update import status
+        await fetchIssues();
+      } catch {
+        // Error handled by hook
+      } finally {
+        removeBackgroundTask("Importing GitHub issue");
+      }
+    },
+    [projectId, issues, fetchIssues],
+  );
 
   const importableCount = issues.filter((i) => !i.already_imported).length;
   const allSelected =
@@ -178,105 +231,116 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
         </div>
       )}
 
-      {/* Issue list */}
+      {/* Issue list + detail split */}
       {issues.length > 0 && (
-        <div className="flex-1 overflow-y-auto min-h-0">
-          {issues.map(({ issue, already_imported, existing_task_id }) => (
-            <div
-              key={issue.number}
-              onClick={() =>
-                !already_imported && toggleSelection(issue.number)
-              }
-              className={`flex items-center gap-2.5 px-3 py-2 border-b border-border/40 hover:bg-accent transition-colors ${
-                already_imported
-                  ? "opacity-60 cursor-default"
-                  : "cursor-pointer"
-              } ${
-                selectedNumbers.has(issue.number)
-                  ? "bg-[color-mix(in_oklch,var(--primary)_6%,transparent)]"
-                  : ""
-              }`}
-            >
-              {/* Checkbox */}
-              <div className="shrink-0 flex items-center justify-center size-4">
-                {already_imported ? (
-                  <Check
-                    size={14}
-                    className="text-success"
-                  />
-                ) : selectedNumbers.has(issue.number) ? (
-                  <div className="size-3.5 rounded-[3px] bg-primary flex items-center justify-center">
-                    <Check size={10} className="text-white" />
-                  </div>
-                ) : (
-                  <div className="size-3.5 rounded-[3px] border border-border bg-transparent" />
-                )}
-              </div>
+        <div className="flex flex-1 overflow-hidden min-h-0">
+          {/* List */}
+          <div className="flex-1 overflow-y-auto min-h-0">
+            {issues.map(({ issue, already_imported, existing_task_id }) => (
+              <div
+                key={issue.number}
+                onClick={() => handleRowClick(issue.number)}
+                className={`flex items-center gap-2.5 px-3 py-2 border-b border-border/40 hover:bg-accent transition-colors cursor-pointer ${
+                  selectedIssue === issue.number
+                    ? "bg-[color-mix(in_oklch,var(--primary)_6%,transparent)]"
+                    : ""
+                }`}
+              >
+                {/* Checkbox */}
+                <div
+                  className="shrink-0 flex items-center justify-center size-4"
+                  onClick={(e) => handleCheckboxClick(e, issue.number, already_imported)}
+                >
+                  {already_imported ? (
+                    <Check
+                      size={14}
+                      className="text-success"
+                    />
+                  ) : selectedNumbers.has(issue.number) ? (
+                    <div className="size-3.5 rounded-[3px] bg-primary flex items-center justify-center">
+                      <Check size={10} className="text-white" />
+                    </div>
+                  ) : (
+                    <div className="size-3.5 rounded-[3px] border border-border bg-transparent hover:border-primary/50 transition-colors" />
+                  )}
+                </div>
 
-              {/* Issue number */}
-              <span className="shrink-0 text-[11px] font-mono text-dim-foreground w-[48px]">
-                #{issue.number}
-              </span>
-
-              {/* State icon */}
-              <div className="shrink-0">
-                {issue.state === "OPEN" ? (
-                  <CircleDot
-                    size={13}
-                    className="text-success"
-                  />
-                ) : (
-                  <CircleX
-                    size={13}
-                    className="text-destructive"
-                  />
-                )}
-              </div>
-
-              {/* Title + labels */}
-              <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                <span className="truncate text-[13px] text-foreground">
-                  {issue.title}
+                {/* Issue number */}
+                <span className="shrink-0 text-[11px] font-mono text-dim-foreground w-[48px]">
+                  #{issue.number}
                 </span>
 
-                {/* GitHub labels */}
-                {issue.labels.map((label) => (
-                  <span
-                    key={label.name}
-                    className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium leading-tight max-w-[100px] truncate border"
-                    style={{
-                      backgroundColor: `#${label.color}20`,
-                      borderColor: `#${label.color}40`,
-                      color: `#${label.color}`,
-                    }}
-                  >
-                    {label.name}
-                  </span>
-                ))}
-              </div>
-
-              {/* Assignees */}
-              {issue.assignees.length > 0 && (
-                <div className="shrink-0 flex items-center gap-1 text-[10px] text-dim-foreground">
-                  <User size={10} />
-                  <span>
-                    {issue.assignees.map((a) => a.login).join(", ")}
-                  </span>
+                {/* State icon */}
+                <div className="shrink-0">
+                  {issue.state === "OPEN" ? (
+                    <CircleDot
+                      size={13}
+                      className="text-success"
+                    />
+                  ) : (
+                    <CircleX
+                      size={13}
+                      className="text-destructive"
+                    />
+                  )}
                 </div>
-              )}
 
-              {/* Import status badge */}
-              {already_imported && existing_task_id && (
-                <Badge
-                  variant="secondary"
-                  className="shrink-0 gap-1 text-[10px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-success border-[color-mix(in_oklch,var(--success)_25%,transparent)]"
-                >
-                  <Check size={10} />
-                  {existing_task_id}
-                </Badge>
-              )}
-            </div>
-          ))}
+                {/* Title + labels */}
+                <div className="flex-1 flex items-center gap-1.5 min-w-0">
+                  <span className="truncate text-[13px] text-foreground">
+                    {issue.title}
+                  </span>
+
+                  {/* GitHub labels */}
+                  {issue.labels.map((label) => (
+                    <span
+                      key={label.name}
+                      className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium leading-tight max-w-[100px] truncate border"
+                      style={{
+                        backgroundColor: `#${label.color}20`,
+                        borderColor: `#${label.color}40`,
+                        color: `#${label.color}`,
+                      }}
+                    >
+                      {label.name}
+                    </span>
+                  ))}
+                </div>
+
+                {/* Assignees */}
+                {issue.assignees.length > 0 && (
+                  <div className="shrink-0 flex items-center gap-1 text-[10px] text-dim-foreground">
+                    <User size={10} />
+                    <span>
+                      {issue.assignees.map((a) => a.login).join(", ")}
+                    </span>
+                  </div>
+                )}
+
+                {/* Import status badge */}
+                {already_imported && existing_task_id && (
+                  <Badge
+                    variant="secondary"
+                    className="shrink-0 gap-1 text-[10px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-success border-[color-mix(in_oklch,var(--success)_25%,transparent)]"
+                  >
+                    <Check size={10} />
+                    {existing_task_id}
+                  </Badge>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Detail panel */}
+          {selectedIssue !== null && (
+            <IssueDetailPanel
+              detail={issueDetail}
+              loading={detailLoading}
+              importing={importing}
+              onClose={() => selectIssue(null)}
+              onImport={handleImportSingle}
+            />
+          )}
         </div>
       )}
     </div>
