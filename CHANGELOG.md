@@ -14,6 +14,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Settings Tab** — Dedicated GitHub settings tab accessible from the Git view toolbar, with label mapping color swatches, all 6 status mappings, proper Select components, and one-click "Create default labels" setup
 - **GitHub Sync Dialog** — Safe confirmation dialog for GitHub issue sync with granular field selection (title, body, status, labels), replacing the previous instant sync. Configurable default checkbox states in GitHub Settings
 - **GitHub Auth Gate** — Shared `GitHubAuthGate` component replacing duplicated auth/remote checks in Issues and Pull Requests tabs
+- **GitHub Issue Detail Panel** — Click any issue in the Issues tab to preview its full body, labels, assignees, and comment thread in a right-side detail panel (matching the Pull Requests detail pattern), with one-click import and "Open in GitHub" actions
 
 ### Changed
 
