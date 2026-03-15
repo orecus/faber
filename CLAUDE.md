@@ -181,7 +181,7 @@ An embedded HTTP server (axum) provides MCP (Model Context Protocol) tools that 
 - Session ID pre-generated before DB insert so the MCP URL can be written to config
 
 ### MCP Tools
-Agents can call: `report_status`, `report_progress`, `report_files_changed`, `report_error`, `report_complete`, `report_waiting`, `get_task`, `update_task`, `update_task_plan`, `create_task`, `list_tasks`. Each tool updates in-memory `McpSessionData` and emits a Tauri event (`mcp-status-update`, `mcp-progress-update`, `mcp-files-changed`, `mcp-error`, `mcp-complete`, `mcp-waiting`).
+Agents can call: `report_status`, `report_progress`, `report_files_changed`, `report_error`, `report_complete`, `report_waiting`, `get_task`, `update_task`, `update_task_plan`, `create_task`, `list_tasks`, `promote_session`. Each tool updates in-memory `McpSessionData` and emits a Tauri event (`mcp-status-update`, `mcp-progress-update`, `mcp-files-changed`, `mcp-error`, `mcp-complete`, `mcp-waiting`).
 
 ### Frontend Integration
 - The Zustand store `initialize()` method listens for MCP events and stores per-session state in `mcpStatus: Record<string, McpSessionState>`
@@ -212,6 +212,7 @@ You have MCP tools provided by the Faber IDE for reporting your progress. You MU
 - `update_task_plan(plan, task_id?)` — Update the implementation plan in the task file.
 - `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task in the current project (always created as backlog).
 - `list_tasks(status?, label?)` — List all tasks in the current project with optional filters. Returns compact metadata (no body).
+- `promote_session()` — Promote the current session from research to implementation mode. Call this when transitioning from researching/planning into writing code. After promotion, completing the session will move the task to in-review.
 
 Always call `report_status` first, then `report_progress` as you work, and `report_complete` when done.
 <!-- /Faber:MCP -->

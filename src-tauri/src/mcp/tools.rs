@@ -256,6 +256,14 @@ pub fn all_tools() -> Vec<ToolDefinition> {
                 "required": ["title"]
             }),
         },
+        ToolDefinition {
+            name: "promote_session".into(),
+            description: "Promote the current session from research to implementation mode. Call this when you transition from researching/planning into writing code. After promotion, completing the session will move the task to in-review.".into(),
+            input_schema: json!({
+                "type": "object",
+                "properties": {}
+            }),
+        },
     ]
 }
 
@@ -266,7 +274,7 @@ mod tests {
     #[test]
     fn all_tools_returns_expected_count() {
         let tools = all_tools();
-        assert_eq!(tools.len(), 11);
+        assert_eq!(tools.len(), 12);
     }
 
     #[test]
@@ -275,7 +283,7 @@ mod tests {
         let mut names: Vec<&str> = tools.iter().map(|t| t.name.as_str()).collect();
         names.sort();
         names.dedup();
-        assert_eq!(names.len(), 11);
+        assert_eq!(names.len(), 12);
     }
 
     #[test]

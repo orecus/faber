@@ -278,6 +278,7 @@ async fn handle_tool_call(
         "update_task" => handle_update_task(session_id, &params.arguments, mcp, app).await,
         "list_tasks" => handle_list_tasks(session_id, &params.arguments, mcp, app).await,
         "create_task" => handle_create_task(session_id, &params.arguments, mcp, app).await,
+        "promote_session" => handle_promote_session(session_id, &params.arguments, mcp, app).await,
         _ => McpToolResult::error(format!("Unknown tool: {}", params.name)),
     }
 }
@@ -709,10 +710,83 @@ async fn handle_report_complete(
     McpToolResult::text("Task marked complete")
 }
 
+/// Promote a session from research to task (implementation) mode.
+/// This flips the session mode in the DB so that subsequent report_complete
+/// uses the task-mode transition (→ in-review). Also advances the task
+/// to in-progress if it's still in backlog or ready.
+async fn handle_promote_session(
+    session_id: &str,
+    _args: &Value,
+    _mcp: &Arc<TokioMutex<McpState>>,
+    app: &AppHandle,
+) -> McpToolResult {
+    let db: tauri::State<'_, DbState> = app.state();
+    let conn = match db.lock() {
+        Ok(c) => c,
+        Err(e) => return McpToolResult::error(format!("DB lock failed: {e}")),
+    };
+
+    let session = match db::sessions::get(&conn, session_id) {
+        Ok(Some(s)) => s,
+        Ok(None) => return McpToolResult::error(format!("Session not found: {session_id}")),
+        Err(e) => return McpToolResult::error(format!("Failed to fetch session: {e}")),
+    };
+
+    if session.mode != SessionMode::Research {
+        return McpToolResult::error(format!(
+            "Session is already in {} mode — only research sessions can be promoted",
+            session.mode.as_str()
+        ));
+    }
+
+    // Flip session mode to Task
+    if let Err(e) = db::sessions::update_mode(&conn, session_id, SessionMode::Task) {
+        return McpToolResult::error(format!("Failed to update session mode: {e}"));
+    }
+
+    // Re-fetch and emit session-updated so the frontend reflects the mode change
+    if let Ok(Some(updated_session)) = db::sessions::get(&conn, session_id) {
+        let _ = app.emit("session-updated", &updated_session);
+    }
+
+    // Advance task to in-progress if it's still backlog or ready
+    if let Some(task_id) = &session.task_id {
+        let current_task = db::tasks::get(&conn, task_id, &session.project_id)
+            .ok()
+            .flatten();
+        if let Some(task) = current_task {
+            if task.status == TaskStatus::Backlog || task.status == TaskStatus::Ready {
+                match do_update_task_status(&conn, &session.project_id, task_id, "in-progress") {
+                    Ok((task, sync_ctx, todos)) => {
+                        tracing::info!(task_id = %task.id, "Promoted session, task moved to in-progress");
+                        let _ = app.emit("task-updated", &task);
+                        if let Some(t) = todos { t.write(); }
+                        // GitHub sync without holding DB lock
+                        drop(conn);
+                        if let Some(ctx) = sync_ctx {
+                            crate::commands::tasks::execute_github_sync(ctx);
+                        }
+                        return McpToolResult::text(
+                            "Session promoted from research to task mode. Task moved to in-progress. Completing this session will now move the task to in-review.",
+                        );
+                    }
+                    Err(e) => {
+                        tracing::error!(%e, task_id, "Failed to advance task after session promotion");
+                    }
+                }
+            }
+        }
+    }
+
+    McpToolResult::text(
+        "Session promoted from research to task mode. Completing this session will now move the task to in-review.",
+    )
+}
+
 /// Look up the session's linked task and advance its status.
-/// Research sessions move to "ready" (plan written, ready to implement).
-/// However, if the task is already "ready" or "in-progress" (meaning the user
-/// continued the session into implementation), advance to "in-review" instead.
+/// Research sessions only move backlog → ready (capped).
+/// If an agent wants to transition into implementation, it should call
+/// promote_session first, which flips the mode to Task.
 /// Regular task sessions always move to "in-review".
 /// Errors are logged but not propagated — MCP should always succeed.
 fn try_mark_task_complete(app: &AppHandle, session_id: &str) {
@@ -745,37 +819,48 @@ fn try_mark_task_complete(app: &AppHandle, session_id: &str) {
             None => return, // vibe/shell session, no task to mark
         };
 
-        let new_status = if session.mode == SessionMode::Research {
-            // Check if the task has already moved past research phase.
-            // This handles the flow where a user continues a research session
-            // into implementation — the second report_complete should advance
-            // the task to "in-review" instead of keeping it at "ready".
+        if session.mode == SessionMode::Research {
+            // Research sessions only advance backlog → ready. Never beyond.
+            // If the agent wants to transition into implementation, it should
+            // call promote_session first (which flips mode to Task).
             let current_task = db::tasks::get(&conn, &task_id, &session.project_id)
                 .ok()
                 .flatten();
             match current_task {
-                Some(task)
-                    if task.status == TaskStatus::Ready
-                        || task.status == TaskStatus::InProgress =>
-                {
-                    "in-review"
+                Some(task) if task.status == TaskStatus::Backlog => {
+                    let new_status = "ready";
+                    match do_update_task_status(&conn, &session.project_id, &task_id, new_status) {
+                        Ok((task, sync_ctx, todos)) => {
+                            tracing::info!(task_id = %task.id, %new_status, "Research complete, moved task to ready");
+                            let _ = app.emit("task-updated", &task);
+                            if let Some(t) = todos { t.write(); }
+                            sync_ctx
+                        }
+                        Err(e) => {
+                            tracing::error!(%e, task_id, %new_status, "Failed to mark task status");
+                            None
+                        }
+                    }
                 }
-                _ => "ready",
+                _ => {
+                    // Task is already ready or beyond — research completion is a no-op
+                    tracing::info!(task_id, "Research session complete, task status unchanged");
+                    None
+                }
             }
         } else {
-            "in-review"
-        };
-
-        match do_update_task_status(&conn, &session.project_id, &task_id, new_status) {
-            Ok((task, sync_ctx, todos)) => {
-                tracing::info!(task_id = %task.id, %new_status, "Marked task status");
-                let _ = app.emit("task-updated", &task);
-                if let Some(t) = todos { t.write(); }
-                sync_ctx
-            }
-            Err(e) => {
-                tracing::error!(%e, task_id, %new_status, "Failed to mark task status");
-                None
+            let new_status = "in-review";
+            match do_update_task_status(&conn, &session.project_id, &task_id, new_status) {
+                Ok((task, sync_ctx, todos)) => {
+                    tracing::info!(task_id = %task.id, %new_status, "Marked task status");
+                    let _ = app.emit("task-updated", &task);
+                    if let Some(t) = todos { t.write(); }
+                    sync_ctx
+                }
+                Err(e) => {
+                    tracing::error!(%e, task_id, %new_status, "Failed to mark task status");
+                    None
+                }
             }
         }
     };

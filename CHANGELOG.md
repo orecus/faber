@@ -16,6 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Sync Dialog** — Safe confirmation dialog for GitHub issue sync with granular field selection (title, body, status, labels), replacing the previous instant sync. Configurable default checkbox states in GitHub Settings
 - **GitHub Auth Gate** — Shared `GitHubAuthGate` component replacing duplicated auth/remote checks in Issues and Pull Requests tabs
 - **GitHub Issue Detail Panel** — Click any issue in the Issues tab to preview its full body, labels, assignees, and comment thread in a right-side detail panel (matching the Pull Requests detail pattern), with one-click import and "Open in GitHub" actions
+- **Promote Session MCP Tool** — New `promote_session` MCP tool allowing agents to transition from research to implementation mode. After promotion, completing the session moves the task to in-review instead of being a no-op
 
 ### Changed
 
@@ -31,6 +32,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Skill Install Shell** — Fixed skill install shell closing immediately by spawning an interactive shell
 - **GitHub Multi-Account Auth** — Fixed `gh auth status` parsing to handle per-account blocks for multi-source authentication
+- **Research Session Completion** — Research sessions no longer incorrectly advance task status beyond "ready". Completing a research session on an already-ready or in-progress task is now a no-op instead of moving it to in-review
 
 ## [0.8.1] - 2026-03-06
 

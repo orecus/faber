@@ -41,6 +41,7 @@ You MUST use them throughout your workflow:
 - `update_task_plan(plan, task_id?)` — Update the implementation plan in the task file.
 - `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task in the current project (always created as backlog).
 - `list_tasks(status?, label?)` — List all tasks in the current project with optional filters. Returns compact metadata (no body).
+- `promote_session()` — Promote the current session from research to implementation mode. Call this when transitioning from researching/planning into writing code. After promotion, completing the session will move the task to in-review.
 
 Always call `report_status` first, then `report_progress` as you work, \
 and `report_complete` when done.";
