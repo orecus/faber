@@ -201,8 +201,13 @@ mod tests {
 
     #[test]
     fn is_command_in_path_finds_common_tools() {
-        // `ls` or `echo` should be available on any system
-        assert!(is_command_in_path("ls") || is_command_in_path("echo"));
+        // Use platform-appropriate commands that exist as real executables
+        // (not shell builtins like `echo` which `where.exe` won't find on Windows)
+        if cfg!(windows) {
+            assert!(is_command_in_path("cmd.exe") || is_command_in_path("where.exe"));
+        } else {
+            assert!(is_command_in_path("ls") || is_command_in_path("echo"));
+        }
     }
 
     #[test]
