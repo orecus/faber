@@ -1,8 +1,10 @@
 import { open } from "@tauri-apps/plugin-shell";
 import {
+  Activity,
   ArrowLeft,
   Check,
   ExternalLink,
+  FileText,
   Github,
   Loader2,
   RefreshCw,
@@ -18,14 +20,18 @@ import { ViewLayout } from "../Shell/ViewLayout";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import { Tabs } from "../ui/orecus.io/navigation/tabs";
+import AgentActivityTab from "./AgentActivityTab";
+import GitHubTab from "./GitHubTab";
 import SyncToGitHubDialog from "./SyncToGitHubDialog";
 import type { SyncOptions } from "./SyncToGitHubDialog";
-import TaskActivityPanel from "./TaskActivityPanel";
 import TaskBody from "./TaskBody";
 import TaskDetailActions from "./TaskDetailActions";
 import TaskMetadataSidebar from "./TaskMetadataSidebar";
 import TaskTitle from "./TaskTitle";
 import { useTaskDetail } from "./useTaskDetail";
+
+type DetailTab = "details" | "activity" | "github";
 
 export default function TaskDetailView() {
   const { isGlass } = useTheme();
@@ -91,6 +97,9 @@ export default function TaskDetailView() {
     () => storeTasks.find((t) => t.id === activeTaskId) ?? null,
     [storeTasks, activeTaskId],
   );
+
+  // Tab state
+  const [activeTab, setActiveTab] = useState<DetailTab>("details");
 
   // Sync dialog state
   const [syncDialogOpen, setSyncDialogOpen] = useState(false);
@@ -269,29 +278,70 @@ export default function TaskDetailView() {
         </div>
       )}
 
+      {/* ── Top-level tabs ── */}
+      <div className="px-1">
+        <Tabs<DetailTab>
+          value={activeTab}
+          onChange={setActiveTab}
+          animation="slide"
+          variant="none"
+          indicatorVariant="color"
+          size="sm"
+          color={accentColor}
+          align="start"
+          barRadius="md"
+          tabRadius="md"
+          fullWidth={false}
+        >
+          <Tabs.Tab value="details" icon={<FileText size={12} />}>
+            Task Details
+          </Tabs.Tab>
+          <Tabs.Tab value="activity" icon={<Activity size={12} />}>
+            Agent Activity
+          </Tabs.Tab>
+          {formData.github_issue && (
+            <Tabs.Tab value="github" icon={<Github size={12} />}>
+              GitHub
+            </Tabs.Tab>
+          )}
+        </Tabs>
+      </div>
+
       {/* ── Two-panel layout ── */}
       <div className="flex min-h-0 flex-1 gap-0 overflow-hidden">
         {/* Left — Main content area */}
         <div className="flex min-h-0 flex-1 flex-col overflow-y-auto">
           <div className="flex flex-col gap-3 pr-3 pb-4 px-1">
-            {/* Title */}
-            <TaskTitle title={formData.title} onChange={handleTitleChange} />
+            {activeTab === "details" && (
+              <>
+                {/* Title */}
+                <TaskTitle title={formData.title} onChange={handleTitleChange} />
 
-            {/* Body (preview by default, click to edit) */}
-            <div className={`flex min-h-[200px] flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
-              <TaskBody body={body} onChange={setBody} onSave={handleSave} />
-            </div>
+                {/* Body (preview by default, click to edit) */}
+                <div className={`flex min-h-[200px] flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+                  <TaskBody body={body} onChange={setBody} onSave={handleSave} />
+                </div>
+              </>
+            )}
 
-            {/* Activity Panel */}
-            <div className={`flex flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
-              <TaskActivityPanel
-                linkedSession={linkedSession}
-                githubIssue={formData.github_issue}
-                accentColor={accentColor}
-                taskId={activeTaskId}
-                projectId={activeProjectId!}
-              />
-            </div>
+            {activeTab === "activity" && (
+              <div className={`flex flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+                <AgentActivityTab
+                  linkedSession={linkedSession}
+                  taskId={activeTaskId}
+                  projectId={activeProjectId!}
+                />
+              </div>
+            )}
+
+            {activeTab === "github" && formData.github_issue && (
+              <div className={`flex flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+                <GitHubTab
+                  githubIssue={formData.github_issue}
+                  projectId={activeProjectId!}
+                />
+              </div>
+            )}
           </div>
         </div>
 

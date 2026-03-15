@@ -9,6 +9,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Task Detail GitHub Tab** — Restructured TaskDetailView with top-level tabs (Task Details, Agent Activity, GitHub). For tasks imported from GitHub issues, the new GitHub tab shows the live issue body, state badge, labels, metadata, full comment thread, and a comment composer — all without leaving the task view
 - **GitHub Copilot CLI Agent** — Added Copilot CLI (`copilot`) as the 6th supported agent with Rust adapter, MCP config (`.copilot/mcp-config.json`), `AGENTS.md` instruction file mapping, frontend icons/colors, and documentation
 - **Sidebar Branch Info** — Branch name and change count shown inline in each sidebar project entry (e.g. `● ProjectName · main 3∆`), with auto-refresh on project load, switch, and MCP events
 - **GitHub Settings Tab** — Dedicated GitHub settings tab accessible from the Git view toolbar, with label mapping color swatches, all 6 status mappings, proper Select components, and one-click "Create default labels" setup
