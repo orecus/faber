@@ -86,8 +86,11 @@ pub(crate) fn cmd_no_window(program: &str) -> std::process::Command {
 /// `window-vibrancy::apply_acrylic()`.
 /// See: https://github.com/tauri-apps/tauri/issues/8632
 ///
-/// On macOS, `macOSPrivateApi: true` + `transparent: true` enables
+/// On macOS, `transparent: true` enables the clear background needed for
 /// `NSVisualEffectView` vibrancy via the `window-vibrancy` crate.
+/// Note: `macOSPrivateApi` is NOT used — Tao's private API calls in
+/// `did_finish_launching` crash on macOS 26 Tahoe. The `window-vibrancy`
+/// crate applies vibrancy directly without needing it.
 fn apply_vibrancy(window: &tauri::WebviewWindow) {
     #[cfg(target_os = "windows")]
     {
