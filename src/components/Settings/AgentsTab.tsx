@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { ChevronDown, Flag, RotateCcw, TerminalSquare } from "lucide-react";
+import { ChevronDown, Download, ExternalLink, Flag, RotateCcw, Terminal, TerminalSquare } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
 import { AgentIcon } from "../../lib/agentIcons";
@@ -210,8 +210,42 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
               }}
             />
           )}
+          {!agent.installed && agent.cli_install_url && (
+            <a
+              href={agent.cli_install_url}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
+            >
+              <Download size={10} />
+              Install
+            </a>
+          )}
         </div>
       </CardContent>
+
+      {/* CLI install hint — shown when agent is NOT installed */}
+      {!agent.installed && agent.cli_install_hint && (
+        <div className="border-t border-border/50 px-6 py-3">
+          <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
+            <Terminal size={12} className="shrink-0 text-muted-foreground" />
+            <code className="flex-1 select-all text-[11px] text-dim-foreground font-mono">
+              {agent.cli_install_hint}
+            </code>
+            {agent.cli_install_url && (
+              <a
+                href={agent.cli_install_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="shrink-0 text-muted-foreground transition-colors hover:text-foreground"
+                title="Open install page"
+              >
+                <ExternalLink size={11} />
+              </a>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Card body — only shown when expanded */}
       {expanded && agent.installed && (

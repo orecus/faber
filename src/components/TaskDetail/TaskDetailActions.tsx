@@ -122,31 +122,43 @@ export default function TaskDetailActions({
 
   return (
     <>
-      {/* backlog / ready → Start Task + Research */}
-      {(status === "backlog" || status === "ready") && (
-        <>
+      {/* backlog / ready → Start Task + Research, or View Session if one is active */}
+      {(status === "backlog" || status === "ready") &&
+        (activeSession ? (
           <Button
             variant="ghost"
             size="icon-xs"
-            onClick={() => setShowLaunchDialog(true)}
-            title="Start Task"
+            onClick={handleViewSession}
+            title="View Session"
             hoverEffect="scale"
             clickEffect="scale"
           >
-            <Play className="size-3.5" />
+            <Eye className="size-3.5" />
           </Button>
-          <Button
-            variant="ghost"
-            size="icon-xs"
-            onClick={() => setShowResearchDialog(true)}
-            title="Research"
-            hoverEffect="scale"
-            clickEffect="scale"
-          >
-            <Lightbulb className="size-3.5" />
-          </Button>
-        </>
-      )}
+        ) : (
+          <>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setShowLaunchDialog(true)}
+              title="Start Task"
+              hoverEffect="scale"
+              clickEffect="scale"
+            >
+              <Play className="size-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon-xs"
+              onClick={() => setShowResearchDialog(true)}
+              title="Research"
+              hoverEffect="scale"
+              clickEffect="scale"
+            >
+              <Lightbulb className="size-3.5" />
+            </Button>
+          </>
+        ))}
 
       {/* in-progress → View Session */}
       {status === "in-progress" && activeSession && (

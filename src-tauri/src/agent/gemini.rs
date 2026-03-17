@@ -50,6 +50,22 @@ impl AgentAdapter for GeminiAdapter {
     fn supported_models(&self) -> &[&str] {
         &["gemini-2.5-pro", "gemini-2.5-flash", "gemini-3-pro", "gemini-3-flash"]
     }
+
+    fn supports_acp(&self) -> bool {
+        true
+    }
+
+    fn acp_launch_spec(&self) -> Option<(String, Vec<String>)> {
+        Some(("gemini".to_string(), vec!["--acp".to_string()]))
+    }
+
+    fn cli_install_url(&self) -> Option<&str> {
+        Some("https://github.com/google-gemini/gemini-cli")
+    }
+
+    fn cli_install_hint(&self) -> Option<&str> {
+        Some("npm install -g @google/gemini-cli")
+    }
 }
 
 #[cfg(test)]

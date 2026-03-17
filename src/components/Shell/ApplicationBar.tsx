@@ -1,5 +1,5 @@
 import { memo } from "react";
-import { Blocks, Github, LayoutDashboard, PanelLeft, PanelRight, TerminalSquare } from "lucide-react";
+import { Blocks, Github, LayoutDashboard, MessageCircle, PanelLeft, PanelRight, TerminalSquare } from "lucide-react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { handleDragRegionMouseDown, needsCustomWindowControls } from "../../lib/platform";
@@ -12,6 +12,7 @@ import type { ViewId } from "../../types";
 const VIEW_TABS: { id: ViewId; icon: React.ReactNode; label: string }[] = [
   { id: "dashboard", icon: <LayoutDashboard size={14} />, label: "Tasks" },
   { id: "sessions", icon: <TerminalSquare size={14} />, label: "Sessions" },
+  { id: "chat", icon: <MessageCircle size={14} />, label: "Chat" },
   { id: "github", icon: <Github size={14} />, label: "GitHub" },
   { id: "skills-rules", icon: <Blocks size={14} />, label: "Extensions" },
 ];
@@ -24,6 +25,7 @@ const ApplicationBar = memo(function ApplicationBar() {
   const setSidebarCollapsed = useAppStore((s) => s.setSidebarCollapsed);
   const rightSidebarOpen = useAppStore((s) => s.rightSidebarOpen);
   const toggleRightSidebar = useAppStore((s) => s.toggleRightSidebar);
+  const acpUpdatesAvailable = useAppStore((s) => s.acpUpdatesAvailable);
 
   // Clamp detail views to dashboard tab for display; help has no tab highlight
   const displayedTab: ViewId =
@@ -67,7 +69,18 @@ const ApplicationBar = memo(function ApplicationBar() {
         className="h-full shrink-0"
       >
         {VIEW_TABS.map((tab) => (
-          <Tabs.Tab key={tab.id} value={tab.id} icon={tab.icon}>
+          <Tabs.Tab
+            key={tab.id}
+            value={tab.id}
+            icon={tab.icon}
+            badge={
+              tab.id === "skills-rules" && acpUpdatesAvailable > 0 ? (
+                <span className="ml-1 flex size-[16px] items-center justify-center rounded-full bg-warning/20 text-[9px] font-bold text-warning">
+                  {acpUpdatesAvailable}
+                </span>
+              ) : undefined
+            }
+          >
             {tab.label}
           </Tabs.Tab>
         ))}

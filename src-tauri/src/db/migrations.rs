@@ -200,7 +200,77 @@ CREATE INDEX idx_task_activity_session ON task_activity(session_id);
 CREATE INDEX idx_task_activity_timestamp ON task_activity(timestamp);
 "#;
 
-const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011];
+const MIGRATION_012: &str = r#"
+ALTER TABLE sessions ADD COLUMN transport TEXT NOT NULL DEFAULT 'pty'
+    CHECK(transport IN ('pty','acp'));
+"#;
+
+const MIGRATION_013: &str = r#"
+CREATE TABLE acp_permission_rules (
+    id              TEXT PRIMARY KEY,
+    project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    capability      TEXT NOT NULL,
+    path_pattern    TEXT,
+    command_pattern TEXT,
+    action          TEXT NOT NULL DEFAULT 'ask'
+                    CHECK(action IN ('auto_approve','ask','deny')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_acp_perm_rules_project ON acp_permission_rules(project_id);
+
+CREATE TABLE acp_permission_log (
+    id          TEXT PRIMARY KEY,
+    session_id  TEXT NOT NULL,
+    project_id  TEXT NOT NULL,
+    capability  TEXT NOT NULL,
+    detail      TEXT NOT NULL DEFAULT '',
+    decision    TEXT NOT NULL CHECK(decision IN ('approved','denied','auto_approved','auto_denied')),
+    decided_at  TEXT NOT NULL DEFAULT (datetime('now')),
+    FOREIGN KEY (project_id) REFERENCES projects(id) ON DELETE CASCADE
+);
+CREATE INDEX idx_acp_perm_log_project ON acp_permission_log(project_id);
+CREATE INDEX idx_acp_perm_log_session ON acp_permission_log(session_id);
+CREATE INDEX idx_acp_perm_log_timestamp ON acp_permission_log(decided_at);
+"#;
+
+// Add 'chat' to session mode CHECK constraint
+const MIGRATION_014: &str = r#"
+-- Add 'chat' to session mode CHECK constraint
+CREATE TABLE sessions_new (
+    id              TEXT PRIMARY KEY,
+    project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    task_id         TEXT,
+    mode            TEXT NOT NULL CHECK(mode IN ('task','vibe','shell','research','chat')),
+    transport       TEXT NOT NULL DEFAULT 'pty' CHECK(transport IN ('pty','acp')),
+    agent           TEXT NOT NULL,
+    model           TEXT,
+    status          TEXT NOT NULL DEFAULT 'starting'
+                    CHECK(status IN ('starting','running','paused','stopped','finished','error')),
+    pid             INTEGER,
+    worktree_path   TEXT,
+    mcp_connected   INTEGER NOT NULL DEFAULT 0,
+    name            TEXT,
+    started_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    ended_at        TEXT
+);
+
+INSERT INTO sessions_new SELECT * FROM sessions;
+DROP TABLE sessions;
+ALTER TABLE sessions_new RENAME TO sessions;
+
+CREATE INDEX idx_sessions_project ON sessions(project_id);
+CREATE INDEX idx_sessions_task ON sessions(task_id);
+CREATE INDEX idx_sessions_status ON sessions(status);
+"#;
+
+const MIGRATION_015: &str = r#"
+-- Rename ACP "continuous mode" policy setting to "trust mode" to avoid confusion
+-- with Faber's task-queue continuous mode feature.
+UPDATE settings SET key = REPLACE(key, 'acp_continuous_mode_policy', 'acp_trust_mode_policy')
+WHERE key LIKE 'acp_continuous_mode_policy%';
+"#;
+
+const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012, MIGRATION_013, MIGRATION_014, MIGRATION_015];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
@@ -251,13 +321,13 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 11);
+        assert_eq!(version, 15);
 
         // Running again is a no-op
         run(&conn).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 11);
+        assert_eq!(count, 15);
     }
 }

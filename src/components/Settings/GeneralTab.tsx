@@ -270,6 +270,34 @@ function NotificationsPanel() {
   );
 }
 
+// ── ACP Auto-Check Toggle ──
+
+function AcpAutoCheckToggle() {
+  const [autoCheck, setAutoCheck] = usePersistedBoolean(
+    "auto_check_acp_updates",
+    true,
+  );
+
+  return (
+    <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
+      <Checkbox
+        checked={autoCheck}
+        onCheckedChange={(checked) => setAutoCheck(checked === true)}
+        className="mt-0.5"
+      />
+      <div>
+        <div className="text-[13px] font-medium text-foreground">
+          Check for ACP adapter updates
+        </div>
+        <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
+          Automatically check for newer versions of installed ACP adapters on
+          app launch (at most once per hour).
+        </div>
+      </div>
+    </label>
+  );
+}
+
 // ── Updates Panel ──
 
 function UpdatesPanel() {
@@ -374,6 +402,9 @@ function UpdatesPanel() {
           </select>
         </div>
       )}
+
+      {/* ACP adapter update check */}
+      <AcpAutoCheckToggle />
 
       {/* Advanced section */}
       <button

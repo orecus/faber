@@ -45,7 +45,14 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "fmt", "json"] }
 tracing-appender = "0.2"
 rand = "0.9"
+semver = "1"
 hex = "0.4"
+agent-client-protocol = { version = "0.10.2", features = ["unstable_session_usage"] }
+tokio-util = { version = "0.7", features = ["compat"] }
+async-trait = "0.1"
+futures = "0.3"
+base64 = "0.22"
+tauri-plugin-fs = "2.4.5"
 
 [dev-dependencies]
 tempfile = "3"

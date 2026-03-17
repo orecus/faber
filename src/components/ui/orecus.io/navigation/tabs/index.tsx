@@ -12,7 +12,6 @@ import {
   useState,
 } from "react";
 
-import { Badge } from "@/components/ui/badge";
 // Import shared color utilities
 import {
   colorStyles,
@@ -262,14 +261,7 @@ function Tab<T extends string = string>({
       >
         {icon}
         {children}
-        {badge && (
-          <Badge
-            variant="secondary"
-            className="ml-1.5 h-auto px-1.5 py-0.5 text-[10px] leading-none"
-          >
-            {badge}
-          </Badge>
-        )}
+        {badge}
       </span>
     </button>
   );

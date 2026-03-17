@@ -1,18 +1,23 @@
 use std::collections::HashMap;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::sync::Arc;
 
+use agent_client_protocol as acp;
 use rusqlite::Connection;
 use serde::Serialize;
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::acp::client::{AcpClient, AcpSpawnConfig};
+use crate::acp::handler;
+use crate::acp::state::{AcpSessionState, AcpState};
+use crate::acp::types::{AcpConfigOptionUpdatePayload, AcpErrorPayload, AcpPromptCompletePayload, EVENT_ACP_CONFIG_OPTION_UPDATE, EVENT_ACP_ERROR, EVENT_ACP_PROMPT_COMPLETE};
 use crate::agent::{self, AgentLaunchConfig};
 use crate::commands::tasks::do_update_task_status;
 use crate::continuous;
 use crate::db;
 use crate::db::models::{
-    NewSession, Session, SessionMode, SessionStatus,
+    NewSession, Session, SessionMode, SessionStatus, SessionTransport,
 };
 use crate::error::AppError;
 use crate::git::{self, BranchNameVars, DEFAULT_BRANCH_PATTERN};
@@ -371,6 +376,7 @@ pub fn start_task_session(
         task_id: Some(task_id.to_string()),
         name: Some(task.id.clone()),
         mode: SessionMode::Task,
+        transport: SessionTransport::Pty,
         agent: agent_name.to_string(),
         model,
         worktree_path: worktree_path.clone(),
@@ -529,6 +535,7 @@ pub fn start_vibe_session(
         task_id: None,
         name: None,
         mode: SessionMode::Vibe,
+        transport: SessionTransport::Pty,
         agent: agent_name.to_string(),
         model,
         worktree_path: worktree_path.clone(),
@@ -658,6 +665,7 @@ pub fn start_research_session(
         task_id: Some(opts.task_id.to_string()),
         name: Some(task.id.clone()),
         mode: SessionMode::Research,
+        transport: SessionTransport::Pty,
         agent: agent_name.to_string(),
         model,
         worktree_path: None,
@@ -724,6 +732,7 @@ pub fn start_shell_session(
         task_id: None,
         name: None,
         mode: SessionMode::Shell,
+        transport: SessionTransport::Pty,
         agent: "shell".to_string(),
         model: None,
         worktree_path: None,
@@ -782,6 +791,7 @@ pub fn start_skill_install_session(
         task_id: None,
         name: Some(format!("Installing: {}", skill_name)),
         mode: SessionMode::Shell,
+        transport: SessionTransport::Pty,
         agent: "shell".to_string(),
         model: None,
         worktree_path: None,
@@ -828,16 +838,912 @@ pub fn start_skill_install_session(
     Ok(session)
 }
 
+// ── Shared ACP helpers ──
+
+/// Common configuration for spawning an ACP session.
+/// Holds everything needed to start the ACP client thread — agent validation,
+/// MCP registration, and client lifecycle are all handled by `spawn_acp_session()`.
+struct AcpSessionSetup {
+    session_id: String,
+    project_id: String,
+    cwd: PathBuf,
+    agent_name: String,
+    model: Option<String>,
+    mode: SessionMode,
+    task_id: Option<String>,
+    name: Option<String>,
+    worktree_path: Option<String>,
+    prompt_content: String,
+    is_trust_mode: bool,
+}
+
+/// Validate that an agent supports ACP and return the launch spec.
+fn validate_acp_agent(adapter: &dyn agent::AgentAdapter, agent_name: &str) -> Result<(String, Vec<String>), AppError> {
+    if !adapter.supports_acp() {
+        return Err(AppError::Validation(format!(
+            "Agent '{}' does not support ACP transport",
+            agent_name
+        )));
+    }
+
+    let (acp_command, acp_args) = adapter.acp_launch_spec()
+        .ok_or_else(|| AppError::Validation(format!(
+            "Agent '{}' supports ACP but has no launch spec",
+            agent_name
+        )))?;
+
+    if !adapter.detect_acp_adapter() {
+        return Err(AppError::Validation(format!(
+            "Agent '{agent_name}' requires the ACP adapter '{acp_command}' which is not installed. \
+             Install it via: npm install -g @zed-industries/{acp_command}"
+        )));
+    }
+
+    Ok((acp_command, acp_args))
+}
+
+/// Register an MCP session for ACP (no config file writing, just session data + instruction file).
+/// Returns the MCP connection info if the MCP server is running.
+fn register_acp_mcp_session(
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    mcp_port: u16,
+    session_id: &str,
+    cwd: &Path,
+    agent_name: &str,
+    project_id: Option<&str>,
+    task_id: Option<&str>,
+) -> Option<McpConnection> {
+    if mcp_port == 0 {
+        return None;
+    }
+
+    // Write instruction file for agent context (not MCP config)
+    if let Some(filename) = agent_instruction_filename(agent_name) {
+        write_instruction_file(cwd, filename);
+    }
+
+    let mut guard = mcp_state.blocking_lock();
+    guard.sessions.insert(session_id.to_string(), McpSessionData {
+        project_id: project_id.map(String::from),
+        task_id: task_id.map(String::from),
+        ..Default::default()
+    });
+    let secret = guard.secret.clone();
+    let url = mcp::server::build_session_mcp_url(mcp_port, session_id);
+    Some(McpConnection { url, secret })
+}
+
+/// Spawn an ACP session: creates DB record, starts ACP client thread, returns Session.
+///
+/// This is the shared core for all ACP session types (task, vibe, research).
+/// The caller is responsible for task-specific logic (worktree, task status updates).
+fn spawn_acp_session(
+    conn: &Connection,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: &AcpState,
+    setup: AcpSessionSetup,
+    acp_command: String,
+    acp_args: Vec<String>,
+    mcp_conn: Option<McpConnection>,
+) -> Result<Session, AppError> {
+    // Build MCP servers for ACP passthrough
+    let mcp_servers = if let Some(ref conn_info) = mcp_conn {
+        build_acp_mcp_servers(&conn_info.url, &conn_info.secret)
+    } else {
+        vec![]
+    };
+
+    // Create session record with ACP transport
+    let new_session = NewSession {
+        project_id: setup.project_id.clone(),
+        task_id: setup.task_id.clone(),
+        name: setup.name,
+        mode: setup.mode,
+        transport: SessionTransport::Acp,
+        agent: setup.agent_name.clone(),
+        model: setup.model,
+        worktree_path: setup.worktree_path,
+    };
+    let session = db::sessions::create_with_id(conn, &setup.session_id, &new_session)?;
+
+    if mcp_conn.is_some() {
+        let _ = db::sessions::update_mcp_connected(conn, &session.id, true);
+    }
+
+    // Build env from MCP connection
+    let mut env: HashMap<String, String> = HashMap::new();
+    if let Some(conn_info) = &mcp_conn {
+        env.insert("FABER_MCP_URL".to_string(), conn_info.url.clone());
+        env.insert("FABER_MCP_SECRET".to_string(), conn_info.secret.clone());
+    }
+
+    let pending_permissions = handler::new_pending_permissions();
+
+    // Register the pending_permissions in the global registry so that
+    // `respond_permission` can find them even when the AcpSessionState is
+    // temporarily removed from AcpState during prompt() calls.
+    {
+        let registry: tauri::State<'_, crate::acp::state::PendingPermissionsRegistry> = app.state();
+        let mut reg = registry.blocking_lock();
+        reg.insert(setup.session_id.clone(), pending_permissions.clone());
+    }
+
+    let spawn_config = AcpSpawnConfig {
+        command: acp_command,
+        args: acp_args,
+        cwd: setup.cwd.clone(),
+        env,
+        session_id: setup.session_id.clone(),
+        project_id: setup.project_id.clone(),
+        is_trust_mode: setup.is_trust_mode,
+        pending_permissions: pending_permissions.clone(),
+    };
+
+    // Spawn ACP client in a dedicated thread with LocalSet (ACP uses !Send futures)
+    let session_id_clone = setup.session_id.clone();
+    let acp_state_clone = acp_state.clone();
+    let app_for_task = app.clone();
+    let _mcp_state_for_task = mcp_state.clone();
+    let prompt_content = setup.prompt_content;
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to build tokio runtime for ACP session");
+
+        let local = tokio::task::LocalSet::new();
+        local.block_on(&rt, async move {
+            macro_rules! with_db {
+                ($session_id:expr, $status:expr) => {
+                    let db_state = app_for_task.state::<crate::db::DbState>();
+                    if let Ok(conn) = db_state.lock() {
+                        let _ = db::sessions::update_status(&conn, $session_id, $status);
+                    }
+                };
+            }
+
+            macro_rules! emit_session_stopped {
+                ($sid:expr) => {
+                    let db_state = app_for_task.state::<crate::db::DbState>();
+                    if let Ok(conn) = db_state.lock() {
+                        if let Ok(Some(session)) = db::sessions::get(&conn, $sid) {
+                            let _ = app_for_task.emit("session-stopped", &session);
+                            let _ = app_for_task.emit(
+                                "session-status-changed",
+                                &SessionStatusChanged {
+                                    session_id: $sid.to_string(),
+                                    old_status: SessionStatus::Running,
+                                    new_status: session.status,
+                                },
+                            );
+                        }
+                    }
+                };
+            }
+
+            macro_rules! emit_session_status_changed {
+                ($sid:expr, $old:expr, $new:expr) => {
+                    let _ = app_for_task.emit(
+                        "session-status-changed",
+                        &SessionStatusChanged {
+                            session_id: $sid.to_string(),
+                            old_status: $old,
+                            new_status: $new,
+                        },
+                    );
+                };
+            }
+
+            tracing::info!(session_id = %session_id_clone, "ACP session thread started — spawning client");
+
+            // Spawn the ACP client
+            let mut client = match AcpClient::spawn(spawn_config, app_for_task.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!(session_id = %session_id_clone, error = %e, "Failed to spawn ACP client");
+                    let _ = app_for_task.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                        session_id: session_id_clone.clone(),
+                        error: e.to_string(),
+                    });
+                    with_db!(&session_id_clone, SessionStatus::Error);
+                    emit_session_stopped!(&session_id_clone);
+                    return;
+                }
+            };
+
+            // Initialize handshake
+            if let Err(e) = client.initialize().await {
+                tracing::error!(session_id = %session_id_clone, error = %e, "ACP initialization failed");
+                let _ = app_for_task.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                    session_id: session_id_clone.clone(),
+                    error: e.to_string(),
+                });
+                client.shutdown().await;
+                with_db!(&session_id_clone, SessionStatus::Error);
+                emit_session_stopped!(&session_id_clone);
+                return;
+            }
+
+            // Create ACP session with MCP servers
+            let acp_session = match client.new_session(&setup.cwd, mcp_servers).await {
+                Ok(s) => s,
+                Err(e) => {
+                    tracing::error!(session_id = %session_id_clone, error = %e, "ACP session creation failed");
+                    let _ = app_for_task.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                        session_id: session_id_clone.clone(),
+                        error: e.to_string(),
+                    });
+                    client.shutdown().await;
+                    with_db!(&session_id_clone, SessionStatus::Error);
+                    emit_session_stopped!(&session_id_clone);
+                    return;
+                }
+            };
+
+            let acp_session_id = acp_session.session_id.clone();
+
+            // Emit initial config_options from the NewSessionResponse (if present).
+            // This is how agents like Claude Code advertise available models/modes
+            // at session creation time, before any ConfigOptionUpdate push events.
+            if let Some(ref config_opts) = acp_session.config_options {
+                let converted: Vec<_> = config_opts
+                    .iter()
+                    .map(|opt| handler::convert_config_option_public(opt))
+                    .collect();
+                if !converted.is_empty() {
+                    tracing::info!(
+                        session_id = %session_id_clone,
+                        option_count = converted.len(),
+                        "ACP ← initial config_options from NewSessionResponse"
+                    );
+                    let _ = app_for_task.emit(
+                        EVENT_ACP_CONFIG_OPTION_UPDATE,
+                        AcpConfigOptionUpdatePayload {
+                            session_id: session_id_clone.clone(),
+                            config_options: converted,
+                        },
+                    );
+                }
+            }
+
+            // Store client in ACP state
+            tracing::info!(
+                session_id = %session_id_clone,
+                acp_session_id = %acp_session_id,
+                "ACP client initialized and session created — storing state"
+            );
+            let shutdown_signal = Arc::new(tokio::sync::Notify::new());
+            let shutdown_signal_clone = shutdown_signal.clone();
+            {
+                let mut state = acp_state_clone.lock().await;
+                state.insert(session_id_clone.clone(), AcpSessionState {
+                    client,
+                    acp_session_id: Some(acp_session_id.clone()),
+                    pending_permissions: pending_permissions.clone(),
+                    shutdown_signal,
+                });
+            }
+
+            // Update session status to Running and notify frontend
+            with_db!(&session_id_clone, SessionStatus::Running);
+            emit_session_status_changed!(&session_id_clone, SessionStatus::Starting, SessionStatus::Running);
+
+            // Send the initial prompt (skip if empty — e.g. chat/vibe sessions waiting for user input)
+            if prompt_content.is_empty() {
+                tracing::info!(
+                    session_id = %session_id_clone,
+                    "ACP session ready — no initial prompt, waiting for user input"
+                );
+                // IMPORTANT: We must NOT return here. The ACP I/O driver task and any
+                // spawn_local tasks are tied to this thread's LocalSet. If we return,
+                // the LocalSet drops and all local tasks are aborted, killing the
+                // connection. Instead, wait on the shutdown signal which is notified
+                // by shutdown_acp_client when the session should end.
+                shutdown_signal_clone.notified().await;
+                tracing::info!(session_id = %session_id_clone, "ACP keepalive received shutdown signal — exiting");
+                return;
+            }
+
+            tracing::info!(
+                session_id = %session_id_clone,
+                prompt_len = prompt_content.len(),
+                prompt_preview = %if prompt_content.len() > 200 {
+                    format!("{}…", &prompt_content[..200])
+                } else {
+                    prompt_content.clone()
+                }.replace('\n', "\\n"),
+                "ACP sending initial prompt"
+            );
+            let content = vec![acp::ContentBlock::Text(acp::TextContent::new(&prompt_content))];
+
+            // IMPORTANT: We must NOT hold the ACP state mutex during the prompt() call.
+            // See start_acp_task_session comment for full explanation.
+            let prompt_result = {
+                let mut session_state = {
+                    let mut state = acp_state_clone.lock().await;
+                    state.remove(&session_id_clone)
+                };
+                if let Some(ref mut ss) = session_state {
+                    let result = ss.client.prompt(acp_session_id.clone(), content).await;
+                    {
+                        let mut state = acp_state_clone.lock().await;
+                        state.insert(session_id_clone.clone(), session_state.take().unwrap());
+                    }
+                    Some(result)
+                } else {
+                    None
+                }
+            };
+
+            match prompt_result {
+                Some(Ok(response)) => {
+                    let stop_reason = format!("{:?}", response.stop_reason);
+                    tracing::info!(
+                        session_id = %session_id_clone,
+                        stop_reason = %stop_reason,
+                        "ACP initial prompt completed — session stays open for follow-up"
+                    );
+                    let _ = app_for_task.emit(EVENT_ACP_PROMPT_COMPLETE, AcpPromptCompletePayload {
+                        session_id: session_id_clone.clone(),
+                        stop_reason,
+                    });
+                    // Do NOT mark session as Finished here — the session stays open
+                    // for follow-up prompts (just like send_acp_message does).
+                    // Wait on shutdown signal so the spawn thread's LocalSet stays
+                    // alive, keeping the ACP I/O driver and connection active.
+                    shutdown_signal_clone.notified().await;
+                    tracing::info!(session_id = %session_id_clone, "ACP session received shutdown signal after initial prompt");
+                }
+                Some(Err(e)) => {
+                    tracing::error!(session_id = %session_id_clone, error = %e, "ACP prompt failed");
+                    let _ = app_for_task.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                        session_id: session_id_clone.clone(),
+                        error: e.to_string(),
+                    });
+                    with_db!(&session_id_clone, SessionStatus::Error);
+                    emit_session_stopped!(&session_id_clone);
+                }
+                None => {
+                    tracing::error!(session_id = %session_id_clone, "ACP session state disappeared during prompt");
+                    with_db!(&session_id_clone, SessionStatus::Error);
+                    emit_session_stopped!(&session_id_clone);
+                }
+            }
+
+            tracing::info!(session_id = %session_id_clone, "ACP session thread exiting");
+        });
+    });
+
+    // Return the session record
+    let session = db::sessions::get(conn, &session.id)?
+        .ok_or_else(|| AppError::Database("Session disappeared after creation".into()))?;
+    let _ = app.emit("session-started", &session);
+
+    Ok(session)
+}
+
+// ── ACP task session ──
+
+/// Build MCP server configuration for ACP passthrough.
+///
+/// Instead of writing `.mcp.json` config files (PTY approach), ACP sessions
+/// pass MCP server config via the `session/new` `mcp_servers` parameter.
+/// This uses the Stdio transport with the faber-mcp sidecar binary.
+fn build_acp_mcp_servers(mcp_url: &str, mcp_secret: &str) -> Vec<acp::McpServer> {
+    let Some(sidecar_path) = mcp::server::resolve_sidecar_path() else {
+        tracing::warn!("MCP sidecar not found, ACP session will have no MCP tools");
+        return vec![];
+    };
+
+    let mcp_server = acp::McpServerStdio::new("faber", sidecar_path)
+        .env(vec![
+            acp::EnvVariable::new("FABER_MCP_URL", mcp_url),
+            acp::EnvVariable::new("FABER_MCP_SECRET", mcp_secret),
+        ]);
+
+    vec![acp::McpServer::Stdio(mcp_server)]
+}
+
+/// Options for starting an ACP task session.
+pub struct AcpTaskSessionOpts<'a> {
+    pub task_id: &'a str,
+    pub agent_name: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub create_worktree: bool,
+    pub base_branch: Option<&'a str>,
+    pub user_prompt: Option<&'a str>,
+    /// Whether this session runs in trust mode (autonomous permission handling).
+    /// When true, the ACP permission policy engine uses the trust mode policy
+    /// (auto_approve / deny_writes) instead of normal rule evaluation.
+    /// Typically enabled for continuous mode auto-launch queues.
+    pub is_trust_mode: bool,
+}
+
+/// Start a task session using ACP (Agent Client Protocol) transport.
+///
+/// This mirrors `start_task_session()` but uses structured JSON-RPC over stdio
+/// instead of PTY + MCP config files. MCP servers are passed via ACP's
+/// `session/new` `mcpServers` parameter for seamless integration.
+#[allow(clippy::too_many_arguments)]
+pub fn start_acp_task_session(
+    conn: &Connection,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: &AcpState,
+    mcp_port: u16,
+    project_id: &str,
+    opts: &AcpTaskSessionOpts<'_>,
+) -> Result<Session, AppError> {
+    // 1. Fetch project
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+
+    // 2. Fetch task
+    let task = db::tasks::get(conn, opts.task_id, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Task {}", opts.task_id)))?;
+
+    // Read task file content if available
+    let task_file_content = task
+        .task_file_path
+        .as_ref()
+        .and_then(|p| {
+            let path = Path::new(p);
+            if path.is_file() {
+                std::fs::read_to_string(path).ok()
+            } else {
+                None
+            }
+        });
+
+    // Parse frontmatter for agent/model/branch hints
+    let parsed = task_file_content.as_ref().and_then(|content| {
+        task.task_file_path
+            .as_ref()
+            .and_then(|p| tasks::parse_task_file(content, Path::new(p)).ok())
+    });
+
+    // 3. Resolve agent
+    let agent_name = opts.agent_name
+        .or(task.agent.as_deref())
+        .or(project.default_agent.as_deref())
+        .unwrap_or("claude-code");
+
+    let adapter = agent::get_adapter(agent_name)
+        .ok_or_else(|| AppError::NotFound(format!("Agent adapter: {agent_name}")))?;
+
+    // Validate agent supports ACP
+    let (acp_command, acp_args) = validate_acp_agent(adapter.as_ref(), agent_name)?;
+
+    // 4. Resolve agent config cascade
+    let agent_config = db::agent_configs::resolve(conn, Some(opts.task_id), project_id, agent_name)?;
+
+    // 5. Determine model
+    let model = opts.model
+        .map(String::from)
+        .or_else(|| agent_config.as_ref().and_then(|c| c.model.clone()))
+        .or_else(|| task.model.clone())
+        .or_else(|| project.default_model.clone());
+
+    // 6. Optionally create worktree
+    let (worktree_path, _branch_name) = if opts.create_worktree {
+        let branch = if let Some(branch) = task.branch.as_deref().or(
+            parsed.as_ref().and_then(|p| p.frontmatter.branch.as_deref()),
+        ) {
+            branch.to_string()
+        } else {
+            let pattern = project
+                .branch_naming_pattern
+                .as_deref()
+                .unwrap_or(DEFAULT_BRANCH_PATTERN);
+            let slug = tasks::slugify(&task.title);
+            git::resolve_branch_name(
+                pattern,
+                &BranchNameVars {
+                    task_id: Some(opts.task_id),
+                    task_slug: Some(&slug),
+                },
+            )
+        };
+
+        let repo_path = Path::new(&project.path);
+        let worktree = git::create_worktree(repo_path, &branch, opts.base_branch, None)?;
+        let _ = db::tasks::update_worktree(conn, opts.task_id, project_id, Some(&worktree.path));
+        (Some(worktree.path), branch)
+    } else {
+        (None, String::new())
+    };
+
+    let cwd = worktree_path.as_deref().unwrap_or(&project.path);
+
+    // 7. Pre-generate session ID for MCP URL
+    let session_id = db::generate_id("sess");
+
+    // 8. Register MCP session data (no config file writing for ACP)
+    let mcp_conn = register_acp_mcp_session(
+        mcp_state, mcp_port, &session_id, Path::new(cwd),
+        agent_name, Some(project_id), Some(opts.task_id),
+    );
+
+    // 9. Validate task file exists
+    let task_file_path_str = task.task_file_path.as_deref()
+        .ok_or_else(|| AppError::Validation(format!("Task {} has no task file path", opts.task_id)))?;
+    if !Path::new(task_file_path_str).is_file() {
+        return Err(AppError::Validation(format!(
+            "Task file does not exist: {task_file_path_str}"
+        )));
+    }
+
+    // 10. Generate user prompt
+    let worktree_hint = worktree_path.as_deref().map(|wt| {
+        format!(
+            "You are working in worktree {wt}, read the task by using the provided MCP tools \
+             and work on the task within the assigned worktree."
+        )
+    }).unwrap_or_default();
+
+    let user_prompt_str = if opts.user_prompt.is_none_or(|s| s.trim().is_empty()) {
+        let template = crate::commands::prompts::get_session_prompt(conn, "task");
+        let mut vars = HashMap::new();
+        vars.insert("task_id", opts.task_id);
+        vars.insert("worktree_hint", worktree_hint.as_str());
+        interpolate_vars(&template.prompt, &vars)
+    } else {
+        let trimmed = opts.user_prompt.unwrap().trim().to_string();
+        if worktree_hint.is_empty() { trimmed } else { format!("{trimmed} {worktree_hint}") }
+    };
+
+    // 11. Spawn ACP session using shared helper
+    let setup = AcpSessionSetup {
+        session_id,
+        project_id: project_id.to_string(),
+        cwd: PathBuf::from(cwd),
+        agent_name: agent_name.to_string(),
+        model,
+        mode: SessionMode::Task,
+        task_id: Some(opts.task_id.to_string()),
+        name: Some(task.id.clone()),
+        worktree_path: worktree_path.clone(),
+        prompt_content: user_prompt_str,
+        is_trust_mode: opts.is_trust_mode,
+    };
+    let session = spawn_acp_session(conn, app, mcp_state, acp_state, setup, acp_command, acp_args, mcp_conn)?;
+
+    // 12. Update task status to in-progress
+    let (github_sync_ctx, todos_update) = match do_update_task_status(conn, project_id, opts.task_id, "in-progress") {
+        Ok((task, sync_ctx, todos)) => {
+            let _ = app.emit("task-updated", &task);
+            (sync_ctx, todos)
+        }
+        Err(e) => { tracing::error!(%e, task_id = opts.task_id, "Failed to mark task as in-progress"); (None, None) }
+    };
+    if let Some(t) = todos_update { t.write(); }
+
+    if let Some(ctx) = github_sync_ctx {
+        crate::commands::tasks::execute_github_sync(ctx);
+    }
+
+    Ok(session)
+}
+
+// ── ACP vibe session ──
+
+/// Options for starting an ACP vibe session.
+pub struct AcpVibeSessionOpts<'a> {
+    pub agent_name: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub create_worktree: bool,
+    pub base_branch: Option<&'a str>,
+    pub user_prompt: Option<&'a str>,
+}
+
+/// Start a vibe session using ACP transport.
+///
+/// Like `start_vibe_session()` but uses structured chat UI instead of PTY terminal.
+#[allow(clippy::too_many_arguments)]
+pub fn start_acp_vibe_session(
+    conn: &Connection,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: &AcpState,
+    mcp_port: u16,
+    project_id: &str,
+    opts: &AcpVibeSessionOpts<'_>,
+) -> Result<Session, AppError> {
+    // 1. Fetch project
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+
+    // 2. Resolve agent
+    let agent_name = opts
+        .agent_name
+        .or(project.default_agent.as_deref())
+        .unwrap_or("claude-code");
+
+    let adapter = agent::get_adapter(agent_name)
+        .ok_or_else(|| AppError::NotFound(format!("Agent adapter: {agent_name}")))?;
+
+    // Validate agent supports ACP
+    let (acp_command, acp_args) = validate_acp_agent(adapter.as_ref(), agent_name)?;
+
+    // 3. Resolve agent config
+    let agent_config = db::agent_configs::resolve(conn, None, project_id, agent_name)?;
+
+    // 4. Determine model
+    let model = opts
+        .model
+        .map(String::from)
+        .or_else(|| agent_config.as_ref().and_then(|c| c.model.clone()))
+        .or_else(|| project.default_model.clone());
+
+    // 5. Optionally create worktree
+    let repo_path = Path::new(&project.path);
+    let worktree_path = if opts.create_worktree {
+        let branch_name = git::resolve_branch_name(
+            "vibe/{{timestamp}}",
+            &BranchNameVars {
+                task_id: None,
+                task_slug: None,
+            },
+        );
+        let worktree = git::create_worktree(repo_path, &branch_name, opts.base_branch, None)?;
+        Some(worktree.path)
+    } else {
+        None
+    };
+
+    let cwd = worktree_path.as_deref().unwrap_or(&project.path);
+
+    // 6. Pre-generate session ID for MCP URL
+    let session_id = db::generate_id("sess");
+
+    // 7. Register MCP session data
+    let mcp_conn = register_acp_mcp_session(
+        mcp_state, mcp_port, &session_id, Path::new(cwd),
+        agent_name, Some(project_id), None,
+    );
+
+    // 8. User prompt (pass through as-is for vibe sessions).
+    // If no prompt is provided, prompt_content is empty — spawn_acp_session
+    // will skip the initial prompt and wait for user input via ChatInput.
+    let prompt_content = opts.user_prompt
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    // 9. Spawn ACP session
+    let setup = AcpSessionSetup {
+        session_id,
+        project_id: project_id.to_string(),
+        cwd: PathBuf::from(cwd),
+        agent_name: agent_name.to_string(),
+        model,
+        mode: SessionMode::Vibe,
+        task_id: None,
+        name: None,
+        worktree_path: worktree_path.clone(),
+        prompt_content,
+        is_trust_mode: false,
+    };
+
+    spawn_acp_session(conn, app, mcp_state, acp_state, setup, acp_command, acp_args, mcp_conn)
+}
+
+// ── ACP chat session (project-scoped) ──
+
+/// Options for starting a project-scoped ACP chat session.
+pub struct AcpChatSessionOpts<'a> {
+    pub agent_name: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub user_prompt: Option<&'a str>,
+}
+
+/// Start a project-scoped chat session using ACP transport.
+///
+/// Unlike vibe sessions, chat sessions always run in the project root (no worktree),
+/// and are intended for general project discussions rather than coding tasks.
+#[allow(clippy::too_many_arguments)]
+pub fn start_acp_chat_session(
+    conn: &Connection,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: &AcpState,
+    mcp_port: u16,
+    project_id: &str,
+    opts: &AcpChatSessionOpts<'_>,
+) -> Result<Session, AppError> {
+    tracing::info!(project_id = %project_id, agent = ?opts.agent_name, "Starting project chat session");
+
+    // 1. Fetch project
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+    tracing::debug!(project_name = %project.name, project_path = %project.path, "Fetched project for chat");
+
+    // 2. Resolve agent
+    let agent_name = opts
+        .agent_name
+        .or(project.default_agent.as_deref())
+        .unwrap_or("claude-code");
+    tracing::debug!(agent_name = %agent_name, "Resolved agent for chat session");
+
+    let adapter = agent::get_adapter(agent_name)
+        .ok_or_else(|| {
+            tracing::error!(agent_name = %agent_name, "Agent adapter not found");
+            AppError::NotFound(format!("Agent adapter: {agent_name}"))
+        })?;
+
+    // Validate agent supports ACP
+    let (acp_command, acp_args) = validate_acp_agent(adapter.as_ref(), agent_name)
+        .map_err(|e| {
+            tracing::error!(agent_name = %agent_name, error = %e, "ACP validation failed for chat session");
+            e
+        })?;
+    tracing::debug!(acp_command = %acp_command, acp_args = ?acp_args, "ACP agent validated");
+
+    // 3. Resolve agent config
+    let agent_config = db::agent_configs::resolve(conn, None, project_id, agent_name)?;
+
+    // 4. Determine model
+    let model = opts
+        .model
+        .map(String::from)
+        .or_else(|| agent_config.as_ref().and_then(|c| c.model.clone()))
+        .or_else(|| project.default_model.clone());
+    tracing::debug!(model = ?model, "Resolved model for chat session");
+
+    // 5. Always run in project root — no worktree for chat sessions
+    let cwd = &project.path;
+
+    // 6. Pre-generate session ID for MCP URL
+    let session_id = db::generate_id("sess");
+    tracing::debug!(session_id = %session_id, cwd = %cwd, "Pre-generated session ID for chat");
+
+    // 7. Register MCP session data
+    let mcp_conn = register_acp_mcp_session(
+        mcp_state, mcp_port, &session_id, Path::new(cwd),
+        agent_name, Some(project_id), None,
+    );
+    tracing::debug!(mcp_port = mcp_port, has_mcp = mcp_conn.is_some(), "MCP session registered for chat");
+
+    // 8. User prompt (pass through; empty = wait for user input via ChatInput)
+    let prompt_content = opts.user_prompt
+        .filter(|s| !s.trim().is_empty())
+        .map(|s| s.to_string())
+        .unwrap_or_default();
+
+    // 9. Spawn ACP session
+    tracing::info!(
+        session_id = %session_id,
+        agent = %agent_name,
+        model = ?model,
+        cwd = %cwd,
+        "Spawning ACP chat session"
+    );
+    let setup = AcpSessionSetup {
+        session_id,
+        project_id: project_id.to_string(),
+        cwd: PathBuf::from(cwd),
+        agent_name: agent_name.to_string(),
+        model,
+        mode: SessionMode::Chat,
+        task_id: None,
+        name: Some(format!("{} chat", project.name)),
+        worktree_path: None,
+        prompt_content,
+        is_trust_mode: false,
+    };
+
+    spawn_acp_session(conn, app, mcp_state, acp_state, setup, acp_command, acp_args, mcp_conn)
+}
+
+// ── ACP research session ──
+
+/// Options for starting an ACP research session.
+pub struct AcpResearchSessionOpts<'a> {
+    pub task_id: &'a str,
+    pub agent_name: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub user_prompt: Option<&'a str>,
+}
+
+/// Start a research session using ACP transport.
+///
+/// Like `start_research_session()` but uses structured chat UI instead of PTY terminal.
+/// Research sessions always run in the project root (no worktree creation).
+#[allow(clippy::too_many_arguments)]
+pub fn start_acp_research_session(
+    conn: &Connection,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: &AcpState,
+    mcp_port: u16,
+    project_id: &str,
+    opts: &AcpResearchSessionOpts<'_>,
+) -> Result<Session, AppError> {
+    // 1. Fetch project
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+
+    // 2. Fetch task
+    let task = db::tasks::get(conn, opts.task_id, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Task {}", opts.task_id)))?;
+
+    // 3. Resolve agent
+    let agent_name = opts
+        .agent_name
+        .or(task.agent.as_deref())
+        .or(project.default_agent.as_deref())
+        .unwrap_or("claude-code");
+
+    let adapter = agent::get_adapter(agent_name)
+        .ok_or_else(|| AppError::NotFound(format!("Agent adapter: {agent_name}")))?;
+
+    // Validate agent supports ACP
+    let (acp_command, acp_args) = validate_acp_agent(adapter.as_ref(), agent_name)?;
+
+    // 4. Resolve agent config
+    let agent_config = db::agent_configs::resolve(conn, Some(opts.task_id), project_id, agent_name)?;
+
+    // 5. Determine model
+    let model = opts
+        .model
+        .map(String::from)
+        .or_else(|| agent_config.as_ref().and_then(|c| c.model.clone()))
+        .or_else(|| task.model.clone())
+        .or_else(|| project.default_model.clone());
+
+    // 6. Always run in project root — no worktree creation
+    let cwd = &project.path;
+
+    // 7. Pre-generate session ID for MCP URL
+    let session_id = db::generate_id("sess");
+
+    // 8. Register MCP session data
+    let mcp_conn = register_acp_mcp_session(
+        mcp_state, mcp_port, &session_id, Path::new(cwd),
+        agent_name, Some(project_id), Some(opts.task_id),
+    );
+
+    // 9. Generate user prompt from template (research-focused)
+    let prompt_content = if opts.user_prompt.is_none_or(|s| s.trim().is_empty()) {
+        let template = crate::commands::prompts::get_session_prompt(conn, "research");
+        let mut vars = HashMap::new();
+        vars.insert("task_id", opts.task_id);
+        interpolate_vars(&template.prompt, &vars)
+    } else {
+        opts.user_prompt.unwrap().to_string()
+    };
+
+    // 10. Spawn ACP session — NOTE: no task status change for research mode
+    let setup = AcpSessionSetup {
+        session_id,
+        project_id: project_id.to_string(),
+        cwd: PathBuf::from(cwd),
+        agent_name: agent_name.to_string(),
+        model,
+        mode: SessionMode::Research,
+        task_id: Some(opts.task_id.to_string()),
+        name: Some(task.id.clone()),
+        worktree_path: None,
+        prompt_content,
+        is_trust_mode: false,
+    };
+
+    spawn_acp_session(conn, app, mcp_state, acp_state, setup, acp_command, acp_args, mcp_conn)
+}
+
 // ── Relaunch session ──
 
 /// Relaunch a stopped/finished/error session with the same configuration.
-/// Creates a new session record and PTY. For task sessions, reuses the
-/// existing worktree instead of creating a new one.
+/// Creates a new session record and PTY (or ACP client). For task sessions,
+/// reuses the existing worktree instead of creating a new one.
+#[allow(clippy::too_many_arguments)]
 pub fn relaunch_session(
     conn: &Connection,
     pty_state: &PtyState,
     app: &AppHandle,
     mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: Option<&AcpState>,
     mcp_port: u16,
     session_id: &str,
 ) -> Result<Session, AppError> {
@@ -924,12 +1830,13 @@ pub fn relaunch_session(
             };
             let spec = adapter.build_launch_spec(&launch_config);
 
-            // Create session record (preserve original mode: task or plan)
+            // Create session record (preserve original mode and transport)
             let new_session = NewSession {
                 project_id: old.project_id.clone(),
                 task_id: Some(task_id.to_string()),
                 name: old.name.clone().or_else(|| Some(task.id.clone())),
                 mode: old.mode,
+                transport: old.transport,
                 agent: agent_name.to_string(),
                 model,
                 worktree_path: Some(cwd.to_string()),
@@ -962,14 +1869,28 @@ pub fn relaunch_session(
         }
 
         SessionMode::Vibe => {
-            let opts = VibeSessionOpts {
-                agent_name: Some(&old.agent),
-                model: old.model.as_deref(),
-                create_worktree: false,
-                base_branch: None,
-                user_prompt: None,
+            let new_session = if old.transport == SessionTransport::Acp {
+                let acp = acp_state.ok_or_else(|| AppError::Validation(
+                    "ACP state required for relaunching ACP vibe session".into(),
+                ))?;
+                let opts = AcpVibeSessionOpts {
+                    agent_name: Some(&old.agent),
+                    model: old.model.as_deref(),
+                    create_worktree: false,
+                    base_branch: None,
+                    user_prompt: None,
+                };
+                start_acp_vibe_session(conn, app, mcp_state, acp, mcp_port, &old.project_id, &opts)?
+            } else {
+                let opts = VibeSessionOpts {
+                    agent_name: Some(&old.agent),
+                    model: old.model.as_deref(),
+                    create_worktree: false,
+                    base_branch: None,
+                    user_prompt: None,
+                };
+                start_vibe_session(conn, pty_state, app, mcp_state, mcp_port, &old.project_id, &opts)?
             };
-            let new_session = start_vibe_session(conn, pty_state, app, mcp_state, mcp_port, &old.project_id, &opts)?;
             let _ = db::sessions::delete(conn, session_id);
             Ok(new_session)
         }
@@ -983,17 +1904,87 @@ pub fn relaunch_session(
         SessionMode::Research => {
             let task_id = old.task_id.as_deref()
                 .ok_or_else(|| AppError::Validation("Research session has no task_id".into()))?;
-            let opts = ResearchSessionOpts {
-                task_id,
+            let new_session = if old.transport == SessionTransport::Acp {
+                let acp = acp_state.ok_or_else(|| AppError::Validation(
+                    "ACP state required for relaunching ACP research session".into(),
+                ))?;
+                let opts = AcpResearchSessionOpts {
+                    task_id,
+                    agent_name: Some(&old.agent),
+                    model: old.model.as_deref(),
+                    user_prompt: None,
+                };
+                start_acp_research_session(conn, app, mcp_state, acp, mcp_port, &old.project_id, &opts)?
+            } else {
+                let opts = ResearchSessionOpts {
+                    task_id,
+                    agent_name: Some(&old.agent),
+                    model: old.model.as_deref(),
+                    user_prompt: None,
+                };
+                start_research_session(conn, pty_state, app, mcp_state, mcp_port, &old.project_id, &opts)?
+            };
+            let _ = db::sessions::delete(conn, session_id);
+            Ok(new_session)
+        }
+
+        SessionMode::Chat => {
+            let acp = acp_state.ok_or_else(|| AppError::Validation(
+                "ACP state required for relaunching chat session".into(),
+            ))?;
+            let opts = AcpChatSessionOpts {
                 agent_name: Some(&old.agent),
                 model: old.model.as_deref(),
                 user_prompt: None,
             };
-            let new_session = start_research_session(conn, pty_state, app, mcp_state, mcp_port, &old.project_id, &opts)?;
+            let new_session = start_acp_chat_session(conn, app, mcp_state, acp, mcp_port, &old.project_id, &opts)?;
             let _ = db::sessions::delete(conn, session_id);
             Ok(new_session)
         }
     }
+}
+
+// ── ACP shutdown helper ──
+
+/// Shutdown an ACP session synchronously (for use from sync contexts).
+/// Spawns a blocking task to cleanly shut down the ACP client.
+///
+/// If `app` is provided, also removes the session from the
+/// `PendingPermissionsRegistry` so stale entries don't accumulate.
+pub fn shutdown_acp_client(acp_state: &AcpState, session_id: &str, app: Option<&AppHandle>) {
+    // Clean up the pending permissions registry (synchronous, quick)
+    if let Some(app) = app {
+        let registry: tauri::State<'_, crate::acp::state::PendingPermissionsRegistry> = app.state();
+        let mut reg = registry.blocking_lock();
+        reg.remove(session_id);
+    }
+
+    let acp_state = acp_state.clone();
+    let session_id = session_id.to_string();
+
+    // Use a blocking task to shut down the ACP client
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to build tokio runtime for ACP shutdown");
+
+        rt.block_on(async move {
+            let mut state = acp_state.lock().await;
+            if let Some(mut session_state) = state.remove(&session_id) {
+                // Signal the keepalive thread (for sessions without an initial prompt)
+                // to exit so its LocalSet drops cleanly.
+                session_state.shutdown_signal.notify_one();
+
+                // Cancel any in-progress prompt
+                if let Some(ref acp_sid) = session_state.acp_session_id {
+                    let _ = session_state.client.cancel(acp_sid.clone()).await;
+                }
+                session_state.client.shutdown().await;
+                tracing::info!(session_id = %session_id, "ACP session shut down");
+            }
+        });
+    });
 }
 
 // ── Stop session ──
@@ -1003,6 +1994,7 @@ pub fn stop_session(
     pty_state: &PtyState,
     app: &AppHandle,
     mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: Option<&AcpState>,
     session_id: &str,
 ) -> Result<Session, AppError> {
     // 1. Get session, validate exists and is active
@@ -1019,8 +2011,17 @@ pub fn stop_session(
         }
     }
 
-    // 2. Kill PTY
-    pty::kill(pty_state, session_id)?;
+    // 2. Kill PTY or shutdown ACP client depending on transport
+    match session.transport {
+        SessionTransport::Pty => {
+            pty::kill(pty_state, session_id)?;
+        }
+        SessionTransport::Acp => {
+            if let Some(acp) = acp_state {
+                shutdown_acp_client(acp, session_id, Some(app));
+            }
+        }
+    }
 
     // 3. Clean up MCP state and config files
     {
@@ -1098,6 +2099,7 @@ pub fn stop_and_remove_session(
     pty_state: &PtyState,
     app: &AppHandle,
     mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: Option<&AcpState>,
     session_id: &str,
 ) -> Result<(), AppError> {
     // 1. Get session — if already gone, that's fine
@@ -1106,12 +2108,21 @@ pub fn stop_and_remove_session(
         None => return Ok(()),
     };
 
-    // 2. Kill PTY if session is active
+    // 2. Kill PTY or shutdown ACP client if session is active
     if matches!(
         session.status,
         SessionStatus::Starting | SessionStatus::Running | SessionStatus::Paused
     ) {
-        let _ = pty::kill(pty_state, session_id);
+        match session.transport {
+            SessionTransport::Pty => {
+                let _ = pty::kill(pty_state, session_id);
+            }
+            SessionTransport::Acp => {
+                if let Some(acp) = acp_state {
+                    shutdown_acp_client(acp, session_id, Some(app));
+                }
+            }
+        }
     }
 
     // 3. Clean up MCP state and config files

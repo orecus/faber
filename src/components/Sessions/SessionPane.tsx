@@ -7,6 +7,7 @@ import { useTheme } from "../../contexts/ThemeContext";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { AgentIcon } from "../../lib/agentIcons";
 import { useAppStore } from "../../store/appStore";
+import { ChatPane } from "../Chat";
 import Terminal from "../Terminal";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles, ringColors } from "../ui/orecus.io/lib/color-utils";
@@ -64,12 +65,16 @@ export default React.memo(function SessionPane({
   const { isGlass } = useTheme();
   const accentColor = useProjectAccentColor();
   const mcpData = useAppStore((s) => s.mcpStatus[session.id]);
+  const hasPermissionRequests = useAppStore(
+    (s) => (s.acpPermissionRequests[session.id] ?? []).length > 0,
+  );
   const setSessions = useAppStore((s) => s.setSessions);
   const isEnded = !ACTIVE_STATUSES.has(session.status);
   const isMcpWaiting = mcpData?.waiting || mcpData?.status === "waiting";
   const isMcpError = mcpData?.error || mcpData?.status === "error";
   const showWaitingState = isMcpWaiting && !isEnded;
   const showErrorState = isMcpError && !isMcpWaiting && !isEnded;
+  const showPermissionState = hasPermissionRequests && !isEnded;
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
@@ -148,11 +153,13 @@ export default React.memo(function SessionPane({
       ref={setDropRef}
       onClick={handlePaneClick}
       className={`flex flex-col min-h-0 min-w-0 rounded-[var(--radius-panel)] overflow-hidden relative transition-shadow duration-200 ease-in-out ${glassStyles[isGlass ? "subtle" : "solid"]} ${
-        showErrorState
-          ? isFocused ? "ring-2 ring-destructive/50" : "ring-1 ring-destructive/50"
-          : showWaitingState
-            ? isFocused ? "ring-2 ring-warning/50" : "ring-1 ring-warning/50"
-            : isFocused ? `ring-2 ${ringColors[accentColor]}` : "ring-1 ring-border/40"
+        showPermissionState
+          ? isFocused ? "ring-2 ring-warning shadow-md shadow-warning/15" : "ring-2 ring-warning/60 shadow-sm shadow-warning/10"
+          : showErrorState
+            ? isFocused ? "ring-2 ring-destructive/50" : "ring-1 ring-destructive/50"
+            : showWaitingState
+              ? isFocused ? "ring-2 ring-warning/50" : "ring-1 ring-warning/50"
+              : isFocused ? `ring-2 ${ringColors[accentColor]}` : "ring-1 ring-border/40"
       } ${isDragging ? "opacity-30" : ""} ${
         isOver && !isDragging ? `ring-2 ${ringColors[accentColor]}` : ""
       }`}
@@ -164,11 +171,13 @@ export default React.memo(function SessionPane({
         {...listeners}
         onDoubleClick={handleHeaderDoubleClick}
         className={`group/header flex items-center gap-2 px-2 py-1 border-b select-none shrink-0 transition-colors duration-200 ${
-          showErrorState
-            ? "bg-destructive/10 border-destructive/40"
-            : showWaitingState
-              ? "bg-warning/10 border-warning/40 animate-pulse"
-              : "bg-popover border-border"
+          showPermissionState
+            ? "bg-warning/15 border-warning/50 animate-pulse"
+            : showErrorState
+              ? "bg-destructive/10 border-destructive/40"
+              : showWaitingState
+                ? "bg-warning/10 border-warning/40 animate-pulse"
+                : "bg-popover border-border"
         } ${dragDisabled ? "cursor-default" : "cursor-grab active:cursor-grabbing"}`}
       >
         {/* Agent icon */}
@@ -243,23 +252,34 @@ export default React.memo(function SessionPane({
           <span className="flex-1" />
         )}
 
+        {/* Permission badge (when ACP permission requests are pending) */}
+        {showPermissionState && (
+          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-warning/20 ring-1 ring-warning/30 text-[10px] font-bold text-warning uppercase tracking-wider shrink-0">
+            Approval needed
+          </span>
+        )}
+
         {/* Status dot + waiting/error message */}
         <span className="flex items-center gap-1.5 shrink-0 min-w-0 max-w-[40%]">
           <span
             title={
-              isMcpError
-                ? "Error reported"
-                : isMcpWaiting
-                  ? "Waiting for input"
-                  : session.status.charAt(0).toUpperCase() + session.status.slice(1)
+              showPermissionState
+                ? "Permission request pending"
+                : isMcpError
+                  ? "Error reported"
+                  : isMcpWaiting
+                    ? "Waiting for input"
+                    : session.status.charAt(0).toUpperCase() + session.status.slice(1)
             }
-            className={`w-1.5 h-1.5 rounded-full shrink-0 ${isMcpWaiting ? "animate-pulse" : ""}`}
+            className={`w-1.5 h-1.5 rounded-full shrink-0 ${isMcpWaiting || showPermissionState ? "animate-pulse" : ""}`}
             style={{
-              background: isMcpError
-                ? "var(--destructive)"
-                : isMcpWaiting
-                  ? "var(--warning)"
-                  : STATUS_COLOR[session.status] ?? "var(--muted-foreground)",
+              background: showPermissionState
+                ? "var(--warning)"
+                : isMcpError
+                  ? "var(--destructive)"
+                  : isMcpWaiting
+                    ? "var(--warning)"
+                    : STATUS_COLOR[session.status] ?? "var(--muted-foreground)",
             }}
           />
           {showErrorState && mcpData?.error_message && (
@@ -332,16 +352,22 @@ export default React.memo(function SessionPane({
         </Button>
       </div>
 
-      {/* Terminal area */}
+      {/* Content area — Terminal or Chat depending on transport */}
       <div className="group/pane flex-1 min-h-0 relative bg-white dark:bg-[#0d1117]">
-        <Terminal sessionId={session.id} />
+        {session.transport === "acp" ? (
+          <ChatPane sessionId={session.id} sessionStatus={session.status} />
+        ) : (
+          <>
+            <Terminal sessionId={session.id} />
 
-        {/* Quick Action Bar — floating at bottom center on hover */}
-        <QuickActionBar
-          sessionId={session.id}
-          sessionStatus={session.status}
-          sessionMode={session.mode}
-        />
+            {/* Quick Action Bar — floating at bottom center on hover (PTY only) */}
+            <QuickActionBar
+              sessionId={session.id}
+              sessionStatus={session.status}
+              sessionMode={session.mode}
+            />
+          </>
+        )}
 
         {/* Session Ended Overlay */}
         {isEnded && (

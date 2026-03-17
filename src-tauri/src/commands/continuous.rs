@@ -4,12 +4,14 @@ use std::sync::Arc;
 use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::acp::state::AcpState;
 use crate::commands::prompts;
 use crate::continuous::{
     self, BranchingStrategy, ContinuousModeUpdate, ContinuousQueueItem, ContinuousRun,
     ContinuousState, ContinuousStatus, QueueItemStatus,
 };
 use crate::db;
+use crate::db::models::SessionTransport;
 use crate::db::DbState;
 use crate::error::AppError;
 use crate::mcp::McpState;
@@ -22,6 +24,7 @@ pub fn start_continuous_mode(
     db: State<'_, DbState>,
     pty: State<'_, PtyState>,
     mcp: State<'_, Arc<TokioMutex<McpState>>>,
+    acp: State<'_, AcpState>,
     cont: State<'_, ContinuousState>,
     app: AppHandle,
     project_id: String,
@@ -30,7 +33,12 @@ pub fn start_continuous_mode(
     base_branch: Option<String>,
     agent_name: Option<String>,
     model: Option<String>,
+    transport: Option<String>,
 ) -> Result<ContinuousRun, AppError> {
+    let transport = match transport.as_deref() {
+        Some("acp") => SessionTransport::Acp,
+        _ => SessionTransport::Pty,
+    };
     if task_ids.len() < 2 {
         return Err(AppError::Validation(
             "Continuous mode requires at least 2 tasks".into(),
@@ -97,20 +105,28 @@ pub fn start_continuous_mode(
 
                 // Each MCP port lookup needs to be fresh for each session
                 let port = session::get_mcp_port(&mcp);
-                match session::start_task_session(
-                    &conn,
-                    &pty,
-                    &app,
-                    &mcp,
-                    port,
-                    &project_id,
-                    tid,
-                    agent_name.as_deref(),
-                    model.as_deref(),
-                    true,
-                    base_branch.as_deref(),
-                    user_prompt.as_deref(),
-                ) {
+                let result = match transport {
+                    SessionTransport::Acp => {
+                        let opts = session::AcpTaskSessionOpts {
+                            task_id: tid,
+                            agent_name: agent_name.as_deref(),
+                            model: model.as_deref(),
+                            create_worktree: true,
+                            base_branch: base_branch.as_deref(),
+                            user_prompt: user_prompt.as_deref(),
+                            is_trust_mode: true,
+                        };
+                        session::start_acp_task_session(&conn, &app, &mcp, &acp, port, &project_id, &opts)
+                    }
+                    SessionTransport::Pty => {
+                        session::start_task_session(
+                            &conn, &pty, &app, &mcp, port, &project_id,
+                            tid, agent_name.as_deref(), model.as_deref(),
+                            true, base_branch.as_deref(), user_prompt.as_deref(),
+                        )
+                    }
+                };
+                match result {
                     Ok(session) => {
                         queue[i].session_id = Some(session.id.clone());
                     }
@@ -132,20 +148,27 @@ pub fn start_continuous_mode(
             vars.insert("mode", "chained");
             let first_user_prompt = Some(session::interpolate_vars(&cont_template.prompt, &vars));
 
-            let first_session = session::start_task_session(
-                &conn,
-                &pty,
-                &app,
-                &mcp,
-                mcp_port,
-                &project_id,
-                first_task_id,
-                agent_name.as_deref(),
-                model.as_deref(),
-                true,
-                base_branch.as_deref(),
-                first_user_prompt.as_deref(),
-            )?;
+            let first_session = match transport {
+                SessionTransport::Acp => {
+                    let opts = session::AcpTaskSessionOpts {
+                        task_id: first_task_id,
+                        agent_name: agent_name.as_deref(),
+                        model: model.as_deref(),
+                        create_worktree: true,
+                        base_branch: base_branch.as_deref(),
+                        user_prompt: first_user_prompt.as_deref(),
+                        is_trust_mode: true,
+                    };
+                    session::start_acp_task_session(&conn, &app, &mcp, &acp, mcp_port, &project_id, &opts)?
+                }
+                SessionTransport::Pty => {
+                    session::start_task_session(
+                        &conn, &pty, &app, &mcp, mcp_port, &project_id,
+                        first_task_id, agent_name.as_deref(), model.as_deref(),
+                        true, base_branch.as_deref(), first_user_prompt.as_deref(),
+                    )?
+                }
+            };
 
             queue[0].session_id = Some(first_session.id.clone());
 
@@ -172,6 +195,7 @@ pub fn start_continuous_mode(
         agent_name,
         model,
         last_branch,
+        transport,
     };
 
     // Store the run
@@ -302,6 +326,7 @@ pub fn stop_continuous_mode(
     db: State<'_, DbState>,
     pty: State<'_, PtyState>,
     mcp: State<'_, Arc<TokioMutex<McpState>>>,
+    acp: State<'_, AcpState>,
     cont: State<'_, ContinuousState>,
     app: AppHandle,
     project_id: String,
@@ -319,7 +344,7 @@ pub fn stop_continuous_mode(
     for item in &run.queue {
         if item.status == QueueItemStatus::Running {
             if let Some(sid) = &item.session_id {
-                let _ = session::stop_session(&conn, &pty, &app, &mcp, sid);
+                let _ = session::stop_session(&conn, &pty, &app, &mcp, Some(&acp), sid);
             }
         }
     }
@@ -347,6 +372,7 @@ pub fn dismiss_continuous_mode(
     db: State<'_, DbState>,
     pty: State<'_, PtyState>,
     mcp: State<'_, Arc<TokioMutex<McpState>>>,
+    acp: State<'_, AcpState>,
     cont: State<'_, ContinuousState>,
     app: AppHandle,
     project_id: String,
@@ -364,7 +390,7 @@ pub fn dismiss_continuous_mode(
     for item in &run.queue {
         if let Some(sid) = &item.session_id {
             // stop_and_remove handles already-stopped sessions gracefully
-            let _ = session::stop_and_remove_session(&conn, &pty, &app, &mcp, sid);
+            let _ = session::stop_and_remove_session(&conn, &pty, &app, &mcp, Some(&acp), sid);
         }
     }
 

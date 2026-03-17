@@ -48,6 +48,22 @@ impl AgentAdapter for OpenCodeAdapter {
     fn supported_models(&self) -> &[&str] {
         &[]
     }
+
+    fn supports_acp(&self) -> bool {
+        true
+    }
+
+    fn acp_launch_spec(&self) -> Option<(String, Vec<String>)> {
+        Some(("opencode".to_string(), vec![]))
+    }
+
+    fn cli_install_url(&self) -> Option<&str> {
+        Some("https://github.com/opencode-ai/opencode")
+    }
+
+    fn cli_install_hint(&self) -> Option<&str> {
+        Some("curl -fsSL https://opencode.ai/install | bash")
+    }
 }
 
 #[cfg(test)]

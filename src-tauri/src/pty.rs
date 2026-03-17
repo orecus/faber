@@ -360,10 +360,20 @@ pub fn resize(state: &PtyState, session_id: &str, cols: u16, rows: u16) -> Resul
     Ok(())
 }
 
-/// Kill a PTY session and clean it up.
+/// Kill a PTY session, its entire process tree, and clean it up.
+///
+/// Uses `kill_process_tree()` to terminate all descendant processes (including
+/// faber-mcp sidecars spawned by agents) before killing the direct child as
+/// a fallback. Without tree killing, grandchild processes like faber-mcp can
+/// linger as orphans — especially on Windows where broken stdin pipes don't
+/// immediately terminate blocked readers.
 pub fn kill(state: &PtyState, session_id: &str) -> Result<(), AppError> {
     let mut sessions = state.lock().map_err(|e| AppError::Io(e.to_string()))?;
     if let Some(mut session) = sessions.remove(session_id) {
+        if let Some(pid) = session.child.process_id() {
+            kill_process_tree(pid, session_id);
+        }
+        // Fallback: kill the direct child in case the tree kill missed it
         let _ = session.child.kill();
     }
     Ok(())
@@ -373,6 +383,71 @@ pub fn kill(state: &PtyState, session_id: &str) -> Result<(), AppError> {
 pub fn list_sessions(state: &PtyState) -> Result<Vec<String>, AppError> {
     let sessions = state.lock().map_err(|e| AppError::Io(e.to_string()))?;
     Ok(sessions.keys().cloned().collect())
+}
+
+/// Kill all active PTY sessions and their process trees.
+///
+/// Called on app exit to ensure no orphan agent or sidecar processes survive.
+///
+/// Process tree killing is platform-specific:
+/// - **Windows**: `taskkill /T /F /PID` kills the entire process tree.
+/// - **Unix**: `kill(-pgid, SIGTERM)` signals the entire process group.
+///   PTY children get their own session/process group via `setsid`, so this
+///   reaches grandchild processes (like faber-mcp sidecars) even if they're
+///   blocked on I/O (e.g., a 30s HTTP timeout) rather than reading stdin.
+///
+/// After the tree kill, `child.kill()` is called as a final fallback to
+/// ensure the direct child is terminated.
+pub fn kill_all(state: &PtyState) {
+    let Ok(mut sessions) = state.lock() else {
+        return;
+    };
+    for (id, mut session) in sessions.drain() {
+        if let Some(pid) = session.child.process_id() {
+            kill_process_tree(pid, &id);
+        }
+        // Fallback: kill the direct child in case the tree kill missed it
+        let _ = session.child.kill();
+        tracing::info!(session_id = %id, "Killed PTY session on app exit");
+    }
+}
+
+/// Kill an entire process tree rooted at the given PID.
+///
+/// On Windows, uses `taskkill /T /F` which recursively kills all descendants.
+/// On Unix, sends SIGTERM to the process group (negative PID), then SIGKILL
+/// after a brief grace period if processes remain.
+///
+/// Used by both PTY and ACP session cleanup to ensure grandchild processes
+/// (like faber-mcp sidecars or agent-spawned terminals) don't linger.
+pub(crate) fn kill_process_tree(pid: u32, session_id: &str) {
+    #[cfg(windows)]
+    {
+        let _ = crate::cmd_no_window("taskkill.exe")
+            .args(["/T", "/F", "/PID", &pid.to_string()])
+            .stdout(std::process::Stdio::null())
+            .stderr(std::process::Stdio::null())
+            .status();
+        tracing::info!(session_id, pid, "Killed PTY process tree on app exit (Windows)");
+    }
+
+    #[cfg(unix)]
+    {
+        use libc::{kill, SIGKILL, SIGTERM};
+
+        // PTY children run in their own session (setsid), so the child PID
+        // is also the process group ID. Sending to -pid targets the group.
+        let pgid = -(pid as i32);
+
+        // SIGTERM first — gives processes a chance to clean up
+        unsafe { kill(pgid, SIGTERM) };
+
+        // Brief grace period, then SIGKILL to ensure nothing lingers
+        std::thread::sleep(std::time::Duration::from_millis(100));
+        unsafe { kill(pgid, SIGKILL) };
+
+        tracing::info!(session_id, pid, "Killed PTY process group on app exit (Unix)");
+    }
 }
 
 // ── UTF-8 boundary helpers ──

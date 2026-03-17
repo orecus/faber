@@ -15,6 +15,7 @@ interface ConfirmDialogProps {
   title: string;
   message: string;
   variant: "danger" | "default";
+  confirmLabel?: string;
   onConfirm: () => void;
   onCancel: () => void;
   children?: React.ReactNode;
@@ -24,6 +25,7 @@ export default function ConfirmDialog({
   title,
   message,
   variant,
+  confirmLabel,
   onConfirm,
   onCancel,
   children,
@@ -75,7 +77,7 @@ export default function ConfirmDialog({
             hoverEffect="scale-glow"
             clickEffect="scale"
           >
-            {variant === "danger" ? "Delete" : "Confirm"}
+            {confirmLabel ?? (variant === "danger" ? "Delete" : "Confirm")}
           </Button>
         </DialogFooter>
       </DialogContent>

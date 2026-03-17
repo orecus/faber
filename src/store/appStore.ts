@@ -5,6 +5,23 @@ import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ptyBuffer } from "../lib/ptyBuffer";
 import type {
+  AcpAvailableCommand,
+  AcpAvailableCommandsUpdate,
+  AcpChatMessage,
+  AcpConfigOption,
+  AcpConfigOptionUpdate,
+  AcpError,
+  AcpMessageChunk,
+  AcpModeUpdate,
+  AcpPlanEntry,
+  AcpPlanUpdate,
+  AcpPromptComplete,
+  AcpRegistryEntry,
+  AcpSessionInfo,
+  AcpToolCall,
+  AcpToolCallState,
+  AcpToolCallUpdate,
+  AcpUsageData,
   AgentInfo,
   AgentUsageData,
   CommitInfo,
@@ -13,7 +30,7 @@ import type {
   ContinuousRun,
   GhAuthStatus,
   McpComplete,
-  McpError,
+  McpError as McpErrorEvent,
   McpProgressUpdate,
   McpSessionState,
   McpStatusUpdate,
@@ -93,8 +110,34 @@ interface AppState {
   commandPaletteOpen: boolean;
   gridLayout: GridLayoutState;
   agents: AgentInfo[];
+  acpRegistry: AcpRegistryEntry[];
+  acpRegistryLoading: boolean;
+  acpRegistryError: string | null;
+  acpUpdatesAvailable: number;
   shells: ShellInfo[];
   mcpStatus: Record<string, McpSessionState>;
+
+  // ACP chat state (per-session)
+  acpMessages: Record<string, AcpChatMessage[]>;
+  acpToolCalls: Record<string, AcpToolCallState[]>;
+  acpPlans: Record<string, AcpPlanEntry[]>;
+  acpModes: Record<string, string>;
+  acpModels: Record<string, string>;
+  acpPromptPending: Record<string, boolean>;
+  /** Accumulated thinking text per session (from AgentThoughtChunk events). */
+  acpThinking: Record<string, string>;
+  /** Timestamp when thinking started for each session (for duration tracking). */
+  acpThinkingStartTime: Record<string, number>;
+  /** Flushed thinking blocks per session (standalone timeline items). */
+  acpThinkingBlocks: Record<string, import("../types").AcpThinkingBlock[]>;
+  acpPermissionRequests: Record<string, import("../types").AcpPermissionRequest[]>;
+  /** Available slash commands per ACP session (from AvailableCommandsUpdate). */
+  acpAvailableCommands: Record<string, AcpAvailableCommand[]>;
+  /** Config options per ACP session (from ConfigOptionUpdate). */
+  acpConfigOptions: Record<string, AcpConfigOption[]>;
+  /** Context window usage + cost per ACP session (from UsageUpdate). */
+  acpUsage: Record<string, AcpUsageData>;
+
   backgroundTasks: string[];
   errorFlash: string | null;
   sidebarCollapsed: boolean;
@@ -135,9 +178,30 @@ interface AppState {
   reorderSession: (sessionId: string, newIndex: number) => void;
   dismissEndedPane: (sessionId: string) => void;
   setAgents: (agents: AgentInfo[]) => void;
+  fetchAcpRegistry: (forceRefresh?: boolean) => Promise<void>;
   setShells: (shells: ShellInfo[]) => void;
   setMcpStatus: (sessionId: string, data: Partial<McpSessionState>) => void;
   cleanupSessionMcp: (sessionId: string) => void;
+
+  // ACP actions
+  appendAcpChunk: (sessionId: string, text: string) => void;
+  addAcpUserMessage: (sessionId: string, text: string, attachments?: import("../types").AcpMessageAttachment[]) => void;
+  addAcpToolCall: (sessionId: string, tc: AcpToolCallState) => void;
+  updateAcpToolCall: (sessionId: string, toolCallId: string, status: string, title: string | null, content?: import("../types").ToolCallContentItem[] | null) => void;
+  setAcpPlan: (sessionId: string, entries: AcpPlanEntry[]) => void;
+  setAcpMode: (sessionId: string, mode: string) => void;
+  setAcpModel: (sessionId: string, model: string) => void;
+  setAcpPromptPending: (sessionId: string, pending: boolean) => void;
+  appendAcpThinking: (sessionId: string, text: string) => void;
+  flushAcpThinking: (sessionId: string) => void;
+  clearAcpThinking: (sessionId: string) => void;
+  addAcpPermissionRequest: (sessionId: string, request: import("../types").AcpPermissionRequest) => void;
+  removeAcpPermissionRequest: (sessionId: string, requestId: string) => void;
+  setAcpAvailableCommands: (sessionId: string, commands: AcpAvailableCommand[]) => void;
+  setAcpConfigOptions: (sessionId: string, options: AcpConfigOption[]) => void;
+  setAcpUsage: (sessionId: string, data: AcpUsageData) => void;
+  cleanupSessionAcp: (sessionId: string) => void;
+
   addBackgroundTask: (label: string) => void;
   removeBackgroundTask: (label: string) => void;
   flashError: (message: string) => void;
@@ -211,8 +275,25 @@ export const useAppStore = create<AppState>()(
     commandPaletteOpen: false,
     gridLayout: initialGridLayout,
     agents: [],
+    acpRegistry: [],
+    acpRegistryLoading: false,
+    acpRegistryError: null,
+    acpUpdatesAvailable: 0,
     shells: [],
     mcpStatus: {},
+    acpMessages: {},
+    acpToolCalls: {},
+    acpPlans: {},
+    acpModes: {},
+    acpModels: {},
+    acpPromptPending: {},
+    acpThinking: {},
+    acpThinkingStartTime: {},
+    acpThinkingBlocks: {},
+    acpPermissionRequests: {},
+    acpAvailableCommands: {},
+    acpConfigOptions: {},
+    acpUsage: {},
     backgroundTasks: [],
     errorFlash: null,
     sidebarCollapsed: false,
@@ -412,13 +493,32 @@ export const useAppStore = create<AppState>()(
           },
         };
       });
-      // Clean up MCP state + attention counters for the dismissed session
+      // Clean up MCP + ACP state for the dismissed session
       if (get().mcpStatus[sessionId]) {
         get().cleanupSessionMcp(sessionId);
+      }
+      if (get().acpMessages[sessionId]) {
+        get().cleanupSessionAcp(sessionId);
       }
     },
 
     setAgents: (agents) => set({ agents }),
+
+    fetchAcpRegistry: async (forceRefresh = false) => {
+      set({ acpRegistryLoading: true, acpRegistryError: null });
+      try {
+        const entries = await invoke<AcpRegistryEntry[]>("fetch_acp_registry", {
+          forceRefresh,
+        });
+        const updateCount = entries.filter((e) => e.update_available).length;
+        set({ acpRegistry: entries, acpRegistryLoading: false, acpUpdatesAvailable: updateCount });
+      } catch (err) {
+        set({
+          acpRegistryLoading: false,
+          acpRegistryError: err instanceof Error ? err.message : String(err),
+        });
+      }
+    },
 
     setShells: (shells) => set({ shells }),
 
@@ -437,6 +537,225 @@ export const useAppStore = create<AppState>()(
       set((state) => {
         const { [sessionId]: _, ...rest } = state.mcpStatus;
         return { mcpStatus: rest };
+      });
+    },
+
+    // ── ACP actions ──
+
+    appendAcpChunk: (sessionId, text) =>
+      set((state) => {
+        const msgs = [...(state.acpMessages[sessionId] ?? [])];
+        const last = msgs[msgs.length - 1];
+        if (last && last.role === "agent") {
+          // Append to the current agent message (streaming)
+          msgs[msgs.length - 1] = { ...last, text: last.text + text };
+          return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
+        } else {
+          // Start a new agent message (thinking is flushed separately by event listeners)
+          const now = Date.now();
+          msgs.push({
+            id: `msg_${now}_${Math.random().toString(36).slice(2, 6)}`,
+            role: "agent",
+            text,
+            timestamp: now,
+          });
+          return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
+        }
+      }),
+
+    addAcpUserMessage: (sessionId, text, attachments) =>
+      set((state) => {
+        const msgs = [...(state.acpMessages[sessionId] ?? [])];
+        msgs.push({
+          id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          role: "user",
+          text,
+          timestamp: Date.now(),
+          attachments: attachments && attachments.length > 0 ? attachments : undefined,
+        });
+        return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
+      }),
+
+    addAcpToolCall: (sessionId, tc) =>
+      set((state) => {
+        const existing = state.acpToolCalls[sessionId] ?? [];
+        // Deduplicate: skip if this tool_call_id already exists
+        if (existing.some((t) => t.tool_call_id === tc.tool_call_id)) return {};
+        return { acpToolCalls: { ...state.acpToolCalls, [sessionId]: [...existing, tc] } };
+      }),
+
+    updateAcpToolCall: (sessionId, toolCallId, status, title, content) =>
+      set((state) => {
+        const existing = state.acpToolCalls[sessionId] ?? [];
+        const found = existing.some((tc) => tc.tool_call_id === toolCallId);
+
+        if (found) {
+          // Update existing tool call
+          const tcs = existing.map((tc) =>
+            tc.tool_call_id === toolCallId
+              ? {
+                  ...tc,
+                  status,
+                  ...(title != null ? { title } : {}),
+                  ...(content != null ? { content } : {}),
+                }
+              : tc,
+          );
+          return { acpToolCalls: { ...state.acpToolCalls, [sessionId]: tcs } };
+        } else {
+          // Auto-create: the ToolCallUpdate arrived before (or without) a ToolCall event.
+          // This happens when agents send permission requests that auto-approve — the
+          // initial ToolCall notification may be swallowed by the permission flow.
+          const msgs = state.acpMessages[sessionId] ?? [];
+          const tcs = [
+            ...existing,
+            {
+              tool_call_id: toolCallId,
+              title: title ?? toolCallId,
+              kind: "other",
+              status,
+              messageIndex: msgs.length > 0 ? msgs.length - 1 : -1,
+              timestamp: Date.now(),
+            },
+          ];
+          return { acpToolCalls: { ...state.acpToolCalls, [sessionId]: tcs } };
+        }
+      }),
+
+    setAcpPlan: (sessionId, entries) =>
+      set((state) => ({
+        acpPlans: { ...state.acpPlans, [sessionId]: entries },
+      })),
+
+    setAcpMode: (sessionId, mode) =>
+      set((state) => ({
+        acpModes: { ...state.acpModes, [sessionId]: mode },
+      })),
+
+    setAcpModel: (sessionId, model) =>
+      set((state) => ({
+        acpModels: { ...state.acpModels, [sessionId]: model },
+      })),
+
+    setAcpPromptPending: (sessionId, pending) =>
+      set((state) => ({
+        acpPromptPending: { ...state.acpPromptPending, [sessionId]: pending },
+      })),
+
+    appendAcpThinking: (sessionId, text) =>
+      set((state) => {
+        const isFirstChunk = !state.acpThinking[sessionId];
+        return {
+          acpThinking: {
+            ...state.acpThinking,
+            [sessionId]: (state.acpThinking[sessionId] ?? "") + text,
+          },
+          // Track when thinking started (first chunk only)
+          acpThinkingStartTime: isFirstChunk
+            ? { ...state.acpThinkingStartTime, [sessionId]: Date.now() }
+            : state.acpThinkingStartTime,
+        };
+      }),
+
+    flushAcpThinking: (sessionId) =>
+      set((state) => {
+        const pendingText = state.acpThinking[sessionId];
+        if (!pendingText) return {};
+
+        const startTime = state.acpThinkingStartTime[sessionId];
+        const now = Date.now();
+        const duration = startTime ? Math.ceil((now - startTime) / 1000) : undefined;
+
+        const block: import("../types").AcpThinkingBlock = {
+          id: `think_${now}_${Math.random().toString(36).slice(2, 6)}`,
+          text: pendingText,
+          timestamp: startTime ?? now,
+          duration,
+        };
+
+        const { [sessionId]: _, ...restThinking } = state.acpThinking;
+        const { [sessionId]: _ts, ...restTimes } = state.acpThinkingStartTime;
+
+        return {
+          acpThinkingBlocks: {
+            ...state.acpThinkingBlocks,
+            [sessionId]: [...(state.acpThinkingBlocks[sessionId] ?? []), block],
+          },
+          acpThinking: restThinking,
+          acpThinkingStartTime: restTimes,
+        };
+      }),
+
+    clearAcpThinking: (sessionId) =>
+      set((state) => {
+        const { [sessionId]: _, ...rest } = state.acpThinking;
+        const { [sessionId]: _ts, ...restTimes } = state.acpThinkingStartTime;
+        return { acpThinking: rest, acpThinkingStartTime: restTimes };
+      }),
+
+    addAcpPermissionRequest: (sessionId, request) =>
+      set((state) => ({
+        acpPermissionRequests: {
+          ...state.acpPermissionRequests,
+          [sessionId]: [...(state.acpPermissionRequests[sessionId] ?? []), request],
+        },
+      })),
+
+    removeAcpPermissionRequest: (sessionId, requestId) =>
+      set((state) => ({
+        acpPermissionRequests: {
+          ...state.acpPermissionRequests,
+          [sessionId]: (state.acpPermissionRequests[sessionId] ?? []).filter(
+            (r) => r.request_id !== requestId,
+          ),
+        },
+      })),
+
+    setAcpAvailableCommands: (sessionId, commands) =>
+      set((state) => ({
+        acpAvailableCommands: { ...state.acpAvailableCommands, [sessionId]: commands },
+      })),
+
+    setAcpConfigOptions: (sessionId, options) =>
+      set((state) => ({
+        acpConfigOptions: { ...state.acpConfigOptions, [sessionId]: options },
+      })),
+
+    setAcpUsage: (sessionId, data) =>
+      set((state) => ({
+        acpUsage: { ...state.acpUsage, [sessionId]: data },
+      })),
+
+    cleanupSessionAcp: (sessionId) => {
+      set((state) => {
+        const { [sessionId]: _m, ...msgs } = state.acpMessages;
+        const { [sessionId]: _t, ...tcs } = state.acpToolCalls;
+        const { [sessionId]: _p, ...plans } = state.acpPlans;
+        const { [sessionId]: _d, ...modes } = state.acpModes;
+        const { [sessionId]: _md, ...models } = state.acpModels;
+        const { [sessionId]: _pp, ...pending } = state.acpPromptPending;
+        const { [sessionId]: _th, ...thinking } = state.acpThinking;
+        const { [sessionId]: _ts, ...thinkingTimes } = state.acpThinkingStartTime;
+        const { [sessionId]: _tb, ...thinkingBlocks } = state.acpThinkingBlocks;
+        const { [sessionId]: _pr, ...permReqs } = state.acpPermissionRequests;
+        const { [sessionId]: _ac, ...availCmds } = state.acpAvailableCommands;
+        const { [sessionId]: _co, ...cfgOpts } = state.acpConfigOptions;
+        const { [sessionId]: _u, ...usage } = state.acpUsage;
+        return {
+          acpMessages: msgs,
+          acpToolCalls: tcs,
+          acpPlans: plans,
+          acpModes: modes,
+          acpModels: models,
+          acpPromptPending: pending,
+          acpThinking: thinking,
+          acpThinkingStartTime: thinkingTimes,
+          acpThinkingBlocks: thinkingBlocks,
+          acpPermissionRequests: permReqs,
+          acpAvailableCommands: availCmds,
+          acpConfigOptions: cfgOpts,
+          acpUsage: usage,
+        };
       });
     },
 
@@ -705,15 +1024,20 @@ export const useAppStore = create<AppState>()(
         .catch(() => {});
 
       const cleanupNotifications = initNotifications((sessionId) => {
-        // Navigate to the session's project and terminal grid
+        // Navigate to the session's project and the appropriate view
         const session = get().sessions.find((s) => s.id === sessionId)
           ?? Object.values(get().projectSessions).flat().find((s) => s.id === sessionId);
         if (session) {
           if (session.project_id !== get().activeProjectId) {
             get().setActiveProject(session.project_id);
           }
-          set({ activeView: "sessions" });
-          get().setGridLayout({ focusedPaneId: sessionId });
+          if (session.mode === "chat") {
+            // Chat sessions live in the Chat view, not the session grid
+            set({ activeView: "chat" });
+          } else {
+            set({ activeView: "sessions" });
+            get().setGridLayout({ focusedPaneId: sessionId });
+          }
         }
       });
       cleanups.push(cleanupNotifications);
@@ -733,6 +1057,24 @@ export const useAppStore = create<AppState>()(
 
       // Load prompt templates
       get().loadPromptTemplates();
+
+      // Auto-check for ACP adapter updates on startup (respects user preference + 1hr cooldown)
+      invoke<string | null>("get_setting", { key: "auto_check_acp_updates" })
+        .then(async (val) => {
+          // Default to enabled if no setting exists
+          if (val === "false") return;
+          // Check cooldown: skip if last check was less than 1 hour ago
+          const lastCheck = await invoke<string | null>("get_setting", { key: "last_acp_registry_check" }).catch(() => null);
+          if (lastCheck) {
+            const elapsed = Date.now() - Number(lastCheck);
+            if (elapsed < 3600_000) return; // Less than 1 hour
+          }
+          // Perform the check
+          await get().fetchAcpRegistry(true);
+          // Update last-checked timestamp
+          invoke("set_setting", { key: "last_acp_registry_check", value: String(Date.now()) }).catch(() => {});
+        })
+        .catch(() => {});
 
       // Fetch agent usage data and start 5-minute polling
       get().fetchAgentUsage();
@@ -896,6 +1238,13 @@ export const useAppStore = create<AppState>()(
       // All session/worktree refreshes happen here. Components read from the store.
       const eventCleanups: Promise<() => void>[] = [];
 
+      // Guard flag to prevent duplicate event processing during React StrictMode
+      // double-mount or HMR reloads. The Tauri `listen()` cleanup is async (returns
+      // Promise<UnlistenFn>), so old listeners can briefly coexist with new ones.
+      // This flag is checked synchronously in every handler to reject stale events.
+      let disposed = false;
+      cleanups.push(() => { disposed = true; });
+
       // Session started/stopped — payload is a full Session with project_id.
       // Only refresh the affected project (not all open projects).
       // Task status changes are handled by the separate "task-updated" event,
@@ -903,9 +1252,21 @@ export const useAppStore = create<AppState>()(
       for (const event of ["session-started", "session-stopped"]) {
         eventCleanups.push(
           listen<Session>(event, (e) => {
+            if (disposed) return;
             const pid = e.payload.project_id;
             if (pid) {
               refreshProject(pid);
+            }
+            // For ACP sessions with an initial prompt (task/research), set
+            // promptPending so the chat UI shows a thinking indicator immediately.
+            // Chat and vibe sessions start without a prompt — they wait for user input.
+            if (
+              event === "session-started" &&
+              e.payload.transport === "acp" &&
+              e.payload.mode !== "chat" &&
+              e.payload.mode !== "vibe"
+            ) {
+              get().setAcpPromptPending(e.payload.id, true);
             }
           }),
         );
@@ -917,6 +1278,7 @@ export const useAppStore = create<AppState>()(
         listen<{ session_id: string; project_id: string }>(
           "session-removed",
           (e) => {
+            if (disposed) return;
             const { session_id, project_id } = e.payload;
             set((state) => {
               const filterOut = (s: Session) => s.id !== session_id;
@@ -961,6 +1323,7 @@ export const useAppStore = create<AppState>()(
         listen<{ session_id: string; new_status?: string }>(
           "session-status-changed",
           (e) => {
+            if (disposed) return;
             const { session_id, new_status } = e.payload;
             const pid = findProjectForSession(session_id);
             if (pid) {
@@ -984,6 +1347,7 @@ export const useAppStore = create<AppState>()(
       // PTY natural exit — same lookup pattern.
       eventCleanups.push(
         listen<{ session_id: string }>("pty-exit", (e) => {
+          if (disposed) return;
           const { session_id } = e.payload;
           const pid = findProjectForSession(session_id);
           if (pid) {
@@ -999,6 +1363,7 @@ export const useAppStore = create<AppState>()(
 
       eventCleanups.push(
         listen<McpStatusUpdate>("mcp-status-update", (event) => {
+          if (disposed) return;
           const newStatus = event.payload.status;
 
           const data: Partial<McpSessionState> = {
@@ -1036,6 +1401,7 @@ export const useAppStore = create<AppState>()(
 
       eventCleanups.push(
         listen<McpProgressUpdate>("mcp-progress-update", (event) => {
+          if (disposed) return;
           get().setMcpStatus(event.payload.session_id, {
             current_step: event.payload.current_step,
             total_steps: event.payload.total_steps,
@@ -1054,6 +1420,7 @@ export const useAppStore = create<AppState>()(
 
       eventCleanups.push(
         listen<McpWaiting>("mcp-waiting", (event) => {
+          if (disposed) return;
           const { project_id, session_id } = event.payload;
 
           get().setMcpStatus(session_id, {
@@ -1078,7 +1445,8 @@ export const useAppStore = create<AppState>()(
       );
 
       eventCleanups.push(
-        listen<McpError>("mcp-error", (event) => {
+        listen<McpErrorEvent>("mcp-error", (event) => {
+          if (disposed) return;
           const { project_id, session_id } = event.payload;
 
           get().setMcpStatus(session_id, {
@@ -1107,6 +1475,7 @@ export const useAppStore = create<AppState>()(
 
       eventCleanups.push(
         listen<McpComplete>("mcp-complete", (event) => {
+          if (disposed) return;
           const { project_id, session_id } = event.payload;
 
           get().setMcpStatus(session_id, {
@@ -1135,8 +1504,184 @@ export const useAppStore = create<AppState>()(
         }),
       );
 
+      // ── ACP event listeners ──
+
+      eventCleanups.push(
+        listen<AcpMessageChunk>("acp-thought-chunk", (event) => {
+          if (disposed) return;
+          console.log("[ACP] thought-chunk", event.payload.session_id, `${event.payload.text.length}ch`, event.payload.text.slice(0, 80));
+          get().appendAcpThinking(event.payload.session_id, event.payload.text);
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpMessageChunk>("acp-message-chunk", (event) => {
+          if (disposed) return;
+          console.log("[ACP] message-chunk", event.payload.session_id, `${event.payload.text.length}ch`, event.payload.text.slice(0, 120));
+          // Flush any pending thinking into a standalone block before the message
+          get().flushAcpThinking(event.payload.session_id);
+          get().appendAcpChunk(event.payload.session_id, event.payload.text);
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpToolCall>("acp-tool-call", (event) => {
+          if (disposed) return;
+          console.log("[ACP] tool-call", event.payload.session_id, event.payload.tool_call_id, event.payload.title, event.payload.kind, event.payload.status);
+          const { session_id, ...rest } = event.payload;
+          // Flush any pending thinking into a standalone block before the tool call
+          get().flushAcpThinking(session_id);
+          const msgs = get().acpMessages[session_id] ?? [];
+          get().addAcpToolCall(session_id, {
+            ...rest,
+            messageIndex: msgs.length - 1,
+            timestamp: Date.now(),
+          });
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpToolCallUpdate>("acp-tool-call-update", (event) => {
+          if (disposed) return;
+          console.log("[ACP] tool-call-update", event.payload.session_id, event.payload.tool_call_id, event.payload.status, event.payload.title);
+          const { session_id, tool_call_id, status, title, content } = event.payload;
+          get().updateAcpToolCall(session_id, tool_call_id, status, title, content);
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpPlanUpdate>("acp-plan-update", (event) => {
+          if (disposed) return;
+          console.log("[ACP] plan-update", event.payload.session_id, `${event.payload.entries.length} entries`, event.payload.entries);
+          get().setAcpPlan(event.payload.session_id, event.payload.entries);
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpModeUpdate>("acp-mode-update", (event) => {
+          if (disposed) return;
+          console.log("[ACP] mode-update", event.payload.session_id, event.payload.mode);
+          get().setAcpMode(event.payload.session_id, event.payload.mode);
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpSessionInfo>("acp-session-info", (event) => {
+          if (disposed) return;
+          console.log("[ACP] session-info", event.payload.session_id, event.payload.title);
+          // Update session name if provided
+          if (event.payload.title) {
+            const sessions = get().sessions.map((s) =>
+              s.id === event.payload.session_id
+                ? { ...s, name: event.payload.title }
+                : s,
+            );
+            set({ sessions });
+          }
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpPromptComplete>("acp-prompt-complete", (event) => {
+          if (disposed) return;
+          console.log("[ACP] prompt-complete", event.payload.session_id, event.payload.stop_reason);
+          // Flush any trailing thinking (e.g. thinking was the last thing before stop)
+          get().flushAcpThinking(event.payload.session_id);
+          get().setAcpPromptPending(event.payload.session_id, false);
+        }),
+      );
+
+      eventCleanups.push(
+        listen<AcpError>("acp-error", (event) => {
+          if (disposed) return;
+          const { session_id, error } = event.payload;
+          console.error("[ACP] error", session_id, error);
+          get().setAcpPromptPending(session_id, false);
+
+          // Inject error as a visible message in the chat timeline
+          set((state) => {
+            const msgs = [...(state.acpMessages[session_id] ?? [])];
+            msgs.push({
+              id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+              role: "agent",
+              text: error,
+              timestamp: Date.now(),
+              isError: true,
+            });
+            return { acpMessages: { ...state.acpMessages, [session_id]: msgs } };
+          });
+
+          // Fire OS notification for ACP errors
+          const session = get().sessions.find((s) => s.id === session_id);
+          const sessionName = getSessionName(get, session_id);
+          maybeNotify(
+            "error",
+            session_id,
+            sessionName,
+            error,
+            get().activeView,
+            session?.project_id === get().activeProjectId,
+          );
+        }),
+      );
+
+      eventCleanups.push(
+        listen<import("../types").AcpPermissionRequest>("acp-permission-request", (event) => {
+          if (disposed) return;
+          console.log("[ACP] permission-request", event.payload.session_id, event.payload.capability, event.payload.detail, event.payload.options);
+          get().addAcpPermissionRequest(event.payload.session_id, event.payload);
+          // Fire OS notification for permission requests (needs user attention)
+          const session = get().sessions.find((s) => s.id === event.payload.session_id);
+          const sessionName = getSessionName(get, event.payload.session_id);
+          maybeNotify(
+            "permission",
+            event.payload.session_id,
+            sessionName,
+            event.payload.description || "Agent is requesting permission for an action",
+            get().activeView,
+            session?.project_id === get().activeProjectId,
+          );
+        }),
+      );
+
+      eventCleanups.push(
+        listen<import("../types").AcpPermissionResponse>("acp-permission-response", (event) => {
+          if (disposed) return;
+          console.log("[ACP] permission-response", event.payload.session_id, event.payload.request_id, event.payload);
+          get().removeAcpPermissionRequest(event.payload.session_id, event.payload.request_id);
+        }),
+      );
+
+      // ACP available commands update
+      eventCleanups.push(
+        listen<AcpAvailableCommandsUpdate>("acp-available-commands", (event) => {
+          if (disposed) return;
+          console.log("[ACP] available-commands", event.payload.session_id, event.payload.commands.length);
+          get().setAcpAvailableCommands(event.payload.session_id, event.payload.commands);
+        }),
+      );
+
+      // ACP config option update
+      eventCleanups.push(
+        listen<AcpConfigOptionUpdate>("acp-config-option-update", (event) => {
+          if (disposed) return;
+          console.log("[ACP] config-option-update", event.payload.session_id, event.payload.config_options.length);
+          get().setAcpConfigOptions(event.payload.session_id, event.payload.config_options);
+        }),
+      );
+
+      // ACP usage update (context window + cost)
+      eventCleanups.push(
+        listen<AcpUsageData & { session_id: string }>("acp-usage-update", (event) => {
+          if (disposed) return;
+          const { session_id, ...data } = event.payload;
+          get().setAcpUsage(session_id, data);
+        }),
+      );
+
       eventCleanups.push(
         listen<Task>("task-updated", (event) => {
+          if (disposed) return;
           get().updateTask(event.payload);
         }),
       );
@@ -1144,6 +1689,7 @@ export const useAppStore = create<AppState>()(
       // File watcher: tasks-updated event (batch refresh from disk sync)
       eventCleanups.push(
         listen<string>("tasks-updated", (event) => {
+          if (disposed) return;
           const projectId = event.payload;
           if (projectId === get().activeProjectId) {
             invoke<Task[]>("list_tasks", { projectId })
@@ -1156,6 +1702,7 @@ export const useAppStore = create<AppState>()(
       // Continuous mode events
       eventCleanups.push(
         listen<ContinuousModeUpdate>("continuous-mode-update", (event) => {
+          if (disposed) return;
           const { project_id, run } = event.payload;
           // Keep completed runs visible — user must dismiss to close sessions
           get().setContinuousMode(project_id, run);
@@ -1164,6 +1711,7 @@ export const useAppStore = create<AppState>()(
 
       eventCleanups.push(
         listen<ContinuousModeFinished>("continuous-mode-finished", (event) => {
+          if (disposed) return;
           const { project_id, completed_count } = event.payload;
           get().setContinuousMode(project_id, null);
           // Refresh tasks for the project since statuses changed

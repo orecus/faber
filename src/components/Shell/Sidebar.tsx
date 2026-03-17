@@ -18,6 +18,7 @@ import {
   MessageSquare,
   Plus,
   Settings,
+  Shield,
   SlidersHorizontal,
   TerminalSquare,
   X,
@@ -31,6 +32,7 @@ import { useProjectIcon } from "../../hooks/useProjectIcon";
 import { AgentIcon } from "../../lib/agentIcons";
 import { useAppStore } from "../../store/appStore";
 import { pickProjectFolder } from "../../utils/pickProjectFolder";
+import { AcpPermissionsTab } from "../Settings/AcpPermissionsTab";
 import { AgentsTab } from "../Settings/AgentsTab";
 import { GeneralTab } from "../Settings/GeneralTab";
 
@@ -60,7 +62,8 @@ type SettingsDialogId =
   | "terminal"
   | "agents"
   | "prompts"
-  | "projects";
+  | "projects"
+  | "acp-permissions";
 
 const SETTINGS_ITEMS: {
   id: SettingsDialogId;
@@ -95,6 +98,13 @@ const SETTINGS_ITEMS: {
     icon: MessageSquare,
     title: "Prompt Templates & Quick Actions",
     tooltip: "Prompts",
+    maxWidth: "sm:max-w-2xl",
+  },
+  {
+    id: "acp-permissions",
+    icon: Shield,
+    title: "ACP Permissions",
+    tooltip: "ACP Permissions",
     maxWidth: "sm:max-w-2xl",
   },
 ];
@@ -174,6 +184,7 @@ function SettingsBar({
                   onClose={() => setOpenDialog(null)}
                 />
               )}
+              {openDialog === "acp-permissions" && <AcpPermissionsTab />}
             </div>
           </DialogContent>
         </Dialog>
@@ -370,8 +381,14 @@ const ProjectSessionList = React.memo(function ProjectSessionList({
   isProjectActive: boolean;
   onSelect: () => void;
 }) {
-  const sessions = useAppStore(
+  const allSessions = useAppStore(
     (s) => s.projectSessions[projectId] ?? EMPTY_SESSIONS,
+  );
+
+  // Filter out chat sessions — they have their own top-level Chat view
+  const sessions = useMemo(
+    () => allSessions.filter((s) => s.mode !== "chat"),
+    [allSessions],
   );
 
   return (

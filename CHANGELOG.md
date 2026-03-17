@@ -5,10 +5,21 @@ All notable changes to Faber will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.x.x] - 2026-03-xx - WIP
+## [0.9.0] - 2026-03-xx - WIP
 
 ### Added
 
+- **ACP (Agent Client Protocol) Support** — Full support for structured agent communication via ACP as an alternative to PTY-based sessions. Agents can now communicate through a typed JSON-RPC protocol with real-time streaming of messages, tool calls, thinking blocks, and plans. Includes a new `SessionTransport` layer (`pty` | `acp`) so every session type (task, research, continuous) can run in either mode
+- **Project Chat** — New lightweight chat view (Chat tab in the top bar) for interactive conversations with ACP-capable agents. No task binding or worktree — just open a conversation about your project, discuss architecture, explore ideas, or ask questions. Features message attachments, slash commands, edit-and-resend, thinking/reasoning display, and inline tool call visualization
+- **ACP Permission System** — Granular permission framework controlling what agents can do. Per-project rules with glob pattern matching for file paths and commands, three actions (auto-approve, ask, deny), trust mode overrides for continuous mode, permission request timeout, and a full audit log. In-session permission dialogs appear when agents request access, with an option to create permanent rules
+- **ACP Permissions Settings Tab** — New settings tab for managing permission rules, viewing the audit log, and configuring trust mode policy and timeout
+- **Floating Permission Banner** — Fixed banner appears when any session has pending permission requests, showing count and which sessions need approval with click-to-navigate
+- **Agent Registry & Extensions Tab** — Auto-discovery and version tracking of ACP adapters from a public registry. The Extensions tab (renamed from Skills & Rules) shows adapter installation status, available updates, and install commands. Badge on the tab shows count of available updates
+- **Chat UI Primitives** — Reusable AI chat element library (`ai-elements/`) with message bubbles, reasoning blocks, chain-of-thought visualization, code snippets, attachments, plans, shimmer loading, and toolbar components
+- **Transport Selector** — Launch Task and Research dialogs now show a PTY/ACP transport toggle when the selected agent has an ACP adapter installed, defaulting to ACP when available
+- **Permission Notifications** — OS notifications fire when agents request permissions (uses the "waiting" notification toggle), with click-to-navigate
+- **Agent Install Hints** — Agent cards in settings now show CLI install commands and links for agents that aren't installed yet
+- **Chat Close Confirmation** — Closing the chat session now shows a confirmation dialog to prevent accidental loss of conversation history
 - **Task Detail GitHub Tab** — Restructured TaskDetailView with top-level tabs (Task Details, Agent Activity, GitHub). For tasks imported from GitHub issues, the new GitHub tab shows the live issue body, state badge, labels, metadata, full comment thread, and a comment composer — all without leaving the task view
 - **GitHub Copilot CLI Agent** — Added Copilot CLI (`copilot`) as the 6th supported agent with Rust adapter, MCP config (`.copilot/mcp-config.json`), `AGENTS.md` instruction file mapping, frontend icons/colors, and documentation
 - **Sidebar Branch Info** — Branch name and change count shown inline in each sidebar project entry (e.g. `● ProjectName · main 3∆`), with auto-refresh on project load, switch, and MCP events
@@ -20,6 +31,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Changed
 
+- **Continuous Mode ACP Support** — Continuous mode can now launch task sessions using ACP transport, with trust mode policies controlling permission behavior during auto-launched runs
+- **Session Pane ACP Rendering** — Session panes detect ACP sessions and render the ChatPane instead of a terminal, with permission-request visual states (warning ring, pulsing header) alongside existing MCP waiting/error states
+- **Extensions View** — Renamed "Skills & Rules" to "Extensions" with a new Agents tab alongside Skills and Rules for managing ACP adapters
+- **Task Detail Actions** — Backlog/ready tasks now show "View Session" button when a session is already active, instead of always showing Start/Research actions
 - **Consolidated Diff Views** — Extracted shared `DiffView` and `DiffToolbar` components from the duplicated ReviewView and ChangesTab implementations. Both views now use the same adaptive component with context-specific actions (worktree: push/merge/PR/delete; main repo: compact inline toolbar)
 - **Smart Back Navigation** — Review view back button now returns to the previous view (Git, Sessions, etc.) instead of always going to Dashboard, via new `previousView` state tracking
 - **GitHub Tab Badges** — Issues and Pull Requests tabs in the Git view now show a subtle GitHub icon to visually distinguish GitHub-dependent features from local-only git tabs
@@ -33,6 +48,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Skill Install Shell** — Fixed skill install shell closing immediately by spawning an interactive shell
 - **GitHub Multi-Account Auth** — Fixed `gh auth status` parsing to handle per-account blocks for multi-source authentication
 - **Research Session Completion** — Research sessions no longer incorrectly advance task status beyond "ready". Completing a research session on an already-ready or in-progress task is now a no-op instead of moving it to in-review
+- **Chat Sessions Filtered from Grid** — Chat sessions are excluded from the Sessions grid view, appearing only in their dedicated Chat view
 
 ## [0.8.1] - 2026-03-06
 

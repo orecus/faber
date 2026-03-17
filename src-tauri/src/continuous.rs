@@ -5,8 +5,10 @@ use serde::{Deserialize, Serialize};
 use tauri::{AppHandle, Emitter, Manager};
 use tokio::sync::Mutex as TokioMutex;
 
+use crate::acp::state::AcpState;
 use crate::commands::prompts;
 use crate::db;
+use crate::db::models::SessionTransport;
 use crate::db::DbState;
 use crate::error::AppError;
 use crate::mcp::McpState;
@@ -58,6 +60,9 @@ pub struct ContinuousRun {
     pub agent_name: Option<String>,
     pub model: Option<String>,
     pub last_branch: Option<String>,
+    /// Transport for session launch (pty or acp). Defaults to pty.
+    #[serde(default)]
+    pub transport: SessionTransport,
 }
 
 pub type ContinuousState = Arc<TokioMutex<HashMap<String, ContinuousRun>>>;
@@ -188,6 +193,7 @@ pub fn try_advance(app: &AppHandle, project_id: &str) -> Result<(), AppError> {
             let model = run.model.clone();
             let base_branch = run.base_branch.clone();
             let last_branch = run.last_branch.clone();
+            let transport = run.transport;
             let pid = project_id.to_string();
 
             // Emit update before launching (shows "running" on next item)
@@ -202,7 +208,7 @@ pub fn try_advance(app: &AppHandle, project_id: &str) -> Result<(), AppError> {
             // Chained: branch from the previous task's branch
             let launch_base = last_branch.as_deref().or(base_branch.as_deref());
 
-            let session = launch_task_for_continuous(app, &pid, &task_id, agent.as_deref(), model.as_deref(), launch_base)?;
+            let session = launch_task_for_continuous(app, &pid, &task_id, agent.as_deref(), model.as_deref(), launch_base, transport)?;
 
             // Look up the task's branch name for chained strategy
             let task_branch = if session.worktree_path.is_some() {
@@ -442,9 +448,9 @@ fn launch_task_for_continuous(
     agent: Option<&str>,
     model: Option<&str>,
     base_branch: Option<&str>,
+    transport: SessionTransport,
 ) -> Result<db::models::Session, AppError> {
     let db_state: tauri::State<'_, DbState> = app.state();
-    let pty_state: tauri::State<'_, PtyState> = app.state();
     let mcp_state: tauri::State<'_, Arc<TokioMutex<McpState>>> = app.state();
 
     // Get MCP port BEFORE acquiring DB lock to avoid nested mutex contention
@@ -457,18 +463,36 @@ fn launch_task_for_continuous(
     vars.insert("mode", "chained");
     let user_prompt = Some(session::interpolate_vars(&template.prompt, &vars));
 
-    session::start_task_session(
-        &conn,
-        &pty_state,
-        app,
-        &mcp_state,
-        mcp_port,
-        project_id,
-        task_id,
-        agent,
-        model,
-        true, // always create worktree
-        base_branch,
-        user_prompt.as_deref(),
-    )
+    match transport {
+        SessionTransport::Acp => {
+            let acp_state: tauri::State<'_, AcpState> = app.state();
+            let opts = session::AcpTaskSessionOpts {
+                task_id,
+                agent_name: agent,
+                model,
+                create_worktree: true,
+                base_branch,
+                user_prompt: user_prompt.as_deref(),
+                is_trust_mode: true,
+            };
+            session::start_acp_task_session(&conn, app, &mcp_state, &acp_state, mcp_port, project_id, &opts)
+        }
+        SessionTransport::Pty => {
+            let pty_state: tauri::State<'_, PtyState> = app.state();
+            session::start_task_session(
+                &conn,
+                &pty_state,
+                app,
+                &mcp_state,
+                mcp_port,
+                project_id,
+                task_id,
+                agent,
+                model,
+                true, // always create worktree
+                base_branch,
+                user_prompt.as_deref(),
+            )
+        }
+    }
 }

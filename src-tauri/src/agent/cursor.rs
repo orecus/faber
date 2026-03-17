@@ -70,6 +70,20 @@ impl AgentAdapter for CursorAgentAdapter {
             "gemini-3-flash",
         ]
     }
+
+    fn supports_acp(&self) -> bool {
+        true
+    }
+
+    fn acp_launch_spec(&self) -> Option<(String, Vec<String>)> {
+        // Use whichever binary is actually installed
+        let command = detect_cursor_command().unwrap_or("agent");
+        Some((command.to_string(), vec!["acp".to_string()]))
+    }
+
+    fn cli_install_url(&self) -> Option<&str> {
+        Some("https://cursor.com")
+    }
 }
 
 #[cfg(test)]

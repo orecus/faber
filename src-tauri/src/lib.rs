@@ -2,6 +2,7 @@ use tauri::Manager;
 #[allow(unused_imports)]
 use tracing::{error, info, warn};
 
+mod acp;
 mod agent;
 mod commands;
 mod continuous;
@@ -115,6 +116,7 @@ pub fn run() {
         .plugin(tauri_plugin_shell::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_notification::init())
+        .plugin(tauri_plugin_fs::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .setup(|app| {
             // Fix PATH on macOS so CLI agent detection and PTY spawns work
@@ -164,6 +166,8 @@ pub fn run() {
             app.manage(pty::new_state());
             app.manage(continuous::new_state());
             app.manage(task_watcher::new_state());
+            app.manage(acp::state::new_state());
+            app.manage(acp::state::new_pending_permissions_registry());
 
             // Initialize usage registry for agent quota tracking
             let usage_registry = std::sync::Arc::new(
@@ -247,6 +251,8 @@ pub fn run() {
             commands::pty::list_pty_sessions,
             commands::agents::list_agents,
             commands::agents::check_agent_installed,
+            commands::agents::install_acp_adapter,
+            commands::agents::fetch_acp_registry,
             commands::agents::get_agent_config,
             commands::agents::upsert_agent_config,
             commands::agents::delete_agent_config,
@@ -255,6 +261,14 @@ pub fn run() {
             commands::sessions::start_shell_session,
             commands::sessions::start_skill_install_session,
             commands::sessions::start_research_session,
+            commands::sessions::start_chat_session,
+            commands::sessions::send_acp_message,
+            commands::sessions::cancel_acp_session,
+            commands::sessions::stop_acp_session,
+            commands::sessions::get_acp_capabilities,
+            commands::sessions::set_acp_mode,
+            commands::sessions::set_acp_config_option,
+            commands::sessions::get_acp_terminal_output,
             commands::sessions::relaunch_session,
             commands::sessions::rename_session,
             commands::sessions::stop_session,
@@ -329,7 +343,38 @@ pub fn run() {
             commands::skills::read_skill_content,
             commands::skills::search_skills,
             commands::skills::remove_skill,
+            commands::acp_permissions::list_permission_rules,
+            commands::acp_permissions::create_permission_rule,
+            commands::acp_permissions::delete_permission_rule,
+            commands::acp_permissions::reset_permission_rules,
+            commands::acp_permissions::get_permission_log,
+            commands::acp_permissions::respond_permission,
         ])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app_handle, event| {
+        if let tauri::RunEvent::Exit = event {
+            // Kill all active PTY sessions (and their process trees) on exit.
+            // Without this, agent CLIs and their faber-mcp sidecar children
+            // can survive as orphans — especially on Windows where process
+            // tree cleanup is not automatic.
+            if let Some(pty_state) = app_handle.try_state::<pty::PtyState>() {
+                pty::kill_all(&pty_state);
+            }
+
+            // Kill all active ACP agent subprocesses (and their process trees).
+            // ACP agents use `kill_on_drop(true)` but that's best-effort and
+            // only kills the direct child — not grandchildren like faber-mcp
+            // sidecars. Explicit tree killing ensures nothing lingers.
+            if let Some(acp_state) = app_handle.try_state::<acp::state::AcpState>() {
+                let mut sessions = acp_state.blocking_lock();
+                for (id, session_state) in sessions.drain() {
+                    if let Some(pid) = session_state.client.pid() {
+                        pty::kill_process_tree(pid, &id);
+                        info!(session_id = %id, pid, "Killed ACP agent process tree on app exit");
+                    }
+                }
+            }
+        }
+    });
 }

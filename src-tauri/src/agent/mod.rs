@@ -4,6 +4,7 @@ pub mod copilot;
 pub mod cursor;
 pub mod gemini;
 pub mod opencode;
+pub mod registry;
 
 use std::collections::HashMap;
 
@@ -43,6 +44,27 @@ pub struct AgentInfo {
     pub installed: bool,
     pub default_model: Option<String>,
     pub supported_models: Vec<String>,
+    /// Whether this agent supports ACP (natively or via an external adapter).
+    pub supports_acp: bool,
+    /// Whether the ACP adapter/binary is actually installed and available.
+    /// For native ACP agents, this matches `installed`. For agents using
+    /// external adapters (e.g. Claude Code via `claude-agent-acp`), this
+    /// checks whether the adapter binary is in PATH.
+    pub acp_installed: bool,
+    /// The ACP launch command (if different from the PTY command).
+    pub acp_command: Option<String>,
+    /// Additional args needed to launch in ACP mode (e.g., ["--acp"]).
+    pub acp_args: Vec<String>,
+    /// The shell command to install the ACP adapter (e.g., "npm install -g @zed-industries/claude-agent-acp").
+    /// `None` for agents with native ACP support.
+    pub acp_install_command: Option<String>,
+    /// The npm package name for the ACP adapter (e.g., "@zed-industries/claude-agent-acp").
+    /// `None` for agents with native ACP support.
+    pub acp_adapter_package: Option<String>,
+    /// URL to the official install/download page for this agent's CLI tool.
+    pub cli_install_url: Option<String>,
+    /// A short shell command hint for installing the CLI (e.g., "npm install -g ...").
+    pub cli_install_hint: Option<String>,
 }
 
 // ── Trait ──
@@ -78,6 +100,60 @@ pub trait AgentAdapter: Send + Sync {
 
     /// List of known supported models.
     fn supported_models(&self) -> &[&str];
+
+    /// Whether this agent supports ACP (Agent Client Protocol).
+    /// Agents that return `true` can be launched via structured JSON-RPC
+    /// over stdio instead of the PTY + MCP approach.
+    ///
+    /// For agents with native ACP support (e.g. Gemini `--acp`), this is always `true`.
+    /// For agents that need an external adapter binary (e.g. Claude Code via
+    /// `claude-agent-acp`), this returns `true` to indicate ACP *capability*,
+    /// while `detect_acp_adapter()` checks if the adapter is actually installed.
+    fn supports_acp(&self) -> bool {
+        false
+    }
+
+    /// Build the ACP launch command and args (if `supports_acp()` is true).
+    /// Returns `(command, args)` for spawning the agent in ACP mode.
+    fn acp_launch_spec(&self) -> Option<(String, Vec<String>)> {
+        None
+    }
+
+    /// Detect whether the ACP adapter/binary is available on this system.
+    ///
+    /// For agents with native ACP support (e.g. Gemini, Copilot), this returns
+    /// the same as `detect_installation()` — if the agent is installed, ACP works.
+    /// For agents that require an external adapter binary (e.g. Claude Code via
+    /// `claude-agent-acp`), this checks whether the adapter binary is in PATH.
+    fn detect_acp_adapter(&self) -> bool {
+        // Default: if the agent supports ACP natively, the adapter is the agent itself
+        self.supports_acp() && self.detect_installation()
+    }
+
+    /// The shell command to install the ACP adapter (for agents that need one).
+    /// Returns `None` for agents with native ACP support.
+    fn acp_install_command(&self) -> Option<&str> {
+        None
+    }
+
+    /// The npm package name for the ACP adapter (for agents that need one).
+    /// Returns `None` for agents with native ACP support.
+    fn acp_adapter_package(&self) -> Option<&str> {
+        None
+    }
+
+    /// URL to the official install/download page for this agent's CLI tool.
+    /// Shown in the UI when the CLI is not detected on `$PATH`.
+    fn cli_install_url(&self) -> Option<&str> {
+        None
+    }
+
+    /// A short shell command hint for installing this agent's CLI tool
+    /// (e.g., `npm install -g @anthropic-ai/claude-code`).
+    /// Shown alongside the install URL for quick reference.
+    fn cli_install_hint(&self) -> Option<&str> {
+        None
+    }
 }
 
 // ── Registry ──
@@ -104,13 +180,24 @@ pub fn get_adapter(name: &str) -> Option<Box<dyn AgentAdapter>> {
 pub fn list_agent_info_no_detect() -> Vec<AgentInfo> {
     builtin_adapters()
         .iter()
-        .map(|a| AgentInfo {
-            name: a.name().to_string(),
-            display_name: a.display_name().to_string(),
-            command: a.command().to_string(),
-            installed: false, // not checked
-            default_model: a.default_model().map(String::from),
-            supported_models: a.supported_models().iter().map(|s| s.to_string()).collect(),
+        .map(|a| {
+            let acp_spec = a.acp_launch_spec();
+            AgentInfo {
+                name: a.name().to_string(),
+                display_name: a.display_name().to_string(),
+                command: a.command().to_string(),
+                installed: false, // not checked
+                default_model: a.default_model().map(String::from),
+                supported_models: a.supported_models().iter().map(|s| s.to_string()).collect(),
+                supports_acp: a.supports_acp(),
+                acp_installed: false, // not checked
+                acp_command: acp_spec.as_ref().map(|(cmd, _)| cmd.clone()),
+                acp_args: acp_spec.map(|(_, args)| args).unwrap_or_default(),
+                acp_install_command: a.acp_install_command().map(String::from),
+                acp_adapter_package: a.acp_adapter_package().map(String::from),
+                cli_install_url: a.cli_install_url().map(String::from),
+                cli_install_hint: a.cli_install_hint().map(String::from),
+            }
         })
         .collect()
 }
@@ -119,21 +206,34 @@ pub fn list_agent_info_no_detect() -> Vec<AgentInfo> {
 pub fn list_agent_info() -> Vec<AgentInfo> {
     let agents: Vec<AgentInfo> = builtin_adapters()
         .iter()
-        .map(|a| AgentInfo {
-            name: a.name().to_string(),
-            display_name: a.display_name().to_string(),
-            command: a.command().to_string(),
-            installed: a.detect_installation(),
-            default_model: a.default_model().map(String::from),
-            supported_models: a.supported_models().iter().map(|s| s.to_string()).collect(),
+        .map(|a| {
+            let acp_spec = a.acp_launch_spec();
+            AgentInfo {
+                name: a.name().to_string(),
+                display_name: a.display_name().to_string(),
+                command: a.command().to_string(),
+                installed: a.detect_installation(),
+                default_model: a.default_model().map(String::from),
+                supported_models: a.supported_models().iter().map(|s| s.to_string()).collect(),
+                supports_acp: a.supports_acp(),
+                acp_installed: a.detect_acp_adapter(),
+                acp_command: acp_spec.as_ref().map(|(cmd, _)| cmd.clone()),
+                acp_args: acp_spec.map(|(_, args)| args).unwrap_or_default(),
+                acp_install_command: a.acp_install_command().map(String::from),
+                acp_adapter_package: a.acp_adapter_package().map(String::from),
+                cli_install_url: a.cli_install_url().map(String::from),
+                cli_install_hint: a.cli_install_hint().map(String::from),
+            }
         })
         .collect();
 
     let installed: Vec<&str> = agents.iter().filter(|a| a.installed).map(|a| a.name.as_str()).collect();
     let missing: Vec<&str> = agents.iter().filter(|a| !a.installed).map(|a| a.name.as_str()).collect();
+    let acp_available: Vec<&str> = agents.iter().filter(|a| a.acp_installed).map(|a| a.name.as_str()).collect();
     tracing::info!(
         installed = %installed.join(", "),
         missing = %missing.join(", "),
+        acp = %acp_available.join(", "),
         "Agent detection complete"
     );
 

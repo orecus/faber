@@ -1,4 +1,4 @@
-import { Blocks } from "lucide-react";
+import { ArrowUpCircle, Blocks, Bot } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
@@ -6,21 +6,25 @@ import { AgentIcon } from "../../lib/agentIcons";
 import { useAppStore } from "../../store/appStore";
 import { ViewLayout } from "../Shell/ViewLayout";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
+import AgentsExtensionTab from "./AgentsExtensionTab";
 import PluginsTab from "./PluginsTab";
 import RulesTab from "./RulesTab";
 import SkillsTab from "./SkillsTab";
 
-type ExtensionsTab = "rules" | "skills" | "plugins";
+type ExtensionsTab = "rules" | "skills" | "plugins" | "agents";
 
 export default function SkillsRulesView() {
   const accentColor = useProjectAccentColor();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const agents = useAppStore((s) => s.agents);
+  const acpUpdatesAvailable = useAppStore((s) => s.acpUpdatesAvailable);
   const isClaudeInstalled = useMemo(
     () => agents.some((a) => a.name === "claude-code" && a.installed),
     [agents],
   );
-  const [activeTab, setActiveTab] = useState<ExtensionsTab>("rules");
+  const [activeTab, setActiveTab] = useState<ExtensionsTab>(
+    acpUpdatesAvailable > 0 ? "agents" : "rules",
+  );
 
   if (!activeProjectId) {
     return (
@@ -66,6 +70,20 @@ export default function SkillsRulesView() {
           >
             Plugins
           </Tabs.Tab>
+          <Tabs.Tab
+            value="agents"
+            icon={<Bot size={13} />}
+            badge={
+              acpUpdatesAvailable > 0 ? (
+                <span className="ml-0.5 flex items-center gap-1 rounded-full bg-warning/20 px-1.5 py-0.5 text-[9px] font-bold text-warning">
+                  <ArrowUpCircle size={9} />
+                  {acpUpdatesAvailable} {acpUpdatesAvailable === 1 ? "update" : "updates"}
+                </span>
+              ) : undefined
+            }
+          >
+            Agents
+          </Tabs.Tab>
         </Tabs>
 
         <div className="flex-1" />
@@ -74,6 +92,9 @@ export default function SkillsRulesView() {
       {activeTab === "rules" && <RulesTab projectId={activeProjectId} />}
       {activeTab === "skills" && <SkillsTab projectId={activeProjectId} />}
       {activeTab === "plugins" && <PluginsTab projectId={activeProjectId} />}
+      {activeTab === "agents" && (
+        <AgentsExtensionTab projectId={activeProjectId} />
+      )}
     </ViewLayout>
   );
 }

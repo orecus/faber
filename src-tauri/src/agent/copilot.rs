@@ -55,6 +55,22 @@ impl AgentAdapter for CopilotCliAdapter {
             "gemini-3-pro",
         ]
     }
+
+    fn supports_acp(&self) -> bool {
+        true
+    }
+
+    fn acp_launch_spec(&self) -> Option<(String, Vec<String>)> {
+        Some(("copilot".to_string(), vec!["--acp".to_string()]))
+    }
+
+    fn cli_install_url(&self) -> Option<&str> {
+        Some("https://github.com/features/copilot/cli")
+    }
+
+    fn cli_install_hint(&self) -> Option<&str> {
+        Some("npm install -g @githubnext/github-copilot-cli")
+    }
 }
 
 #[cfg(test)]

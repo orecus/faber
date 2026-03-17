@@ -451,6 +451,9 @@ fn do_delete_task(
         }
     }
 
+    // Delete associated activity events first
+    db::task_activity::delete_by_task(conn, task_id, project_id)?;
+
     // Delete from DB
     db::tasks::delete(conn, task_id, project_id)?;
 

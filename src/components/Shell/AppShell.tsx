@@ -1,9 +1,13 @@
 import { AlertTriangle, Loader2 } from "lucide-react";
 import { memo, useMemo } from "react";
 
+import { TooltipProvider } from "@/components/ui/tooltip";
+
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAppStore } from "../../store/appStore";
 import CommandPalette from "../CommandPalette/CommandPalette";
+import ChatView from "../Chat/ChatView";
+import FloatingPermissionBanner from "./FloatingPermissionBanner";
 import DashboardView from "../Dashboard/DashboardView";
 import GitHubView from "../GitHub/GitHubView";
 import HelpView from "../Help/HelpView";
@@ -39,6 +43,8 @@ const ViewRouter = memo(function ViewRouter({
     otherView = <TaskDetailView />;
   } else if (activeView === "review") {
     otherView = <ReviewView />;
+  } else if (activeView === "chat") {
+    otherView = <ChatView />;
   } else if (activeView === "github") {
     otherView = <GitHubView />;
   } else if (activeView === "skills-rules") {
@@ -148,14 +154,17 @@ export default function AppShell() {
         className={`grid h-screen overflow-hidden transition-[grid-template-columns] duration-200 ease-out ${isGlass ? "bg-transparent" : "bg-background"}`}
         style={gridStyle}
       >
-        <ApplicationBar />
-        <Sidebar />
-        <ErrorBoundary>
-          <ViewRouter activeView={activeView} />
-        </ErrorBoundary>
-        {rightSidebarOpen && <RightSidebar />}
+        <TooltipProvider>
+          <ApplicationBar />
+          <Sidebar />
+          <ErrorBoundary>
+            <ViewRouter activeView={activeView} />
+          </ErrorBoundary>
+          {rightSidebarOpen && <RightSidebar />}
+        </TooltipProvider>
       </div>
 
+      <FloatingPermissionBanner />
       <FloatingStatusToast />
       <UpdateNotification />
       <CommandPalette />

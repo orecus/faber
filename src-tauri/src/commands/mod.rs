@@ -1,3 +1,4 @@
+pub mod acp_permissions;
 pub mod agents;
 pub mod continuous;
 pub mod docs;

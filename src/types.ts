@@ -3,9 +3,10 @@
 
 export type TaskStatus = "backlog" | "ready" | "in-progress" | "in-review" | "done" | "archived";
 export type Priority = "P0" | "P1" | "P2";
-export type SessionMode = "task" | "vibe" | "shell" | "research";
+export type SessionMode = "task" | "vibe" | "shell" | "research" | "chat";
+export type SessionTransport = "pty" | "acp";
 export type SessionStatus = "starting" | "running" | "paused" | "stopped" | "finished" | "error";
-export type ViewId = "dashboard" | "sessions" | "task-detail" | "review" | "github" | "skills-rules" | "help";
+export type ViewId = "dashboard" | "sessions" | "chat" | "task-detail" | "review" | "github" | "skills-rules" | "help";
 
 export interface Project {
   id: string;
@@ -54,6 +55,7 @@ export interface Session {
   task_id: string | null;
   name: string | null;
   mode: SessionMode;
+  transport: SessionTransport;
   agent: string;
   model: string | null;
   status: SessionStatus;
@@ -158,6 +160,274 @@ export interface AgentInfo {
   installed: boolean;
   default_model: string | null;
   supported_models: string[];
+  /** Whether this agent supports ACP (natively or via an external adapter). */
+  supports_acp: boolean;
+  /** Whether the ACP adapter/binary is actually installed and available. */
+  acp_installed: boolean;
+  /** The ACP launch command (if different from the PTY command). */
+  acp_command: string | null;
+  /** Additional args needed to launch in ACP mode (e.g., ["--acp"]). */
+  acp_args: string[];
+  /** Shell command to install the ACP adapter (e.g., "npm install -g @zed-industries/claude-agent-acp"). Null for native ACP agents. */
+  acp_install_command: string | null;
+  /** npm package name for the ACP adapter (e.g., "@zed-industries/claude-agent-acp"). Null for native ACP agents. */
+  acp_adapter_package: string | null;
+  /** URL to the official install/download page for this agent's CLI tool. */
+  cli_install_url: string | null;
+  /** A short shell command hint for installing the CLI (e.g., "npm install -g ..."). */
+  cli_install_hint: string | null;
+}
+
+// ── ACP Registry types ──
+
+export interface AcpRegistryEntry {
+  /** Registry agent ID (e.g. "claude-acp"). */
+  registry_id: string;
+  /** Faber's internal agent name (e.g. "claude-code"). */
+  faber_agent_name: string;
+  /** Display name from the registry. */
+  name: string;
+  /** Version from the registry. */
+  registry_version: string;
+  /** Description from the registry. */
+  description: string;
+  /** Repository URL. */
+  repository: string | null;
+  /** Authors list. */
+  authors: string[];
+  /** License string. */
+  license: string | null;
+  /** Icon URL from the CDN. */
+  icon_url: string | null;
+  /** Whether the agent CLI is installed locally. */
+  cli_installed: boolean;
+  /** Whether the ACP adapter is installed locally. */
+  adapter_installed: boolean;
+  /** Locally installed adapter package name (if any). */
+  local_adapter_package: string | null;
+  /** Locally installed adapter version (if detected via npm). */
+  installed_version: string | null;
+  /** Whether an update is available (registry version > local). */
+  update_available: boolean;
+  /** Install command from registry distribution. */
+  install_command: string | null;
+}
+
+// ── ACP event types ──
+
+export interface AcpMessageChunk {
+  session_id: string;
+  text: string;
+}
+
+/** Tool call content produced by the agent (matches Rust ToolCallContentItem). */
+export type ToolCallContentItem =
+  | { type: "text"; text: string }
+  | { type: "diff"; path: string; old_text: string | null; new_text: string }
+  | { type: "terminal"; terminal_id: string };
+
+export interface AcpToolCall {
+  session_id: string;
+  tool_call_id: string;
+  title: string;
+  kind: string;
+  status: string;
+  content?: ToolCallContentItem[];
+}
+
+export interface AcpToolCallUpdate {
+  session_id: string;
+  tool_call_id: string;
+  status: string;
+  title: string | null;
+  content?: ToolCallContentItem[] | null;
+}
+
+export interface AcpPlanEntry {
+  id: string;
+  title: string;
+  status: string;
+}
+
+export interface AcpPlanUpdate {
+  session_id: string;
+  entries: AcpPlanEntry[];
+}
+
+export interface AcpModeUpdate {
+  session_id: string;
+  mode: string;
+}
+
+export interface AcpSessionInfo {
+  session_id: string;
+  title: string | null;
+}
+
+export interface AcpPromptComplete {
+  session_id: string;
+  stop_reason: string;
+}
+
+export interface AcpError {
+  session_id: string;
+  error: string;
+}
+
+// ── ACP Permission types ──
+
+export interface AcpPermissionOption {
+  option_id: string;
+  name: string;
+  kind: string;
+  description: string | null;
+}
+
+export interface AcpPermissionRequest {
+  session_id: string;
+  request_id: string;
+  capability: string;
+  detail: string;
+  description: string;
+  options: AcpPermissionOption[];
+}
+
+export interface AcpPermissionResponse {
+  session_id: string;
+  request_id: string;
+  approved: boolean;
+  timed_out: boolean;
+}
+
+// ── ACP available commands & config options ──
+
+export interface AcpAvailableCommand {
+  name: string;
+  description: string;
+  input_hint?: string;
+}
+
+export interface AcpAvailableCommandsUpdate {
+  session_id: string;
+  commands: AcpAvailableCommand[];
+}
+
+export interface AcpConfigSelectOption {
+  value: string;
+  name: string;
+  description?: string;
+}
+
+export interface AcpConfigSelectGroup {
+  name: string;
+  options: AcpConfigSelectOption[];
+}
+
+export interface AcpConfigOption {
+  id: string;
+  name: string;
+  description?: string;
+  /** Semantic category: "mode", "model", "thought_level", or custom. */
+  category?: string;
+  current_value: string;
+  /** Flat list of options (when ungrouped). */
+  options: AcpConfigSelectOption[];
+  /** Grouped options (when grouped). */
+  groups: AcpConfigSelectGroup[];
+}
+
+export interface AcpConfigOptionUpdate {
+  session_id: string;
+  config_options: AcpConfigOption[];
+}
+
+/** Context window usage and cost data from ACP UsageUpdate. */
+export interface AcpUsageData {
+  /** Tokens currently in context. */
+  used: number;
+  /** Total context window size in tokens. */
+  size: number;
+  /** Cumulative session cost amount (if provided by agent). */
+  cost_amount?: number;
+  /** ISO 4217 currency code (e.g. "USD"). */
+  cost_currency?: string;
+}
+
+export type PermissionAction = "auto_approve" | "ask" | "deny";
+
+export interface PermissionRule {
+  id: string;
+  project_id: string;
+  capability: string;
+  path_pattern: string | null;
+  command_pattern: string | null;
+  action: PermissionAction;
+  created_at: string;
+}
+
+export interface PermissionLogEntry {
+  id: string;
+  session_id: string;
+  project_id: string;
+  capability: string;
+  detail: string;
+  decision: string;
+  decided_at: string;
+}
+
+// ── ACP accumulated chat state (frontend-only, built from ACP events) ──
+
+/** Lightweight attachment record kept on user messages for display purposes. */
+export interface AcpMessageAttachment {
+  filename: string;
+  mediaType: string;
+  /** Data URL (for images) or empty string (for non-image files, to save memory). */
+  url: string;
+}
+
+export interface AcpChatMessage {
+  id: string;
+  role: "user" | "agent";
+  text: string;
+  timestamp: number;
+  /** Attachments sent with this user message. */
+  attachments?: AcpMessageAttachment[];
+  /** Thinking/reasoning text that preceded this agent message (populated when thinking stream completes). */
+  thinkingText?: string;
+  /** Duration in seconds of the thinking phase, if any. */
+  thinkingDuration?: number;
+  /** Whether this message represents an error (e.g. ACP prompt failure). */
+  isError?: boolean;
+}
+
+export interface AcpToolCallState {
+  tool_call_id: string;
+  title: string;
+  kind: string;
+  status: string; // "pending" | "in_progress" | "completed" | "failed"
+  /** Index of the agent message this tool call is associated with. */
+  messageIndex: number;
+  /** Arrival timestamp for chronological ordering in the timeline. */
+  timestamp: number;
+  /** Content produced by the tool call (code, diffs, terminal output). */
+  content?: ToolCallContentItem[];
+}
+
+/** A standalone thinking/reasoning block, positioned chronologically in the timeline. */
+export interface AcpThinkingBlock {
+  id: string;
+  text: string;
+  timestamp: number;
+  /** Duration in seconds of the thinking phase. */
+  duration?: number;
+}
+
+// ── ACP Capabilities ──
+
+export interface AgentCapabilities {
+  image: boolean;
+  audio: boolean;
+  embedded_context: boolean;
 }
 
 // ── Rule file types ──

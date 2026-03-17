@@ -47,6 +47,8 @@ export default function SessionsView() {
   const filteredSessions = useMemo(() => {
     return sessions.filter((s) => {
       if (gridLayout.dismissedEndedSessionIds.includes(s.id)) return false;
+      // Chat sessions are shown in the Chat view, not the session grid
+      if (s.mode === "chat") return false;
       return true;
     });
   }, [sessions, gridLayout.dismissedEndedSessionIds]);

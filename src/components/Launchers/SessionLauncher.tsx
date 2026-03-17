@@ -1,6 +1,8 @@
 import { invoke } from "@tauri-apps/api/core";
-import { AlertTriangle, Play, X } from "lucide-react";
+import { AlertTriangle, MessageSquare, Play, Terminal, X } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
+
+import type { SessionTransport } from "../../types";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
@@ -45,6 +47,7 @@ export default function SessionLauncher({
   const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [selectedTransport, setSelectedTransport] = useState<SessionTransport>("pty");
   const [selectedBranch, setSelectedBranch] = useState<string>("");
   const [createWorktree, setCreateWorktree] = useState(false);
   const [userPrompt, setUserPrompt] = useState("");
@@ -71,6 +74,8 @@ export default function SessionLauncher({
       setSelectedAgentName(name);
       setError(null);
       setSelectedModel("");
+      // Default to ACP if agent has adapter installed, otherwise fall back to PTY
+      setSelectedTransport(agent.acp_installed ? "acp" : "pty");
     },
     [agents],
   );
@@ -95,6 +100,7 @@ export default function SessionLauncher({
         createWorktree,
         baseBranch: selectedBranch || null,
         userPrompt: userPrompt.trim() || null,
+        transport: selectedTransport,
       });
       onSessionStarted();
     } catch (err) {
@@ -108,6 +114,7 @@ export default function SessionLauncher({
     projectId,
     selectedAgentName,
     selectedModel,
+    selectedTransport,
     createWorktree,
     selectedBranch,
     userPrompt,
@@ -169,6 +176,46 @@ export default function SessionLauncher({
             })}
           </div>
         </div>
+
+        {/* Transport toggle — only when agent supports ACP */}
+        {currentAgent?.acp_installed && (
+          <div>
+            <label className="mb-1.5 block text-xs text-dim-foreground">
+              Transport
+            </label>
+            <div className="inline-flex rounded-[var(--radius-element)] bg-muted/50 p-0.5 ring-1 ring-border/40">
+              <button
+                type="button"
+                onClick={() => setSelectedTransport("pty")}
+                className={`flex items-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
+                  selectedTransport === "pty"
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/60 font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Terminal size={13} />
+                Terminal
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTransport("acp")}
+                className={`flex items-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
+                  selectedTransport === "acp"
+                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/60 font-medium"
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <MessageSquare size={13} />
+                Chat
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {selectedTransport === "acp"
+                ? "Structured chat UI with tool calls and permission management"
+                : "Classic terminal session with PTY output"}
+            </p>
+          </div>
+        )}
 
         {/* Model */}
         {currentAgent && currentAgent.supported_models.length > 0 && (

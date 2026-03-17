@@ -69,7 +69,6 @@ pub fn list_by_session(
 }
 
 /// Delete all activity events for a task.
-#[allow(dead_code)]
 pub fn delete_by_task(
     conn: &Connection,
     task_id: &str,

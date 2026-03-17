@@ -1,6 +1,11 @@
-use super::{AgentAdapter, AgentLaunchConfig, AgentLaunchSpec};
+use super::{is_command_in_path, AgentAdapter, AgentLaunchConfig, AgentLaunchSpec};
 
 pub struct ClaudeCodeAdapter;
+
+/// The external ACP adapter binary from Zed.
+/// Install via: `npm install -g @zed-industries/claude-agent-acp`
+/// Or download from: https://github.com/zed-industries/claude-agent-acp/releases
+pub const CLAUDE_ACP_ADAPTER_COMMAND: &str = "claude-agent-acp";
 
 impl AgentAdapter for ClaudeCodeAdapter {
     fn name(&self) -> &str {
@@ -56,6 +61,34 @@ impl AgentAdapter for ClaudeCodeAdapter {
     fn supported_models(&self) -> &[&str] {
         &["opus", "sonnet", "haiku", "sonnet[1m]"]
     }
+
+    fn supports_acp(&self) -> bool {
+        true
+    }
+
+    fn acp_launch_spec(&self) -> Option<(String, Vec<String>)> {
+        Some((CLAUDE_ACP_ADAPTER_COMMAND.to_string(), vec![]))
+    }
+
+    fn detect_acp_adapter(&self) -> bool {
+        is_command_in_path(CLAUDE_ACP_ADAPTER_COMMAND)
+    }
+
+    fn acp_install_command(&self) -> Option<&str> {
+        Some("npm install -g @zed-industries/claude-agent-acp")
+    }
+
+    fn acp_adapter_package(&self) -> Option<&str> {
+        Some("@zed-industries/claude-agent-acp")
+    }
+
+    fn cli_install_url(&self) -> Option<&str> {
+        Some("https://docs.anthropic.com/en/docs/claude-code")
+    }
+
+    fn cli_install_hint(&self) -> Option<&str> {
+        Some("npm install -g @anthropic-ai/claude-code")
+    }
 }
 
 #[cfg(test)]
@@ -74,6 +107,15 @@ mod tests {
         assert_eq!(a.command(), "claude");
         assert_eq!(a.default_model(), Some("sonnet"));
         assert!(!a.supported_models().is_empty());
+    }
+
+    #[test]
+    fn supports_acp_via_adapter() {
+        let a = adapter();
+        assert!(a.supports_acp());
+        let (cmd, args) = a.acp_launch_spec().expect("should have ACP launch spec");
+        assert_eq!(cmd, CLAUDE_ACP_ADAPTER_COMMAND);
+        assert!(args.is_empty());
     }
 
     #[test]

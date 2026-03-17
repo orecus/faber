@@ -7,7 +7,7 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 
 // ── Types ──
 
-type NotificationType = "complete" | "error" | "waiting";
+type NotificationType = "complete" | "error" | "waiting" | "permission";
 
 interface NotificationSettings {
   enabled: boolean;
@@ -93,6 +93,8 @@ export function maybeNotify(
   if (type === "complete" && !settings.on_complete) return;
   if (type === "error" && !settings.on_error) return;
   if (type === "waiting" && !settings.on_waiting) return;
+  // Permission requests use the "waiting" toggle — both are user-attention events
+  if (type === "permission" && !settings.on_waiting) return;
 
   // Suppress if the app window is focused AND the user is on the terminal grid
   // AND the session's project is currently active
@@ -105,7 +107,9 @@ export function maybeNotify(
       ? `Session Complete: ${sessionName}`
       : type === "error"
         ? `Session Error: ${sessionName}`
-        : `Input Needed: ${sessionName}`;
+        : type === "permission"
+          ? `Permission Required: ${sessionName}`
+          : `Input Needed: ${sessionName}`;
 
   sendNotification({ title, body });
 

@@ -11,14 +11,15 @@ pub fn create(conn: &Connection, new: &NewSession) -> Result<Session, rusqlite::
 
 pub fn create_with_id(conn: &Connection, id: &str, new: &NewSession) -> Result<Session, rusqlite::Error> {
     conn.execute(
-        "INSERT INTO sessions (id, project_id, task_id, name, mode, agent, model, worktree_path)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
+        "INSERT INTO sessions (id, project_id, task_id, name, mode, transport, agent, model, worktree_path)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)",
         params![
             id,
             new.project_id,
             new.task_id,
             new.name,
             new.mode.as_str(),
+            new.transport.as_str(),
             new.agent,
             new.model,
             new.worktree_path,
@@ -29,7 +30,7 @@ pub fn create_with_id(conn: &Connection, id: &str, new: &NewSession) -> Result<S
 
 pub fn get(conn: &Connection, id: &str) -> Result<Option<Session>, rusqlite::Error> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, project_id, task_id, name, mode, agent, model, status, pid, worktree_path,
+        "SELECT id, project_id, task_id, name, mode, transport, agent, model, status, pid, worktree_path,
                 mcp_connected, started_at, ended_at
          FROM sessions WHERE id = ?1",
     )?;
@@ -39,7 +40,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<Session>, rusqlite::Err
 
 pub fn list_by_project(conn: &Connection, project_id: &str) -> Result<Vec<Session>, rusqlite::Error> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, project_id, task_id, name, mode, agent, model, status, pid, worktree_path,
+        "SELECT id, project_id, task_id, name, mode, transport, agent, model, status, pid, worktree_path,
                 mcp_connected, started_at, ended_at
          FROM sessions WHERE project_id = ?1 ORDER BY started_at DESC",
     )?;
@@ -56,7 +57,7 @@ pub fn list_by_project(conn: &Connection, project_id: &str) -> Result<Vec<Sessio
 
 pub fn list_active(conn: &Connection) -> Result<Vec<Session>, rusqlite::Error> {
     let mut stmt = conn.prepare_cached(
-        "SELECT id, project_id, task_id, name, mode, agent, model, status, pid, worktree_path,
+        "SELECT id, project_id, task_id, name, mode, transport, agent, model, status, pid, worktree_path,
                 mcp_connected, started_at, ended_at
          FROM sessions WHERE status IN ('starting', 'running', 'paused')
          ORDER BY started_at DESC",
@@ -198,8 +199,9 @@ pub fn update_pid(conn: &Connection, id: &str, pid: i64) -> Result<bool, rusqlit
 
 fn row_to_session(row: &rusqlite::Row) -> Result<Session, rusqlite::Error> {
     let mode_str: String = row.get(4)?;
-    let status_str: String = row.get(7)?;
-    let mcp_int: i32 = row.get(10)?;
+    let transport_str: String = row.get(5)?;
+    let status_str: String = row.get(8)?;
+    let mcp_int: i32 = row.get(11)?;
 
     Ok(Session {
         id: row.get(0)?,
@@ -209,16 +211,19 @@ fn row_to_session(row: &rusqlite::Row) -> Result<Session, rusqlite::Error> {
         mode: mode_str.parse().map_err(|e: String| {
             rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::from(e))
         })?,
-        agent: row.get(5)?,
-        model: row.get(6)?,
-        status: status_str.parse().map_err(|e: String| {
-            rusqlite::Error::FromSqlConversionFailure(7, rusqlite::types::Type::Text, Box::from(e))
+        transport: transport_str.parse().map_err(|e: String| {
+            rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::from(e))
         })?,
-        pid: row.get(8)?,
-        worktree_path: row.get(9)?,
+        agent: row.get(6)?,
+        model: row.get(7)?,
+        status: status_str.parse().map_err(|e: String| {
+            rusqlite::Error::FromSqlConversionFailure(8, rusqlite::types::Type::Text, Box::from(e))
+        })?,
+        pid: row.get(9)?,
+        worktree_path: row.get(10)?,
         mcp_connected: mcp_int != 0,
-        started_at: row.get(11)?,
-        ended_at: row.get(12)?,
+        started_at: row.get(12)?,
+        ended_at: row.get(13)?,
     })
 }
 
@@ -253,6 +258,7 @@ mod tests {
             task_id: None,
             name: None,
             mode: SessionMode::Task,
+            transport: crate::db::models::SessionTransport::Pty,
             agent: "claude".into(),
             model: Some("opus".into()),
             worktree_path: None,

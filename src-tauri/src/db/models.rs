@@ -91,6 +91,7 @@ pub enum SessionMode {
     Vibe,
     Shell,
     Research,
+    Chat,
 }
 
 impl SessionMode {
@@ -100,6 +101,7 @@ impl SessionMode {
             Self::Vibe => "vibe",
             Self::Shell => "shell",
             Self::Research => "research",
+            Self::Chat => "chat",
         }
     }
 }
@@ -118,7 +120,42 @@ impl FromStr for SessionMode {
             "vibe" => Ok(Self::Vibe),
             "shell" => Ok(Self::Shell),
             "research" => Ok(Self::Research),
+            "chat" => Ok(Self::Chat),
             _ => Err(format!("invalid session mode: {s}")),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum SessionTransport {
+    #[default]
+    Pty,
+    Acp,
+}
+
+impl SessionTransport {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Pty => "pty",
+            Self::Acp => "acp",
+        }
+    }
+}
+
+impl fmt::Display for SessionTransport {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for SessionTransport {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "pty" => Ok(Self::Pty),
+            "acp" => Ok(Self::Acp),
+            _ => Err(format!("invalid session transport: {s}")),
         }
     }
 }
@@ -250,6 +287,7 @@ pub struct Session {
     pub task_id: Option<String>,
     pub name: Option<String>,
     pub mode: SessionMode,
+    pub transport: SessionTransport,
     pub agent: String,
     pub model: Option<String>,
     pub status: SessionStatus,
@@ -265,6 +303,7 @@ pub struct NewSession {
     pub task_id: Option<String>,
     pub name: Option<String>,
     pub mode: SessionMode,
+    pub transport: SessionTransport,
     pub agent: String,
     pub model: Option<String>,
     pub worktree_path: Option<String>,
