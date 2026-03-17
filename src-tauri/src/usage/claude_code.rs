@@ -147,7 +147,7 @@ impl ClaudeCodeProvider {
         use keyring::Entry;
 
         // Claude Code stores credentials under the OS username, not "default"
-        let username = whoami::username();
+        let username = whoami::username().ok()?;
 
         let result = Entry::new("Claude Code-credentials", &username)
             .and_then(|entry| entry.get_password());
