@@ -255,6 +255,7 @@ pub fn start_research_session(
     Ok(session)
 }
 
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn start_chat_session(
     db: State<'_, DbState>,
@@ -742,7 +743,7 @@ pub fn set_acp_config_option(
                             let config_options: Vec<crate::acp::types::AcpConfigOption> = response
                                 .config_options
                                 .iter()
-                                .map(|opt| convert_config_option_public(opt))
+                                .map(convert_config_option_public)
                                 .collect();
                             let _ = app.emit(EVENT_ACP_CONFIG_OPTION_UPDATE, AcpConfigOptionUpdatePayload {
                                 session_id: session_id.clone(),

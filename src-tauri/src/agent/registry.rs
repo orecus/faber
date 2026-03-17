@@ -296,10 +296,8 @@ pub async fn fetch_registry(force_refresh: bool) -> Result<Vec<AcpRegistryInfo>,
         let install_command = agent.distribution.as_ref().and_then(|d| {
             if let Some(ref npx) = d.npx {
                 Some(format!("npx {}", npx.package))
-            } else if let Some(ref uvx) = d.uvx {
-                Some(format!("uvx {}", uvx.package))
             } else {
-                None
+                d.uvx.as_ref().map(|uvx| format!("uvx {}", uvx.package))
             }
         });
 

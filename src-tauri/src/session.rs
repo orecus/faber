@@ -917,6 +917,7 @@ fn register_acp_mcp_session(
 ///
 /// This is the shared core for all ACP session types (task, vibe, research).
 /// The caller is responsible for task-specific logic (worktree, task status updates).
+#[allow(clippy::too_many_arguments)]
 fn spawn_acp_session(
     conn: &Connection,
     app: &AppHandle,
@@ -1089,7 +1090,7 @@ fn spawn_acp_session(
             if let Some(ref config_opts) = acp_session.config_options {
                 let converted: Vec<_> = config_opts
                     .iter()
-                    .map(|opt| handler::convert_config_option_public(opt))
+                    .map(handler::convert_config_option_public)
                     .collect();
                 if !converted.is_empty() {
                     tracing::info!(

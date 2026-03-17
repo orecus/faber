@@ -434,10 +434,10 @@ fn glob_recursive(pattern: &[u8], text: &[u8]) -> bool {
         }
         // Try skipping characters in text (including separators)
         for i in 0..text.len() {
-            if text[i] == b'/' {
-                if glob_recursive(&pattern[3..], &text[i + 1..]) {
-                    return true;
-                }
+            if text[i] == b'/'
+                && glob_recursive(&pattern[3..], &text[i + 1..])
+            {
+                return true;
             }
         }
         return false;

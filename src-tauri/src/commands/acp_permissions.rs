@@ -81,6 +81,7 @@ pub fn get_permission_log(
 /// `AcpState`, the session would not be found during active prompts — which is
 /// exactly when permission requests happen. The registry is never modified by
 /// `prompt()`, so the lookup always succeeds.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub async fn respond_permission(
     registry: State<'_, PendingPermissionsRegistry>,

@@ -357,7 +357,7 @@ impl FaberAcpHandler {
                 let config_options: Vec<AcpConfigOption> = cfg
                     .config_options
                     .iter()
-                    .map(|opt| convert_config_option(opt))
+                    .map(convert_config_option)
                     .collect();
                 info!(
                     session_id = %self.session_id,
