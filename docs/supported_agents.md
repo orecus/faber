@@ -143,7 +143,6 @@ Agents can call these tools to communicate with Faber:
 | `update_task_plan` | Update the implementation plan section of a task file |
 | `create_task` | Create a new task in the current project |
 | `list_tasks` | List tasks in the project with optional status/label filters |
-| `promote_session` | Promote a research session to implementation mode (changes completion behavior) |
 
 ---
 

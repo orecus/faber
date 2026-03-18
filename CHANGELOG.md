@@ -27,7 +27,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Sync Dialog** — Safe confirmation dialog for GitHub issue sync with granular field selection (title, body, status, labels), replacing the previous instant sync. Configurable default checkbox states in GitHub Settings
 - **GitHub Auth Gate** — Shared `GitHubAuthGate` component replacing duplicated auth/remote checks in Issues and Pull Requests tabs
 - **GitHub Issue Detail Panel** — Click any issue in the Issues tab to preview its full body, labels, assignees, and comment thread in a right-side detail panel (matching the Pull Requests detail pattern), with one-click import and "Open in GitHub" actions
-- **Promote Session MCP Tool** — New `promote_session` MCP tool allowing agents to transition from research to implementation mode. After promotion, completing the session moves the task to in-review instead of being a no-op
+- **Research → Implementation Flow** — When a research session completes, a centered prompt card slides in over the session pane (with backdrop blur) offering to continue to implementation. Clicking "Continue to Implementation" opens the Launch Task dialog pre-filled for that task; after launching, the research session auto-closes after a few seconds. Replaces the previous `promote_session` MCP tool with a user-driven UI flow that creates a proper task session with worktree isolation
+- **Chat Narration Mode Toggle** — Two rendering modes for ACP chat narration messages: "Split turns" (each narration creates its own turn with associated tool calls) and "Inline" (narrations are rendered inline between tool steps within a single turn). Toggle in the Chat view toolbar, persisted across sessions
 
 ### Changed
 
@@ -42,6 +43,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Git Data Refresh** — Renamed the git data "Sync" button to "Refresh" to avoid confusion with GitHub issue sync
 - **Bundle Optimization** — Split vendor dependencies into cache-friendly manual chunks (xterm, diff, markdown, ui, react) and wrapped view switches in `startTransition` so React keeps the current view visible while lazy chunks load
 - **Welcome Screen Agents** — Redesigned supported agents section from inline badges to a 3-per-row card grid showing agent icon, description, and live detection status (checkmark/empty circle). Removed manual path input
+- **Persisted State Hooks** — `usePersistedBoolean`, `usePersistedString`, and `usePersistedNumber` now return a third `loaded` boolean, allowing components to avoid UI flashes when the default value differs from the saved one
 
 ### Fixed
 

@@ -38,7 +38,7 @@ You can set a **priority** (P0 / P1 / P2) and add **dependencies** between tasks
 A **session** is an AI agent (or plain terminal) running in a PTY. There are four ways to start one:
 
 - **Launch a task** — Click the play button on a task card in the Dashboard. Faber creates an isolated git worktree and branch, injects the task context into the agent's system prompt, and connects MCP progress reporting. The task moves to "In Progress".
-- **Research a task** — Click the lightbulb icon on a "Backlog" task card. This launches a lightweight agent session to analyze and plan the task without changing its status or creating a worktree. The agent reads the task file and collaborates with you to explore the problem space before committing to implementation.
+- **Research a task** — Click the lightbulb icon on a "Backlog" task card. This launches a lightweight agent session to analyze and plan the task without changing its status or creating a worktree. The agent reads the task file and collaborates with you to explore the problem space before committing to implementation. When the research completes, a prompt appears offering to continue directly to implementation — launching a full task session with worktree isolation while the research findings are preserved in the task file.
 - **New Agent** — Click "New Agent" in the Sessions toolbar. This starts a free-form agent session with no specific task — good for exploration, prototyping, or asking questions. You can optionally create a worktree for it.
 - **Terminal** — Click "Terminal" in the Sessions toolbar. This opens a plain shell with no agent, useful for running commands manually.
 

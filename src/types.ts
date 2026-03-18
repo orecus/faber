@@ -398,6 +398,8 @@ export interface AcpChatMessage {
   thinkingDuration?: number;
   /** Whether this message represents an error (e.g. ACP prompt failure). */
   isError?: boolean;
+  /** Whether this message is inter-tool narration (agent text between tool calls, not the final response). */
+  isNarration?: boolean;
 }
 
 export interface AcpToolCallState {

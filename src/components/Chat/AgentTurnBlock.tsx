@@ -342,7 +342,7 @@ function CollapsibleToolStep({ tc, sessionId, hasNext }: {
 
 // ── Collapsed tool calls summary ──
 
-/** Renders a single turn item (tool call or thinking block). */
+/** Renders a single turn item (tool call, thinking block, or narration). */
 function renderTurnItem(
   item: TurnItem,
   hasNext: boolean,
@@ -355,6 +355,25 @@ function renderTurnItem(
         tc={item.data}
         sessionId={sessionId}
         hasNext={hasNext}
+      />
+    );
+  }
+  if (item.type === "narration") {
+    const msg = item.data;
+    return (
+      <ChainOfThoughtStep
+        key={msg.id}
+        icon={MessageCircle}
+        status="complete"
+        className={cn(
+          hasNext && "pb-1.5 [&>div:first-child]:min-h-8",
+          !hasNext && "[&>div:first-child>div:last-child]:hidden",
+        )}
+        label={
+          <span className="text-xs text-muted-foreground italic leading-relaxed">
+            {msg.text}
+          </span>
+        }
       />
     );
   }
@@ -692,12 +711,15 @@ function TaskUpdatedIndicator({ updates, hasNext }: { updates: ClassifiedTools["
 /** A merged item in the turn's chronological timeline. */
 type TurnItem =
   | { type: "tool"; data: AcpToolCallState }
-  | { type: "thinking"; data: AcpThinkingBlock };
+  | { type: "thinking"; data: AcpThinkingBlock }
+  | { type: "narration"; data: AcpChatMessage };
 
 interface AgentTurnBlockProps {
   toolCalls: AcpToolCallState[];
   thinkingBlocks?: AcpThinkingBlock[];
   agentMessage: AcpChatMessage | null;
+  /** Narration messages to render inline between tool steps (Option B mode). */
+  narrations?: AcpChatMessage[];
   isStreaming?: boolean;
   sessionId: string;
 }
@@ -708,6 +730,7 @@ export default React.memo(function AgentTurnBlock({
   toolCalls,
   thinkingBlocks = [],
   agentMessage,
+  narrations = [],
   isStreaming = false,
   sessionId,
 }: AgentTurnBlockProps) {
@@ -723,15 +746,16 @@ export default React.memo(function AgentTurnBlock({
   // Classify all tool calls
   const classified = useMemo(() => classifyToolCalls(toolCalls), [toolCalls]);
 
-  // Merge regular tool call steps with thinking blocks, sorted chronologically
+  // Merge regular tool call steps, thinking blocks, and narrations — sorted chronologically
   const turnItems = useMemo<TurnItem[]>(() => {
     const items: TurnItem[] = [
       ...classified.steps.map((tc) => ({ type: "tool" as const, data: tc })),
       ...thinkingBlocks.map((tb) => ({ type: "thinking" as const, data: tb })),
+      ...narrations.map((msg) => ({ type: "narration" as const, data: msg })),
     ];
     items.sort((a, b) => a.data.timestamp - b.data.timestamp);
     return items;
-  }, [classified.steps, thinkingBlocks]);
+  }, [classified.steps, thinkingBlocks, narrations]);
 
   const hasSteps = turnItems.length > 0;
   const hasMcpVisuals = classified.filesChanged.length > 0 || classified.errors.length > 0

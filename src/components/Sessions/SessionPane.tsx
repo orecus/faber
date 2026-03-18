@@ -5,13 +5,16 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { usePersistedString } from "../../hooks/usePersistedState";
 import { AgentIcon } from "../../lib/agentIcons";
 import { useAppStore } from "../../store/appStore";
 import { ChatPane } from "../Chat";
+import type { NarrationMode } from "../Chat/ChatPane";
 import Terminal from "../Terminal";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles, ringColors } from "../ui/orecus.io/lib/color-utils";
 import QuickActionBar from "./QuickActionBar";
+import ResearchCompleteBar from "./ResearchCompleteBar";
 
 import type { Session } from "../../types";
 
@@ -64,9 +67,13 @@ export default React.memo(function SessionPane({
 }: SessionPaneProps) {
   const { isGlass } = useTheme();
   const accentColor = useProjectAccentColor();
+  const [narrationMode] = usePersistedString("chat_narration_mode", "split-turns") as [NarrationMode, (v: NarrationMode) => void, boolean];
   const mcpData = useAppStore((s) => s.mcpStatus[session.id]);
   const hasPermissionRequests = useAppStore(
     (s) => (s.acpPermissionRequests[session.id] ?? []).length > 0,
+  );
+  const isResearchComplete = useAppStore(
+    (s) => s.researchCompleteSessionIds.includes(session.id),
   );
   const setSessions = useAppStore((s) => s.setSessions);
   const isEnded = !ACTIVE_STATUSES.has(session.status);
@@ -355,7 +362,7 @@ export default React.memo(function SessionPane({
       {/* Content area — Terminal or Chat depending on transport */}
       <div className="group/pane flex-1 min-h-0 relative bg-white dark:bg-[#0d1117]">
         {session.transport === "acp" ? (
-          <ChatPane sessionId={session.id} sessionStatus={session.status} />
+          <ChatPane sessionId={session.id} sessionStatus={session.status} narrationMode={narrationMode} />
         ) : (
           <>
             <Terminal sessionId={session.id} />
@@ -367,6 +374,14 @@ export default React.memo(function SessionPane({
               sessionMode={session.mode}
             />
           </>
+        )}
+
+        {/* Research Complete Bar — slides in when a research session finishes */}
+        {isResearchComplete && session.task_id && (
+          <ResearchCompleteBar
+            sessionId={session.id}
+            taskId={session.task_id}
+          />
         )}
 
         {/* Session Ended Overlay */}

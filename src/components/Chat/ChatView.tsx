@@ -1,25 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   AlertTriangle,
+  Layers,
   Loader2,
   MessageCircle,
   Plus,
   RotateCcw,
+  Rows3,
   X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { usePersistedString } from "../../hooks/usePersistedState";
 import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
 import { AGENT_DESCRIPTIONS } from "../../lib/agentDescriptions";
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
+import { cn } from "@/lib/utils";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { borderAccentColors } from "../ui/orecus.io/lib/color-utils";
 import ConfirmDialog from "../Review/ConfirmDialog";
 import ChatPane from "./ChatPane";
 import ThreadStatusBadge from "./ThreadStatusBadge";
 
+import type { NarrationMode } from "./ChatPane";
 import type { Session } from "../../types";
 
 /**
@@ -40,6 +45,12 @@ const ChatView = memo(function ChatView() {
   const [launching, setLaunching] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
+  // Narration rendering mode — persisted across sessions
+  const [narrationMode, setNarrationMode] = usePersistedString(
+    "chat_narration_mode",
+    "split-turns",
+  ) as [NarrationMode, (v: NarrationMode) => void, boolean];
 
   // Find the active chat session for this project
   const chatSession: Session | undefined = useMemo(
@@ -165,6 +176,36 @@ const ChatView = memo(function ChatView() {
             sessionStatus={chatSession.status}
           />
           <div className="flex-1" />
+          {/* Narration mode toggle */}
+          <div className="inline-flex items-center rounded-md ring-1 ring-border/40 overflow-hidden">
+            <button
+              onClick={() => setNarrationMode("split-turns")}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1 text-[11px] transition-colors",
+                narrationMode === "split-turns"
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+              )}
+              title="Split turns — each narration becomes its own turn with tool calls"
+            >
+              <Rows3 size={12} />
+              <span className="hidden @xl:inline">Split</span>
+            </button>
+            <div className="w-px h-4 bg-border/40" />
+            <button
+              onClick={() => setNarrationMode("inline")}
+              className={cn(
+                "flex items-center gap-1.5 px-2 py-1 text-[11px] transition-colors",
+                narrationMode === "inline"
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+              )}
+              title="Inline — narration shown inline between tool steps in a single turn"
+            >
+              <Layers size={12} />
+              <span className="hidden @xl:inline">Inline</span>
+            </button>
+          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -199,6 +240,7 @@ const ChatView = memo(function ChatView() {
             <ChatPane
               sessionId={chatSession.id}
               sessionStatus={chatSession.status}
+              narrationMode={narrationMode}
             />
           </div>
         </div>

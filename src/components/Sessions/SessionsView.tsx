@@ -15,6 +15,7 @@ import { ptyBuffer } from "../../lib/ptyBuffer";
 import type { GridLayoutState } from "../../store/appStore";
 import type { Session } from "../../types";
 import ContinuousModeBar from "../Shell/ContinuousModeBar";
+import LaunchTaskDialog from "../Dashboard/LaunchTaskDialog";
 import { ViewLayout } from "../Shell/ViewLayout";
 import SessionsToolbar from "./SessionsToolbar";
 import SessionGrid from "./SessionGrid";
@@ -31,6 +32,10 @@ export default function SessionsView() {
   const setGridLayout = useAppStore((s) => s.setGridLayout);
   const dismissEndedPane = useAppStore((s) => s.dismissEndedPane);
   const reorderSession = useAppStore((s) => s.reorderSession);
+  const tasks = useAppStore((s) => s.tasks);
+  const launchTaskForSessionId = useAppStore((s) => s.launchTaskForSessionId);
+  const setLaunchTaskForSession = useAppStore((s) => s.setLaunchTaskForSession);
+  const dismissResearchComplete = useAppStore((s) => s.dismissResearchComplete);
 
   const [showLauncher, setShowLauncher] = useState(false);
   const [draggedSession, setDraggedSession] = useState<Session | null>(null);
@@ -181,6 +186,37 @@ export default function SessionsView() {
     setShowLauncher(false);
   }, []);
 
+  // ── Research → Implementation flow ──
+
+  // Resolve the session + task for the LaunchTaskDialog when triggered from ResearchCompleteBar
+  const researchSession = useMemo(
+    () => launchTaskForSessionId ? sessions.find((s) => s.id === launchTaskForSessionId) : null,
+    [launchTaskForSessionId, sessions],
+  );
+  const researchTask = useMemo(
+    () => researchSession?.task_id ? tasks.find((t) => t.id === researchSession.task_id) : null,
+    [researchSession, tasks],
+  );
+
+  const handleResearchLaunched = useCallback(() => {
+    if (!launchTaskForSessionId) return;
+    const sessionIdToClose = launchTaskForSessionId;
+
+    // Dismiss the research complete bar
+    dismissResearchComplete(sessionIdToClose);
+    // Close the dialog
+    setLaunchTaskForSession(null);
+
+    // Auto-close the research session after a short delay so the user sees both briefly
+    setTimeout(() => {
+      handleStop(sessionIdToClose);
+    }, 4000);
+  }, [launchTaskForSessionId, dismissResearchComplete, setLaunchTaskForSession, handleStop]);
+
+  const handleResearchLaunchDismiss = useCallback(() => {
+    setLaunchTaskForSession(null);
+  }, [setLaunchTaskForSession]);
+
   const hasContinuousRun = !!(activeProjectId && continuousMode[activeProjectId]);
 
   return (
@@ -235,6 +271,16 @@ export default function SessionsView() {
           projectId={activeProjectId}
           onSessionStarted={handleSessionStarted}
           onDismiss={() => setShowLauncher(false)}
+        />
+      )}
+
+      {/* LaunchTaskDialog triggered from ResearchCompleteBar */}
+      {researchTask && researchSession && activeProjectId && (
+        <LaunchTaskDialog
+          task={researchTask}
+          projectId={activeProjectId}
+          onLaunched={handleResearchLaunched}
+          onDismiss={handleResearchLaunchDismiss}
         />
       )}
     </ViewLayout>

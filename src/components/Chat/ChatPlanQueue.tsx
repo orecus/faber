@@ -32,7 +32,7 @@ export default React.memo(function ChatPlanQueue({
   if (!planEntries || planEntries.length === 0) return null;
 
   return (
-    <Queue className="mx-3 mb-0 rounded-b-none border-b-0 shadow-none">
+    <Queue className="mx-auto mb-0 w-3/4 rounded-b-none border-b-0 shadow-none bg-card/70 backdrop-blur-sm">
       <QueueSection defaultOpen>
         <QueueSectionTrigger>
           <QueueSectionLabel

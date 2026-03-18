@@ -2,7 +2,7 @@ use rusqlite::{params, Connection};
 use tracing::{debug, info, warn};
 
 use super::generate_id;
-use super::models::{NewSession, Session, SessionMode, SessionStatus};
+use super::models::{NewSession, Session, SessionStatus};
 
 pub fn create(conn: &Connection, new: &NewSession) -> Result<Session, rusqlite::Error> {
     let id = generate_id("sess");
@@ -149,30 +149,6 @@ pub fn cleanup_orphaned(conn: &Connection) -> Result<usize, rusqlite::Error> {
         [],
     )?;
     Ok(count)
-}
-
-pub fn update_mode(
-    conn: &Connection,
-    id: &str,
-    mode: SessionMode,
-) -> Result<bool, rusqlite::Error> {
-    if tracing::enabled!(tracing::Level::INFO) {
-        let old_mode: Option<String> = conn
-            .query_row("SELECT mode FROM sessions WHERE id = ?1", params![id], |row| row.get(0))
-            .ok();
-        info!(
-            session_id = id,
-            old_mode = old_mode.as_deref().unwrap_or("(not found)"),
-            new_mode = mode.as_str(),
-            "Session mode change"
-        );
-    }
-
-    let count = conn.execute(
-        "UPDATE sessions SET mode = ?1 WHERE id = ?2",
-        params![mode.as_str(), id],
-    )?;
-    Ok(count > 0)
 }
 
 pub fn update_name(conn: &Connection, id: &str, name: Option<&str>) -> Result<bool, rusqlite::Error> {

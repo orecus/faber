@@ -130,6 +130,8 @@ interface AppState {
   acpThinkingStartTime: Record<string, number>;
   /** Flushed thinking blocks per session (standalone timeline items). */
   acpThinkingBlocks: Record<string, import("../types").AcpThinkingBlock[]>;
+  /** Whether a tool call has arrived since the last message chunk (per session). */
+  acpHadToolCallSinceChunk: Record<string, boolean>;
   acpPermissionRequests: Record<string, import("../types").AcpPermissionRequest[]>;
   /** Available slash commands per ACP session (from AvailableCommandsUpdate). */
   acpAvailableCommands: Record<string, AcpAvailableCommand[]>;
@@ -184,7 +186,7 @@ interface AppState {
   cleanupSessionMcp: (sessionId: string) => void;
 
   // ACP actions
-  appendAcpChunk: (sessionId: string, text: string) => void;
+  appendAcpChunk: (sessionId: string, text: string, forceNew?: boolean) => void;
   addAcpUserMessage: (sessionId: string, text: string, attachments?: import("../types").AcpMessageAttachment[]) => void;
   addAcpToolCall: (sessionId: string, tc: AcpToolCallState) => void;
   updateAcpToolCall: (sessionId: string, toolCallId: string, status: string, title: string | null, content?: import("../types").ToolCallContentItem[] | null) => void;
@@ -205,6 +207,18 @@ interface AppState {
   addBackgroundTask: (label: string) => void;
   removeBackgroundTask: (label: string) => void;
   flashError: (message: string) => void;
+
+  // Research → Implementation flow
+  /** Session IDs of research sessions that have completed (for showing the "Continue to Implementation" bar). */
+  researchCompleteSessionIds: string[];
+  /** Session ID for which we should show the LaunchTaskDialog (triggered from ResearchCompleteBar). */
+  launchTaskForSessionId: string | null;
+  /** Mark a research session as complete (shows the implementation prompt bar). */
+  addResearchComplete: (sessionId: string) => void;
+  /** Dismiss the research complete bar for a session (user chose not to continue). */
+  dismissResearchComplete: (sessionId: string) => void;
+  /** Set the session ID to show LaunchTaskDialog for (null to close). */
+  setLaunchTaskForSession: (sessionId: string | null) => void;
 
   // Continuous mode
   setContinuousMode: (projectId: string, run: ContinuousRun | null) => void;
@@ -290,6 +304,7 @@ export const useAppStore = create<AppState>()(
     acpThinking: {},
     acpThinkingStartTime: {},
     acpThinkingBlocks: {},
+    acpHadToolCallSinceChunk: {},
     acpPermissionRequests: {},
     acpAvailableCommands: {},
     acpConfigOptions: {},
@@ -542,22 +557,23 @@ export const useAppStore = create<AppState>()(
 
     // ── ACP actions ──
 
-    appendAcpChunk: (sessionId, text) =>
+    appendAcpChunk: (sessionId, text, forceNew = false) =>
       set((state) => {
         const msgs = [...(state.acpMessages[sessionId] ?? [])];
         const last = msgs[msgs.length - 1];
-        if (last && last.role === "agent") {
+        if (!forceNew && last && last.role === "agent") {
           // Append to the current agent message (streaming)
           msgs[msgs.length - 1] = { ...last, text: last.text + text };
           return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
         } else {
-          // Start a new agent message (thinking is flushed separately by event listeners)
+          // Start a new agent message — mark as narration if forced by tool-call boundary
           const now = Date.now();
           msgs.push({
             id: `msg_${now}_${Math.random().toString(36).slice(2, 6)}`,
             role: "agent",
             text,
             timestamp: now,
+            ...(forceNew ? { isNarration: true } : {}),
           });
           return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
         }
@@ -737,6 +753,7 @@ export const useAppStore = create<AppState>()(
         const { [sessionId]: _th, ...thinking } = state.acpThinking;
         const { [sessionId]: _ts, ...thinkingTimes } = state.acpThinkingStartTime;
         const { [sessionId]: _tb, ...thinkingBlocks } = state.acpThinkingBlocks;
+        const { [sessionId]: _htc, ...hadToolCall } = state.acpHadToolCallSinceChunk;
         const { [sessionId]: _pr, ...permReqs } = state.acpPermissionRequests;
         const { [sessionId]: _ac, ...availCmds } = state.acpAvailableCommands;
         const { [sessionId]: _co, ...cfgOpts } = state.acpConfigOptions;
@@ -751,6 +768,7 @@ export const useAppStore = create<AppState>()(
           acpThinking: thinking,
           acpThinkingStartTime: thinkingTimes,
           acpThinkingBlocks: thinkingBlocks,
+          acpHadToolCallSinceChunk: hadToolCall,
           acpPermissionRequests: permReqs,
           acpAvailableCommands: availCmds,
           acpConfigOptions: cfgOpts,
@@ -775,6 +793,26 @@ export const useAppStore = create<AppState>()(
       set({ errorFlash: message });
       setTimeout(() => set({ errorFlash: null }), 4000);
     },
+
+    // ── Research → Implementation flow ──
+
+    researchCompleteSessionIds: [],
+    launchTaskForSessionId: null,
+
+    addResearchComplete: (sessionId) =>
+      set((state) => ({
+        researchCompleteSessionIds: state.researchCompleteSessionIds.includes(sessionId)
+          ? state.researchCompleteSessionIds
+          : [...state.researchCompleteSessionIds, sessionId],
+      })),
+
+    dismissResearchComplete: (sessionId) =>
+      set((state) => ({
+        researchCompleteSessionIds: state.researchCompleteSessionIds.filter((id) => id !== sessionId),
+      })),
+
+    setLaunchTaskForSession: (sessionId) =>
+      set({ launchTaskForSessionId: sessionId }),
 
     // ── Per-project data actions ──
 
@@ -1501,6 +1539,13 @@ export const useAppStore = create<AppState>()(
 
           // Refresh branches — agent may have created/switched branches
           get().refreshProjectBranches();
+
+          // If this is a research session with a linked task, show the
+          // "Continue to Implementation" bar
+          const session = get().sessions.find((s) => s.id === session_id);
+          if (session?.mode === "research" && session.task_id) {
+            get().addResearchComplete(session_id);
+          }
         }),
       );
 
@@ -1517,10 +1562,18 @@ export const useAppStore = create<AppState>()(
       eventCleanups.push(
         listen<AcpMessageChunk>("acp-message-chunk", (event) => {
           if (disposed) return;
-          console.log("[ACP] message-chunk", event.payload.session_id, `${event.payload.text.length}ch`, event.payload.text.slice(0, 120));
+          const { session_id, text } = event.payload;
+          const hadToolCall = get().acpHadToolCallSinceChunk[session_id] ?? false;
+          console.log("[ACP] message-chunk", session_id, `${text.length}ch`, hadToolCall ? "(narration)" : "", text.slice(0, 120));
           // Flush any pending thinking into a standalone block before the message
-          get().flushAcpThinking(event.payload.session_id);
-          get().appendAcpChunk(event.payload.session_id, event.payload.text);
+          get().flushAcpThinking(session_id);
+          get().appendAcpChunk(session_id, text, hadToolCall);
+          // Reset the flag after consuming it
+          if (hadToolCall) {
+            set((state) => ({
+              acpHadToolCallSinceChunk: { ...state.acpHadToolCallSinceChunk, [session_id]: false },
+            }));
+          }
         }),
       );
 
@@ -1537,6 +1590,10 @@ export const useAppStore = create<AppState>()(
             messageIndex: msgs.length - 1,
             timestamp: Date.now(),
           });
+          // Mark that a tool call has occurred since the last message chunk
+          set((state) => ({
+            acpHadToolCallSinceChunk: { ...state.acpHadToolCallSinceChunk, [session_id]: true },
+          }));
         }),
       );
 

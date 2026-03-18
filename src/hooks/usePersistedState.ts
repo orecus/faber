@@ -7,6 +7,10 @@ import { invoke } from "@tauri-apps/api/core";
  *
  * All hooks broadcast changes via a window CustomEvent so that multiple
  * components using the same key stay in sync (e.g. TerminalTab → Terminal).
+ *
+ * Each hook returns a third `loaded` boolean that is `false` until the
+ * persisted value has been read from the backend (or the read failed).
+ * Use this to avoid UI flashes when the default differs from the saved value.
  */
 
 function broadcastChange(key: string, raw: string) {
@@ -18,15 +22,17 @@ function broadcastChange(key: string, raw: string) {
 export function usePersistedBoolean(
   key: string,
   defaultValue: boolean,
-): [boolean, (value: boolean) => void] {
+): [boolean, (value: boolean) => void, boolean] {
   const [state, setState] = useState(defaultValue);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     invoke<string | null>("get_setting", { key })
       .then((saved) => {
         if (saved != null) setState(saved === "true");
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, [key]);
 
   // Listen for cross-component broadcasts
@@ -49,21 +55,23 @@ export function usePersistedBoolean(
     [key],
   );
 
-  return [state, setValue];
+  return [state, setValue, loaded];
 }
 
 export function usePersistedString(
   key: string,
   defaultValue: string,
-): [string, (value: string) => void] {
+): [string, (value: string) => void, boolean] {
   const [state, setState] = useState(defaultValue);
+  const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
     invoke<string | null>("get_setting", { key })
       .then((saved) => {
         if (saved != null) setState(saved);
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, [key]);
 
   // Listen for cross-component broadcasts
@@ -85,15 +93,16 @@ export function usePersistedString(
     [key],
   );
 
-  return [state, setValue];
+  return [state, setValue, loaded];
 }
 
 export function usePersistedNumber(
   key: string,
   defaultValue: number,
   debounceMs = 0,
-): [number, (value: number) => void] {
+): [number, (value: number) => void, boolean] {
   const [state, setState] = useState(defaultValue);
+  const [loaded, setLoaded] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -104,7 +113,8 @@ export function usePersistedNumber(
           if (!isNaN(n)) setState(n);
         }
       })
-      .catch(() => {});
+      .catch(() => {})
+      .finally(() => setLoaded(true));
   }, [key]);
 
   // Listen for cross-component broadcasts
@@ -140,5 +150,5 @@ export function usePersistedNumber(
     [key, debounceMs],
   );
 
-  return [state, setValue];
+  return [state, setValue, loaded];
 }
