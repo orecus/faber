@@ -19,7 +19,6 @@ tauri-build = { version = "2", features = [] }
 
 [dependencies]
 tauri = { version = "2", features = ["macos-private-api"] }
-objc2 = { version = "0.6", features = ["relax-sign-encoding"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"
@@ -54,6 +53,9 @@ async-trait = "0.1"
 futures = "0.3"
 base64 = "0.22"
 tauri-plugin-fs = "2.4.5"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+objc2 = { version = "0.6", features = ["relax-sign-encoding"] }
 
 [dev-dependencies]
 tempfile = "3"
