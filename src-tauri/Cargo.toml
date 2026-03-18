@@ -18,7 +18,8 @@ path = "src/bin/faber-mcp.rs"
 tauri-build = { version = "2", features = [] }
 
 [dependencies]
-tauri = { version = "2", features = [] }
+tauri = { version = "2", features = ["macos-private-api"] }
+objc2 = { version = "0.6", features = ["relax-sign-encoding"] }
 tauri-plugin-shell = "2"
 tauri-plugin-dialog = "2"
 tauri-plugin-notification = "2"

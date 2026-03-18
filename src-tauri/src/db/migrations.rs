@@ -80,6 +80,7 @@ CREATE UNIQUE INDEX uq_agent_configs_scope_name ON agent_configs(scope, COALESCE
 
 const MIGRATION_002: &str = r#"
 -- Recreate sessions table with 'shell' added to mode CHECK constraint
+DROP TABLE IF EXISTS sessions_new;
 CREATE TABLE sessions_new (
     id              TEXT PRIMARY KEY,
     project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -126,6 +127,7 @@ ALTER TABLE tasks ADD COLUMN github_pr TEXT;
 
 const MIGRATION_008: &str = r#"
 -- Remove 'plan' from session mode CHECK constraint
+DROP TABLE IF EXISTS sessions_new;
 CREATE TABLE sessions_new (
     id              TEXT PRIMARY KEY,
     project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -154,6 +156,7 @@ CREATE INDEX idx_sessions_status ON sessions(status);
 
 const MIGRATION_009: &str = r#"
 -- Add 'research' to session mode CHECK constraint
+DROP TABLE IF EXISTS sessions_new;
 CREATE TABLE sessions_new (
     id              TEXT PRIMARY KEY,
     project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -236,6 +239,7 @@ CREATE INDEX idx_acp_perm_log_timestamp ON acp_permission_log(decided_at);
 // Add 'chat' to session mode CHECK constraint
 const MIGRATION_014: &str = r#"
 -- Add 'chat' to session mode CHECK constraint
+DROP TABLE IF EXISTS sessions_new;
 CREATE TABLE sessions_new (
     id              TEXT PRIMARY KEY,
     project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
@@ -254,7 +258,9 @@ CREATE TABLE sessions_new (
     ended_at        TEXT
 );
 
-INSERT INTO sessions_new SELECT * FROM sessions;
+DELETE FROM sessions WHERE agent IS NULL OR agent = '';
+INSERT INTO sessions_new (id, project_id, task_id, mode, transport, agent, model, status, pid, worktree_path, mcp_connected, name, started_at, ended_at)
+SELECT id, project_id, task_id, mode, COALESCE(transport, 'pty'), agent, model, status, pid, worktree_path, mcp_connected, name, started_at, ended_at FROM sessions;
 DROP TABLE sessions;
 ALTER TABLE sessions_new RENAME TO sessions;
 
