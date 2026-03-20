@@ -950,6 +950,7 @@ pub async fn list_agent_sessions(
 ///
 /// Creates a new Faber session, spawns an ACP client, calls `session/load`
 /// to restore conversation history, and returns the new session record.
+#[allow(clippy::too_many_arguments)]
 #[tauri::command]
 pub fn resume_acp_session(
     db: State<'_, DbState>,
