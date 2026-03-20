@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::Mutex as TokioMutex;
 
 use crate::acp::state::AcpState;
@@ -662,6 +662,8 @@ pub async fn get_acp_capabilities(
             image: caps.map(|c| c.prompt_capabilities.image).unwrap_or(false),
             audio: caps.map(|c| c.prompt_capabilities.audio).unwrap_or(false),
             embedded_context: caps.map(|c| c.prompt_capabilities.embedded_context).unwrap_or(false),
+            load_session: caps.map(|c| c.load_session).unwrap_or(false),
+            list_sessions: caps.map(|c| c.session_capabilities.list.is_some()).unwrap_or(false),
         })
     } else {
         // Session not found or not ACP — return defaults
@@ -813,6 +815,175 @@ pub struct AcpCapabilitiesResponse {
     pub image: bool,
     pub audio: bool,
     pub embedded_context: bool,
+    pub load_session: bool,
+    pub list_sessions: bool,
+}
+
+// ── Session persistence (list + resume) ──
+
+/// Response for `list_agent_sessions` — sessions reported by the agent.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentSessionInfo {
+    pub session_id: String,
+    pub cwd: String,
+    pub title: Option<String>,
+    pub updated_at: Option<String>,
+}
+
+/// Result wrapper for `list_agent_sessions`.
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct AgentSessionListResult {
+    pub sessions: Vec<AgentSessionInfo>,
+    /// Whether the agent supports session/list.
+    pub supported: bool,
+    /// Whether the agent supports session/load (resume). If false,
+    /// the frontend should show the list but disable Resume/Launch buttons.
+    pub load_session_supported: bool,
+}
+
+/// List sessions known to an ACP agent.
+///
+/// Spawns a temporary ACP client, calls `initialize()` → checks
+/// `session_capabilities.list` → calls `list_sessions()` → `shutdown()`.
+/// Returns empty vec + supported=false if the agent doesn't support listing.
+#[tauri::command]
+pub async fn list_agent_sessions(
+    app: AppHandle,
+    agent_name: String,
+    project_id: String,
+) -> Result<AgentSessionListResult, AppError> {
+    use crate::acp::client::{AcpClient, AcpSpawnConfig};
+    use crate::acp::handler;
+    use crate::agent;
+
+    tracing::info!(agent = %agent_name, project_id = %project_id, "list_agent_sessions invoked");
+
+    // Resolve agent and validate ACP
+    let adapter = agent::get_adapter(&agent_name)
+        .ok_or_else(|| AppError::NotFound(format!("Agent adapter: {agent_name}")))?;
+
+    if !adapter.supports_acp() {
+        return Ok(AgentSessionListResult { sessions: vec![], supported: false, load_session_supported: false });
+    }
+
+    let (acp_command, acp_args) = adapter.acp_launch_spec()
+        .ok_or_else(|| AppError::Validation(format!(
+            "Agent '{}' supports ACP but has no launch spec", agent_name
+        )))?;
+
+    if !adapter.detect_acp_adapter() {
+        return Ok(AgentSessionListResult { sessions: vec![], supported: false, load_session_supported: false });
+    }
+
+    // Fetch project CWD
+    let cwd = {
+        let db: tauri::State<'_, DbState> = app.state();
+        let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        let project = db::projects::get(&conn, &project_id)?
+            .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+        std::path::PathBuf::from(project.path)
+    };
+
+    // Spawn temporary ACP client in a blocking thread with LocalSet
+    let app_clone = app.clone();
+    let cwd_clone = cwd.clone();
+    let result = tokio::task::spawn_blocking(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .map_err(|e| AppError::Io(format!("Failed to build runtime: {e}")))?;
+
+        let local = tokio::task::LocalSet::new();
+        local.block_on(&rt, async move {
+            let pending_permissions = handler::new_pending_permissions();
+            let spawn_config = AcpSpawnConfig {
+                command: acp_command,
+                args: acp_args,
+                cwd: cwd_clone.clone(),
+                env: std::collections::HashMap::new(),
+                session_id: "temp-list".to_string(),
+                project_id: project_id.clone(),
+                is_trust_mode: false,
+                pending_permissions,
+            };
+
+            let mut client = AcpClient::spawn(spawn_config, app_clone)
+                .map_err(|e| AppError::Io(format!("Failed to spawn ACP client: {e}")))?;
+
+            let init_response = client.initialize().await
+                .map_err(|e| AppError::Io(format!("ACP init failed: {e}")))?;
+
+            // Check if agent supports session/list and session/load
+            let supports_list = init_response.agent_capabilities
+                .session_capabilities.list.is_some();
+            let supports_load = init_response.agent_capabilities.load_session;
+
+            if !supports_list {
+                client.shutdown().await;
+                return Ok(AgentSessionListResult { sessions: vec![], supported: false, load_session_supported: false });
+            }
+
+            // Call list_sessions
+            let response = client.list_sessions(Some(&cwd_clone)).await
+                .map_err(|e| AppError::Io(format!("list_sessions failed: {e}")))?;
+
+            client.shutdown().await;
+
+            let sessions: Vec<AgentSessionInfo> = response.sessions
+                .into_iter()
+                .map(|s| AgentSessionInfo {
+                    session_id: s.session_id.to_string(),
+                    cwd: s.cwd.to_string_lossy().to_string(),
+                    title: s.title,
+                    updated_at: s.updated_at,
+                })
+                .collect();
+
+            Ok(AgentSessionListResult { sessions, supported: true, load_session_supported: supports_load })
+        })
+    }).await.map_err(|e| AppError::Io(format!("Task join error: {e}")))?;
+
+    result
+}
+
+/// Resume an existing ACP session by its agent-side session ID.
+///
+/// Creates a new Faber session, spawns an ACP client, calls `session/load`
+/// to restore conversation history, and returns the new session record.
+#[tauri::command]
+pub fn resume_acp_session(
+    db: State<'_, DbState>,
+    mcp: State<'_, Arc<TokioMutex<McpState>>>,
+    acp: State<'_, AcpState>,
+    app: AppHandle,
+    project_id: String,
+    agent_name: String,
+    agent_session_id: String,
+    target: Option<String>,
+) -> Result<Session, AppError> {
+    let target = target.as_deref().unwrap_or("chat");
+    tracing::info!(
+        project_id = %project_id,
+        agent = %agent_name,
+        agent_session_id = %agent_session_id,
+        target = %target,
+        "resume_acp_session command invoked"
+    );
+    let mcp_port = session::get_mcp_port(&mcp);
+    let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
+
+    let use_session_mode = target == "session";
+    let session = session::resume_acp_chat_session(
+        &conn, &app, &mcp, &acp, mcp_port,
+        &project_id, &agent_name, &agent_session_id, use_session_mode,
+    )?;
+
+    tracing::info!(
+        session_id = %session.id,
+        agent = %session.agent,
+        "ACP session resume initiated"
+    );
+    Ok(session)
 }
 
 // ── Tests ──

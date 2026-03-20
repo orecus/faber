@@ -362,6 +362,89 @@ impl AcpClient {
             .map_err(|e| format!("ACP set_config_option failed: {}", e))
     }
 
+    /// List existing sessions known to the agent.
+    ///
+    /// Sends a `session/list` request. Only available if the agent advertises
+    /// `session_capabilities.list`. Handles cursor-based pagination automatically.
+    pub async fn list_sessions(
+        &self,
+        cwd: Option<&Path>,
+    ) -> Result<acp::ListSessionsResponse, String> {
+        use acp::Agent;
+
+        let mut all_sessions = Vec::new();
+        let mut cursor: Option<String> = None;
+        const MAX_PAGES: usize = 10;
+
+        for page in 0..MAX_PAGES {
+            let mut request = acp::ListSessionsRequest::new();
+            if let Some(cwd) = cwd {
+                request = request.cwd(cwd.to_path_buf());
+            }
+            if let Some(ref c) = cursor {
+                request = request.cursor(c.clone());
+            }
+
+            info!(page, cursor = ?cursor, "ACP → session/list");
+
+            let response = self
+                .connection
+                .list_sessions(request)
+                .await
+                .map_err(|e| format!("ACP session/list failed: {}", e))?;
+
+            info!(
+                sessions = response.sessions.len(),
+                next_cursor = ?response.next_cursor,
+                "ACP ← session/list response"
+            );
+
+            all_sessions.extend(response.sessions);
+
+            match response.next_cursor {
+                Some(c) => cursor = Some(c),
+                None => break,
+            }
+        }
+
+        Ok(acp::ListSessionsResponse::new(all_sessions))
+    }
+
+    /// Load an existing session to resume a previous conversation.
+    ///
+    /// Sends a `session/load` request. The agent will replay conversation history
+    /// via `SessionUpdate` notifications routed through `FaberAcpHandler`.
+    pub async fn load_session(
+        &self,
+        session_id: acp::SessionId,
+        cwd: &Path,
+        mcp_servers: Vec<acp::McpServer>,
+    ) -> Result<acp::LoadSessionResponse, String> {
+        use acp::Agent;
+
+        info!(
+            acp_session = %session_id,
+            cwd = %cwd.display(),
+            mcp_servers = mcp_servers.len(),
+            "ACP → session/load"
+        );
+
+        let mut request = acp::LoadSessionRequest::new(session_id, cwd.to_path_buf());
+        if !mcp_servers.is_empty() {
+            request = request.mcp_servers(mcp_servers);
+        }
+
+        let response = self
+            .connection
+            .load_session(request)
+            .await
+            .map_err(|e| format!("ACP session/load failed: {}", e))?;
+
+        info!("ACP ← session/load response");
+
+        Ok(response)
+    }
+
     /// Send a cancellation notification for an active prompt.
     pub async fn cancel(&self, session_id: acp::SessionId) -> Result<(), String> {
         use acp::Agent;

@@ -190,13 +190,11 @@ function AgentCard({
               installed={agent.installed}
               loading={isDetecting}
             />
-            {agent.supports_acp && (
-              <StatusBadge
-                label="ACP"
-                installed={agent.acp_installed}
-                loading={isDetecting}
-              />
-            )}
+            <StatusBadge
+              label="ACP"
+              installed={agent.acp_installed}
+              loading={isDetecting}
+            />
           </div>
         )}
       </div>

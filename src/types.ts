@@ -62,8 +62,25 @@ export interface Session {
   pid: number | null;
   worktree_path: string | null;
   mcp_connected: boolean;
+  acp_session_id: string | null;
   started_at: string;
   ended_at: string | null;
+}
+
+// ── ACP Session Persistence types ──
+
+export interface AgentSessionInfo {
+  session_id: string;
+  cwd: string;
+  title: string | null;
+  updated_at: string | null;
+}
+
+export interface AgentSessionListResult {
+  sessions: AgentSessionInfo[];
+  supported: boolean;
+  /** Whether the agent supports session/load (resume). */
+  load_session_supported: boolean;
 }
 
 // ── File Browser types ──

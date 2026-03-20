@@ -272,6 +272,8 @@ pub fn run() {
             commands::sessions::set_acp_mode,
             commands::sessions::set_acp_config_option,
             commands::sessions::get_acp_terminal_output,
+            commands::sessions::list_agent_sessions,
+            commands::sessions::resume_acp_session,
             commands::sessions::relaunch_session,
             commands::sessions::rename_session,
             commands::sessions::stop_session,

@@ -31,7 +31,7 @@ pub fn create_with_id(conn: &Connection, id: &str, new: &NewSession) -> Result<S
 pub fn get(conn: &Connection, id: &str) -> Result<Option<Session>, rusqlite::Error> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, project_id, task_id, name, mode, transport, agent, model, status, pid, worktree_path,
-                mcp_connected, started_at, ended_at
+                mcp_connected, acp_session_id, started_at, ended_at
          FROM sessions WHERE id = ?1",
     )?;
     let mut rows = stmt.query_map(params![id], row_to_session)?;
@@ -41,7 +41,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<Session>, rusqlite::Err
 pub fn list_by_project(conn: &Connection, project_id: &str) -> Result<Vec<Session>, rusqlite::Error> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, project_id, task_id, name, mode, transport, agent, model, status, pid, worktree_path,
-                mcp_connected, started_at, ended_at
+                mcp_connected, acp_session_id, started_at, ended_at
          FROM sessions WHERE project_id = ?1 ORDER BY started_at DESC",
     )?;
     let rows = stmt.query_map(params![project_id], row_to_session)?;
@@ -58,7 +58,7 @@ pub fn list_by_project(conn: &Connection, project_id: &str) -> Result<Vec<Sessio
 pub fn list_active(conn: &Connection) -> Result<Vec<Session>, rusqlite::Error> {
     let mut stmt = conn.prepare_cached(
         "SELECT id, project_id, task_id, name, mode, transport, agent, model, status, pid, worktree_path,
-                mcp_connected, started_at, ended_at
+                mcp_connected, acp_session_id, started_at, ended_at
          FROM sessions WHERE status IN ('starting', 'running', 'paused')
          ORDER BY started_at DESC",
     )?;
@@ -198,9 +198,22 @@ fn row_to_session(row: &rusqlite::Row) -> Result<Session, rusqlite::Error> {
         pid: row.get(9)?,
         worktree_path: row.get(10)?,
         mcp_connected: mcp_int != 0,
-        started_at: row.get(12)?,
-        ended_at: row.get(13)?,
+        acp_session_id: row.get(12)?,
+        started_at: row.get(13)?,
+        ended_at: row.get(14)?,
     })
+}
+
+pub fn update_acp_session_id(
+    conn: &Connection,
+    id: &str,
+    acp_session_id: &str,
+) -> Result<bool, rusqlite::Error> {
+    let count = conn.execute(
+        "UPDATE sessions SET acp_session_id = ?1 WHERE id = ?2",
+        params![acp_session_id, id],
+    )?;
+    Ok(count > 0)
 }
 
 #[cfg(test)]

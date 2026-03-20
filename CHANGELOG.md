@@ -33,6 +33,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Chat Waiting Card** — Dismissible alert card appears above the chat input when an ACP agent reports it's waiting for user clarification, showing the agent's question with auto-reappear on new waiting events
 - **Chat Draft Persistence** — Typed chat messages are auto-saved per session and restored on view switch, preventing accidental loss of in-progress messages
 - **Reusable Agent Card Grid** — Extracted agent selection cards into a shared `AgentCardGrid` component used by both the Welcome Screen and Chat agent picker, with placeholder skeletons during detection, CLI/ACP status badges, and animated entrance
+- **ACP Session Persistence** — Resume past agent conversations across app restarts. New `session/list` and `session/load` ACP protocol support with automatic cursor-based pagination. ACP session IDs are persisted to the database (`acp_session_id` column on the sessions table) so sessions can be reconnected. Two new IPC commands: `list_agent_sessions` (spawns a temporary ACP client to query the agent) and `resume_acp_session` (loads an existing session and replays conversation history via `SessionUpdate` notifications)
+- **Chat Session History Sidebar** — Two-column empty state in Chat view: the left column retains the agent picker and "New Chat" button, while a new right-side sidebar lists previous sessions fetched from the agent. Each session row shows title, relative timestamp, and hover-reveal actions — "Resume" (opens in ChatView) and "Session" (opens as a session pane in Sessions view). Includes search filtering, loading/empty/not-supported states, refresh, and retry for agents that don't yet support session listing
+- **ACP Capability Detection for Sessions** — `get_acp_capabilities` now returns `load_session` and `list_sessions` booleans. The frontend persists "not supported" flags per agent in the settings store to avoid re-probing agents that lack session listing, with a manual retry mechanism
 
 ### Changed
 
@@ -51,6 +54,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Launcher Dialog Consolidation** — All session launch dialogs (Task, Research, Session, Continuous) moved to `Launchers/` directory with consistent `Launch*Dialog` naming convention
 - **Task Detail Title** — Task title moved from the details tab content area to the metadata header bar for better visibility; new compact display mode
 - **ACP Chat Session Styling** — Chat-based ACP sessions in the session grid now use a translucent card background instead of the terminal's opaque background for visual distinction
+- **Chat Empty State Layout** — Redesigned from centered single-column to a two-column layout (agent picker left, session history right) when ACP agents are available
+- **Agent Card ACP Badge** — ACP status badge now shows on all agent cards unconditionally, not only for agents that declare `supports_acp`
 
 ### Fixed
 

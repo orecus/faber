@@ -294,6 +294,7 @@ pub struct Session {
     pub pid: Option<i64>,
     pub worktree_path: Option<String>,
     pub mcp_connected: bool,
+    pub acp_session_id: Option<String>,
     pub started_at: String,
     pub ended_at: Option<String>,
 }

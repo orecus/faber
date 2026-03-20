@@ -142,6 +142,15 @@ interface AppState {
   /** Context window usage + cost per ACP session (from UsageUpdate). */
   acpUsage: Record<string, AcpUsageData>;
 
+  /** Agent session lists from session/list — keyed by "agent:project_id" */
+  agentSessionList: Record<string, import("../types").AgentSessionInfo[]>;
+  /** Whether session listing is supported per agent */
+  agentSessionListSupported: Record<string, boolean>;
+  /** Whether session/load (resume) is supported per agent */
+  agentLoadSessionSupported: Record<string, boolean>;
+  /** Loading state per "agent:project_id" key */
+  agentSessionListLoading: Record<string, boolean>;
+
   backgroundTasks: string[];
   errorFlash: string | null;
   sidebarCollapsed: boolean;
@@ -206,6 +215,15 @@ interface AppState {
   setAcpConfigOptions: (sessionId: string, options: AcpConfigOption[]) => void;
   setAcpUsage: (sessionId: string, data: AcpUsageData) => void;
   cleanupSessionAcp: (sessionId: string) => void;
+
+  /** Fetch agent session list via list_agent_sessions IPC */
+  fetchAgentSessionList: (agentName: string, projectId: string) => Promise<void>;
+  /** Clear cached agent session list */
+  clearAgentSessionList: (agentName: string, projectId: string) => void;
+  /** Remove a single session from the cached agent session list (e.g. after resume failure) */
+  removeAgentSession: (agentName: string, projectId: string, agentSessionId: string) => void;
+  /** Clear persisted "not supported" flag and re-probe the agent */
+  retryAgentSessionList: (agentName: string, projectId: string) => Promise<void>;
 
   addBackgroundTask: (label: string) => void;
   removeBackgroundTask: (label: string) => void;
@@ -314,6 +332,10 @@ export const useAppStore = create<AppState>()(
     acpAvailableCommands: {},
     acpConfigOptions: {},
     acpUsage: {},
+    agentSessionList: {},
+    agentSessionListSupported: {},
+    agentLoadSessionSupported: {},
+    agentSessionListLoading: {},
     backgroundTasks: [],
     errorFlash: null,
     sidebarCollapsed: false,
@@ -794,6 +816,100 @@ export const useAppStore = create<AppState>()(
           acpUsage: usage,
         };
       });
+    },
+
+    fetchAgentSessionList: async (agentName, projectId) => {
+      const key = `${agentName}:${projectId}`;
+
+      // Check persisted "not supported" flag — skip probing if we already know
+      const state = get();
+      if (state.agentSessionListSupported[agentName] === undefined) {
+        try {
+          const persisted = await invoke<string | null>("get_setting", {
+            key: `acp_list_support:${agentName}`,
+          });
+          if (persisted === "false") {
+            set((s) => ({
+              agentSessionListSupported: { ...s.agentSessionListSupported, [agentName]: false },
+              agentSessionList: { ...s.agentSessionList, [key]: [] },
+            }));
+            return;
+          }
+        } catch {
+          // Setting not found — proceed with probing
+        }
+      }
+
+      set((s) => ({
+        agentSessionListLoading: { ...s.agentSessionListLoading, [key]: true },
+      }));
+      try {
+        const result = await invoke<import("../types").AgentSessionListResult>(
+          "list_agent_sessions",
+          { agentName, projectId },
+        );
+        set((s) => ({
+          agentSessionList: { ...s.agentSessionList, [key]: result.sessions },
+          agentSessionListSupported: { ...s.agentSessionListSupported, [agentName]: result.supported },
+          agentLoadSessionSupported: { ...s.agentLoadSessionSupported, [agentName]: result.load_session_supported },
+          agentSessionListLoading: { ...s.agentSessionListLoading, [key]: false },
+        }));
+        // Persist "not supported" so we don't re-probe on next launch
+        // Only persist negative results — positive results may change if agent downgrades
+        if (!result.supported) {
+          invoke("set_setting", {
+            key: `acp_list_support:${agentName}`,
+            value: "false",
+          }).catch(() => {});
+        }
+      } catch (err) {
+        console.error("Failed to list agent sessions:", err);
+        set((s) => ({
+          agentSessionListLoading: { ...s.agentSessionListLoading, [key]: false },
+        }));
+      }
+    },
+
+    clearAgentSessionList: (agentName, projectId) => {
+      const key = `${agentName}:${projectId}`;
+      set((state) => {
+        const { [key]: _, ...rest } = state.agentSessionList;
+        return { agentSessionList: rest };
+      });
+    },
+
+    removeAgentSession: (agentName, projectId, agentSessionId) => {
+      const key = `${agentName}:${projectId}`;
+      set((state) => {
+        const list = state.agentSessionList[key];
+        if (!list) return state;
+        return {
+          agentSessionList: {
+            ...state.agentSessionList,
+            [key]: list.filter((s) => s.session_id !== agentSessionId),
+          },
+        };
+      });
+    },
+
+    retryAgentSessionList: async (agentName, projectId) => {
+      // Clear persisted "not supported" flag
+      invoke("set_setting", {
+        key: `acp_list_support:${agentName}`,
+        value: "true",
+      }).catch(() => {});
+      // Clear in-memory cached state so fetchAgentSessionList re-probes
+      const key = `${agentName}:${projectId}`;
+      set((state) => {
+        const { [agentName]: _, ...supported } = state.agentSessionListSupported;
+        const { [key]: __, ...lists } = state.agentSessionList;
+        return {
+          agentSessionListSupported: supported,
+          agentSessionList: lists,
+        };
+      });
+      // Re-probe
+      await get().fetchAgentSessionList(agentName, projectId);
     },
 
     addBackgroundTask: (label) =>

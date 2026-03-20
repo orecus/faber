@@ -1083,6 +1083,14 @@ fn spawn_acp_session(
 
             let acp_session_id = acp_session.session_id.clone();
 
+            // Persist the ACP session ID to the database for future session resume
+            {
+                let db_state: tauri::State<'_, crate::db::DbState> = app_for_task.state();
+                if let Ok(conn) = db_state.lock() {
+                    let _ = db::sessions::update_acp_session_id(&conn, &session_id_clone, &acp_session_id.to_string());
+                };
+            }
+
             // Emit initial config_options from the NewSessionResponse (if present).
             // This is how agents like Claude Code advertise available models/modes
             // at session creation time, before any ConfigOptionUpdate push events.
@@ -1634,6 +1642,265 @@ pub fn start_acp_chat_session(
     };
 
     spawn_acp_session(conn, app, mcp_state, acp_state, setup, acp_command, acp_args, mcp_conn)
+}
+
+/// Resume an existing ACP session by loading it from the agent.
+///
+/// This spawns a fresh ACP client, initializes it, then calls `session/load`
+/// instead of `session/new`. The agent replays conversation history via
+/// `SessionUpdate` notifications, which the handler routes to the frontend.
+#[allow(clippy::too_many_arguments)]
+pub fn resume_acp_chat_session(
+    conn: &Connection,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: &AcpState,
+    mcp_port: u16,
+    project_id: &str,
+    agent_name: &str,
+    acp_session_id_to_resume: &str,
+    use_session_mode: bool,
+) -> Result<Session, AppError> {
+    tracing::info!(
+        project_id = %project_id,
+        agent = %agent_name,
+        acp_session_id = %acp_session_id_to_resume,
+        "Resuming ACP chat session"
+    );
+
+    // 1. Fetch project
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+
+    // 2. Validate agent supports ACP
+    let adapter = agent::get_adapter(agent_name)
+        .ok_or_else(|| AppError::NotFound(format!("Agent adapter: {agent_name}")))?;
+    let (acp_command, acp_args) = validate_acp_agent(adapter.as_ref(), agent_name)?;
+
+    // 3. Pre-generate Faber session ID
+    let session_id = db::generate_id("sess");
+    let cwd = PathBuf::from(&project.path);
+
+    // 4. Register MCP session
+    let mcp_conn = register_acp_mcp_session(
+        mcp_state, mcp_port, &session_id, &cwd,
+        agent_name, Some(project_id), None,
+    );
+
+    // 5. Build MCP servers for ACP passthrough
+    let mcp_servers = if let Some(ref conn_info) = mcp_conn {
+        build_acp_mcp_servers(&conn_info.url, &conn_info.secret)
+    } else {
+        vec![]
+    };
+
+    // 6. Resolve model from agent config
+    let agent_config = db::agent_configs::resolve(conn, None, project_id, agent_name)?;
+    let model = agent_config.as_ref().and_then(|c| c.model.clone())
+        .or_else(|| project.default_model.clone());
+
+    // 7. Create session record
+    // When target is "session", use Vibe mode so it appears in the Sessions grid
+    // (which filters out chat-mode sessions). Otherwise use Chat mode for ChatView.
+    let (mode, name) = if use_session_mode {
+        (SessionMode::Vibe, Some(format!("{} session", project.name)))
+    } else {
+        (SessionMode::Chat, Some(format!("{} chat", project.name)))
+    };
+    let new_session = NewSession {
+        project_id: project_id.to_string(),
+        task_id: None,
+        name,
+        mode,
+        transport: SessionTransport::Acp,
+        agent: agent_name.to_string(),
+        model,
+        worktree_path: None,
+    };
+    let session = db::sessions::create_with_id(conn, &session_id, &new_session)?;
+
+    if mcp_conn.is_some() {
+        let _ = db::sessions::update_mcp_connected(conn, &session.id, true);
+    }
+
+    // 8. Build env from MCP connection
+    let mut env: HashMap<String, String> = HashMap::new();
+    if let Some(conn_info) = &mcp_conn {
+        env.insert("FABER_MCP_URL".to_string(), conn_info.url.clone());
+        env.insert("FABER_MCP_SECRET".to_string(), conn_info.secret.clone());
+    }
+
+    let pending_permissions = handler::new_pending_permissions();
+    {
+        let registry: tauri::State<'_, crate::acp::state::PendingPermissionsRegistry> = app.state();
+        let mut reg = registry.blocking_lock();
+        reg.insert(session_id.clone(), pending_permissions.clone());
+    }
+
+    let spawn_config = AcpSpawnConfig {
+        command: acp_command,
+        args: acp_args,
+        cwd: cwd.clone(),
+        env,
+        session_id: session_id.clone(),
+        project_id: project_id.to_string(),
+        is_trust_mode: false,
+        pending_permissions: pending_permissions.clone(),
+    };
+
+    // 9. Spawn ACP client in dedicated thread — use load_session instead of new_session
+    let session_id_clone = session_id.clone();
+    let acp_state_clone = acp_state.clone();
+    let app_for_task = app.clone();
+    let acp_sid_to_resume = acp_session_id_to_resume.to_string();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .expect("Failed to build tokio runtime for ACP resume session");
+
+        let local = tokio::task::LocalSet::new();
+        local.block_on(&rt, async move {
+            macro_rules! with_db {
+                ($session_id:expr, $status:expr) => {
+                    let db_state = app_for_task.state::<crate::db::DbState>();
+                    if let Ok(conn) = db_state.lock() {
+                        let _ = db::sessions::update_status(&conn, $session_id, $status);
+                    }
+                };
+            }
+
+            macro_rules! emit_session_stopped {
+                ($sid:expr) => {
+                    let db_state = app_for_task.state::<crate::db::DbState>();
+                    if let Ok(conn) = db_state.lock() {
+                        if let Ok(Some(session)) = db::sessions::get(&conn, $sid) {
+                            let _ = app_for_task.emit("session-stopped", &session);
+                            let _ = app_for_task.emit(
+                                "session-status-changed",
+                                &SessionStatusChanged {
+                                    session_id: $sid.to_string(),
+                                    old_status: SessionStatus::Running,
+                                    new_status: session.status,
+                                },
+                            );
+                        }
+                    }
+                };
+            }
+
+            // Spawn the ACP client
+            let mut client = match AcpClient::spawn(spawn_config, app_for_task.clone()) {
+                Ok(c) => c,
+                Err(e) => {
+                    tracing::error!(session_id = %session_id_clone, error = %e, "Failed to spawn ACP client for resume");
+                    let _ = app_for_task.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                        session_id: session_id_clone.clone(),
+                        error: e.to_string(),
+                    });
+                    with_db!(&session_id_clone, SessionStatus::Error);
+                    emit_session_stopped!(&session_id_clone);
+                    return;
+                }
+            };
+
+            // Initialize handshake
+            if let Err(e) = client.initialize().await {
+                tracing::error!(session_id = %session_id_clone, error = %e, "ACP initialization failed for resume");
+                let _ = app_for_task.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                    session_id: session_id_clone.clone(),
+                    error: e.to_string(),
+                });
+                client.shutdown().await;
+                with_db!(&session_id_clone, SessionStatus::Error);
+                emit_session_stopped!(&session_id_clone);
+                return;
+            }
+
+            // Load existing session (instead of creating a new one)
+            let acp_session_id: acp::SessionId = acp_sid_to_resume.into();
+            let load_result = client.load_session(
+                acp_session_id.clone(),
+                &cwd,
+                mcp_servers,
+            ).await;
+
+            if let Err(e) = load_result {
+                tracing::error!(session_id = %session_id_clone, error = %e, "ACP session/load failed");
+                let _ = app_for_task.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                    session_id: session_id_clone.clone(),
+                    error: e.to_string(),
+                });
+                client.shutdown().await;
+                with_db!(&session_id_clone, SessionStatus::Error);
+                emit_session_stopped!(&session_id_clone);
+                return;
+            }
+
+            let load_response = load_result.unwrap();
+
+            // Persist the ACP session ID
+            {
+                let db_state: tauri::State<'_, crate::db::DbState> = app_for_task.state();
+                if let Ok(conn) = db_state.lock() {
+                    let _ = db::sessions::update_acp_session_id(&conn, &session_id_clone, &acp_session_id.to_string());
+                };
+            }
+
+            // Emit initial mode from LoadSessionResponse (if present)
+            if let Some(ref modes) = load_response.modes {
+                let _ = app_for_task.emit(
+                    crate::acp::types::EVENT_ACP_MODE_UPDATE,
+                    crate::acp::types::AcpModeUpdatePayload {
+                        session_id: session_id_clone.clone(),
+                        mode: modes.current_mode_id.to_string(),
+                    },
+                );
+            }
+
+            // Store client in ACP state
+            tracing::info!(
+                session_id = %session_id_clone,
+                acp_session_id = %acp_session_id,
+                "ACP session loaded — storing state"
+            );
+            let shutdown_signal = Arc::new(tokio::sync::Notify::new());
+            let shutdown_signal_clone = shutdown_signal.clone();
+            {
+                let mut state = acp_state_clone.lock().await;
+                state.insert(session_id_clone.clone(), AcpSessionState {
+                    client,
+                    acp_session_id: Some(acp_session_id),
+                    pending_permissions: pending_permissions.clone(),
+                    shutdown_signal,
+                });
+            }
+
+            // Update session status to Running
+            with_db!(&session_id_clone, SessionStatus::Running);
+            let _ = app_for_task.emit(
+                "session-status-changed",
+                &SessionStatusChanged {
+                    session_id: session_id_clone.clone(),
+                    old_status: SessionStatus::Starting,
+                    new_status: SessionStatus::Running,
+                },
+            );
+
+            // Wait for shutdown signal (keepalive)
+            tracing::info!(
+                session_id = %session_id_clone,
+                "ACP resumed session ready — waiting for user input"
+            );
+            shutdown_signal_clone.notified().await;
+            tracing::info!(session_id = %session_id_clone, "ACP resume keepalive received shutdown signal — exiting");
+        });
+    });
+
+    // Notify frontend so it refreshes the session list
+    let _ = app.emit("session-started", &session);
+
+    Ok(session)
 }
 
 // ── ACP research session ──
