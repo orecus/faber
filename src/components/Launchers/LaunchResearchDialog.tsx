@@ -5,8 +5,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SessionTransport } from "../../types";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
-import { AGENT_DESCRIPTIONS } from "../../lib/agentDescriptions";
-import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
+
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import {
@@ -19,7 +18,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { borderAccentColors } from "../ui/orecus.io/lib/color-utils";
+import AgentCardGrid from "./AgentCardGrid";
 import {
   Select,
   SelectContent,
@@ -31,19 +30,19 @@ import { Textarea } from "../ui/textarea";
 
 import type { Task } from "../../types";
 
-interface ResearchTaskDialogProps {
+interface LaunchResearchDialogProps {
   task: Task;
   projectId: string;
   onLaunched: () => void;
   onDismiss: () => void;
 }
 
-export default function ResearchTaskDialog({
+export default function LaunchResearchDialog({
   task,
   projectId,
   onLaunched,
   onDismiss,
-}: ResearchTaskDialogProps) {
+}: LaunchResearchDialogProps) {
   const accentColor = useProjectAccentColor();
   const agents = useAppStore((s) => s.agents);
   const projectInfo = useAppStore((s) => s.projectInfo);
@@ -172,38 +171,11 @@ export default function ResearchTaskDialog({
           <label className="mb-1.5 block text-xs text-dim-foreground">
             Agent
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {agents.map((agent) => {
-              const isSelected = selectedAgentName === agent.name;
-              const color = getAgentColor(agent.name);
-              const disabled = !agent.installed;
-              return (
-                <button
-                  key={agent.name}
-                  onClick={() => handleAgentSelect(agent.name)}
-                  disabled={disabled}
-                  className={`flex flex-col gap-1.5 rounded-[var(--radius-element)] px-3 py-2.5 text-left transition-all duration-150 border ${isSelected ? `${borderAccentColors[accentColor]} bg-accent` : "border-border bg-popover"} ${disabled ? "opacity-40 cursor-default" : "cursor-pointer"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-                      style={{ background: `${color}20` }}
-                    >
-                      <AgentIcon agent={agent.name} size={18} />
-                    </span>
-                    <span
-                      className={`text-xs ${isSelected ? "font-medium" : "font-normal"} ${disabled ? "text-muted-foreground" : "text-foreground"}`}
-                    >
-                      {agent.display_name}
-                    </span>
-                  </div>
-                  <div className="text-[11px] leading-snug text-muted-foreground">
-                    {AGENT_DESCRIPTIONS[agent.name] ?? "AI coding agent"}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <AgentCardGrid
+            selectedAgentName={selectedAgentName}
+            onSelect={handleAgentSelect}
+            accentColor={accentColor}
+          />
         </div>
 
         {/* Transport toggle — only when agent supports ACP */}

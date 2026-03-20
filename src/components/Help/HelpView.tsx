@@ -8,7 +8,9 @@ import {
   GitPullRequest,
   ListChecks,
   Loader2,
+  MessageCircle,
   Puzzle,
+  Shield,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { Streamdown } from "streamdown";
@@ -31,8 +33,10 @@ const ICON_MAP: Record<string, LucideIcon> = {
   "book-open": BookOpen,
   "circle-help": CircleHelp,
   "list-checks": ListChecks,
+  "message-circle": MessageCircle,
   bot: Bot,
   puzzle: Puzzle,
+  shield: Shield,
 };
 
 function DocIcon({ name, size = 14 }: { name: string; size?: number }) {

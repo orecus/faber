@@ -119,6 +119,8 @@ export default React.memo(function ChatInput({
 }: ChatInputProps) {
   const addAcpUserMessage = useAppStore((s) => s.addAcpUserMessage);
   const setAcpPromptPending = useAppStore((s) => s.setAcpPromptPending);
+  const setAcpDraftText = useAppStore((s) => s.setAcpDraftText);
+  const draftText = useAppStore((s) => s.acpDraftText[sessionId] ?? "");
   const promptPending = useAppStore(
     (s) => s.acpPromptPending[sessionId] ?? false,
   );
@@ -166,6 +168,7 @@ export default React.memo(function ChatInput({
   const [fileSuggestions, setFileSuggestions] = useState<FileEntry[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suppressNextChange = useRef(false);
+  const [isFocused, setIsFocused] = useState(false);
 
   // ── Initial text pre-fill ──
   useEffect(() => {
@@ -185,6 +188,22 @@ export default React.memo(function ChatInput({
       onInitialTextConsumed?.();
     }
   }, [initialText, onInitialTextConsumed]);
+
+  // ── Restore draft text on mount ──
+  useEffect(() => {
+    if (draftText && textareaRef.current && !initialText) {
+      const setter = Object.getOwnPropertyDescriptor(
+        window.HTMLTextAreaElement.prototype,
+        "value",
+      )?.set;
+      if (setter) {
+        setter.call(textareaRef.current, draftText);
+        textareaRef.current.dispatchEvent(new Event("input", { bubbles: true }));
+      }
+    }
+    // Only restore on mount — not on every draftText change
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [sessionId]);
 
   // ── Fetch file suggestions ──
   useEffect(() => {
@@ -253,6 +272,7 @@ export default React.memo(function ChatInput({
       }
 
       const value = e.target.value;
+      setAcpDraftText(sessionId, value);
       const cursorPos = e.target.selectionStart ?? value.length;
 
       // Check for `/` trigger at start of input
@@ -283,7 +303,7 @@ export default React.memo(function ChatInput({
         closeSuggestions();
       }
     },
-    [suggestionType, closeSuggestions],
+    [suggestionType, closeSuggestions, sessionId, setAcpDraftText],
   );
 
   const applySuggestion = useCallback(
@@ -372,6 +392,7 @@ export default React.memo(function ChatInput({
       if ((!text && !hasFiles) || disabled) return;
 
       closeSuggestions();
+      setAcpDraftText(sessionId, "");
 
       // Build lightweight attachment records for display in the chat message
       const messageAttachments: AcpMessageAttachment[] | undefined = hasFiles
@@ -409,7 +430,7 @@ export default React.memo(function ChatInput({
         setAcpPromptPending(sessionId, false);
       }
     },
-    [sessionId, disabled, addAcpUserMessage, setAcpPromptPending, closeSuggestions],
+    [sessionId, disabled, addAcpUserMessage, setAcpPromptPending, setAcpDraftText, closeSuggestions],
   );
 
   const handleStop = useCallback(async () => {
@@ -459,9 +480,11 @@ export default React.memo(function ChatInput({
           className="min-h-[36px] text-sm"
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
+          onFocus={() => setIsFocused(true)}
+          onBlur={() => setIsFocused(false)}
         />
         {/* Shimmer working indicator — positioned after the textarea, same visual position as placeholder */}
-        {promptPending && !placeholderOverride && (
+        {promptPending && !placeholderOverride && !isFocused && (
           <div className="flex items-center justify-start gap-2 px-3 py-2 -mt-9 pointer-events-none w-full">
             <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
             <Shimmer duration={2} className="text-sm">Agent is working...</Shimmer>

@@ -2,7 +2,7 @@
 title: GitHub Workflow
 description: How task-worktree-GitHub syncing works
 icon: git-pull-request
-order: 1
+order: 2
 ---
 
 # GitHub Workflow — Task, Worktree & Issue Sync

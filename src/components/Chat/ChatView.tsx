@@ -5,7 +5,6 @@ import {
   Loader2,
   MessageCircle,
   Plus,
-  RotateCcw,
   Rows3,
   X,
 } from "lucide-react";
@@ -13,13 +12,11 @@ import { memo, useCallback, useEffect, useMemo, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { usePersistedString } from "../../hooks/usePersistedState";
-import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
-import { AGENT_DESCRIPTIONS } from "../../lib/agentDescriptions";
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { cn } from "@/lib/utils";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { borderAccentColors } from "../ui/orecus.io/lib/color-utils";
+import AgentCardGrid from "../Launchers/AgentCardGrid";
 import ConfirmDialog from "../Review/ConfirmDialog";
 import ChatPane from "./ChatPane";
 import ThreadStatusBadge from "./ThreadStatusBadge";
@@ -65,21 +62,6 @@ const ChatView = memo(function ChatView() {
     [sessions, activeProjectId],
   );
 
-  // Also find any stopped/finished chat sessions for the "restart" flow
-  const stoppedChatSession: Session | undefined = useMemo(
-    () =>
-      sessions.find(
-        (s) =>
-          s.project_id === activeProjectId &&
-          s.mode === "chat" &&
-          s.transport === "acp" &&
-          (s.status === "stopped" ||
-            s.status === "finished" ||
-            s.status === "error"),
-      ),
-    [sessions, activeProjectId],
-  );
-
   // ACP-capable agents only
   const acpAgents = useMemo(
     () => agents.filter((a) => a.installed && a.acp_installed),
@@ -117,24 +99,6 @@ const ChatView = memo(function ChatView() {
     addBackgroundTask,
     removeBackgroundTask,
   ]);
-
-  const handleRestartChat = useCallback(async () => {
-    if (!stoppedChatSession || launching) return;
-    setError(null);
-    setLaunching(true);
-    const taskLabel = "Restarting chat session";
-    addBackgroundTask(taskLabel);
-    try {
-      await invoke("relaunch_session", {
-        sessionId: stoppedChatSession.id,
-      });
-    } catch (err) {
-      setError(formatErrorWithHint(err, "agent-launch"));
-    } finally {
-      setLaunching(false);
-      removeBackgroundTask(taskLabel);
-    }
-  }, [stoppedChatSession, launching, addBackgroundTask, removeBackgroundTask]);
 
   const handleCloseChat = useCallback(async () => {
     if (!chatSession) return;
@@ -277,40 +241,13 @@ const ChatView = memo(function ChatView() {
             <label className="mb-1.5 block text-xs text-dim-foreground">
               Agent
             </label>
-            <div className="grid grid-cols-3 gap-2">
-              {acpAgents.map((agent) => {
-                const isSelected = selectedAgentName === agent.name;
-                const color = getAgentColor(agent.name);
-                return (
-                  <button
-                    key={agent.name}
-                    onClick={() => setSelectedAgentName(agent.name)}
-                    className={`flex flex-col gap-1.5 rounded-[var(--radius-element)] px-3 py-2.5 text-left transition-all duration-150 border ${
-                      isSelected
-                        ? `${borderAccentColors[accentColor]} bg-accent`
-                        : "border-border bg-popover"
-                    } cursor-pointer`}
-                  >
-                    <div className="flex items-center gap-2">
-                      <span
-                        className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-                        style={{ background: `${color}20` }}
-                      >
-                        <AgentIcon agent={agent.name} size={18} />
-                      </span>
-                      <span
-                        className={`text-xs ${isSelected ? "font-medium" : "font-normal"} text-foreground`}
-                      >
-                        {agent.display_name}
-                      </span>
-                    </div>
-                    <div className="text-[11px] leading-snug text-muted-foreground">
-                      {AGENT_DESCRIPTIONS[agent.name] ?? "AI coding agent"}
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
+            <AgentCardGrid
+              selectedAgentName={selectedAgentName}
+              onSelect={setSelectedAgentName}
+              accentColor={accentColor}
+              isDisabled={(a) => !a.installed || !a.acp_installed}
+              showStatus
+            />
           </div>
         ) : (
           <div className="flex items-start gap-2 rounded-lg bg-warning/10 ring-1 ring-warning/20 px-3 py-2.5 w-full">
@@ -340,20 +277,7 @@ const ChatView = memo(function ChatView() {
 
         {/* Actions */}
         <div className="flex items-center gap-2">
-          {stoppedChatSession && (
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={handleRestartChat}
-              disabled={launching}
-              loading={launching}
-              leftIcon={<RotateCcw className="size-3.5" />}
-              hoverEffect="scale"
-              clickEffect="scale"
-            >
-              Resume
-            </Button>
-          )}
+          {/* TODO: Re-enable when session history/resume is implemented */}
           <Button
             variant="color"
             color={accentColor}

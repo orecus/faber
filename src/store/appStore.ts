@@ -124,6 +124,8 @@ interface AppState {
   acpModes: Record<string, string>;
   acpModels: Record<string, string>;
   acpPromptPending: Record<string, boolean>;
+  /** Draft text per session (persisted across view switches). */
+  acpDraftText: Record<string, string>;
   /** Accumulated thinking text per session (from AgentThoughtChunk events). */
   acpThinking: Record<string, string>;
   /** Timestamp when thinking started for each session (for duration tracking). */
@@ -194,6 +196,7 @@ interface AppState {
   setAcpMode: (sessionId: string, mode: string) => void;
   setAcpModel: (sessionId: string, model: string) => void;
   setAcpPromptPending: (sessionId: string, pending: boolean) => void;
+  setAcpDraftText: (sessionId: string, text: string) => void;
   appendAcpThinking: (sessionId: string, text: string) => void;
   flushAcpThinking: (sessionId: string) => void;
   clearAcpThinking: (sessionId: string) => void;
@@ -256,6 +259,7 @@ interface AppState {
 
   // Async actions
   addProjectFromPath: (path: string) => Promise<void>;
+  createProject: (parentPath: string, name: string) => Promise<void>;
   initialize: () => () => void;
 }
 
@@ -301,6 +305,7 @@ export const useAppStore = create<AppState>()(
     acpModes: {},
     acpModels: {},
     acpPromptPending: {},
+    acpDraftText: {},
     acpThinking: {},
     acpThinkingStartTime: {},
     acpThinkingBlocks: {},
@@ -562,8 +567,15 @@ export const useAppStore = create<AppState>()(
         const msgs = [...(state.acpMessages[sessionId] ?? [])];
         const last = msgs[msgs.length - 1];
         if (!forceNew && last && last.role === "agent") {
-          // Append to the current agent message (streaming)
-          msgs[msgs.length - 1] = { ...last, text: last.text + text };
+          // Detect cumulative vs delta chunks:
+          // If the incoming text starts with what we already have, the agent is
+          // sending the full message so far (cumulative) — replace, don't append.
+          const isCumulative =
+            last.text.length > 0 &&
+            text.length >= last.text.length &&
+            text.startsWith(last.text);
+          const newText = isCumulative ? text : last.text + text;
+          msgs[msgs.length - 1] = { ...last, text: newText };
           return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
         } else {
           // Start a new agent message — mark as narration if forced by tool-call boundary
@@ -658,6 +670,11 @@ export const useAppStore = create<AppState>()(
         acpPromptPending: { ...state.acpPromptPending, [sessionId]: pending },
       })),
 
+    setAcpDraftText: (sessionId, text) =>
+      set((state) => ({
+        acpDraftText: { ...state.acpDraftText, [sessionId]: text },
+      })),
+
     appendAcpThinking: (sessionId, text) =>
       set((state) => {
         const isFirstChunk = !state.acpThinking[sessionId];
@@ -750,6 +767,7 @@ export const useAppStore = create<AppState>()(
         const { [sessionId]: _d, ...modes } = state.acpModes;
         const { [sessionId]: _md, ...models } = state.acpModels;
         const { [sessionId]: _pp, ...pending } = state.acpPromptPending;
+        const { [sessionId]: _dt, ...drafts } = state.acpDraftText;
         const { [sessionId]: _th, ...thinking } = state.acpThinking;
         const { [sessionId]: _ts, ...thinkingTimes } = state.acpThinkingStartTime;
         const { [sessionId]: _tb, ...thinkingBlocks } = state.acpThinkingBlocks;
@@ -765,6 +783,7 @@ export const useAppStore = create<AppState>()(
           acpModes: modes,
           acpModels: models,
           acpPromptPending: pending,
+          acpDraftText: drafts,
           acpThinking: thinking,
           acpThinkingStartTime: thinkingTimes,
           acpThinkingBlocks: thinkingBlocks,
@@ -996,6 +1015,14 @@ export const useAppStore = create<AppState>()(
 
     addProjectFromPath: async (path) => {
       const project = await invoke<Project>("add_project", { path });
+      get().addProject(project);
+    },
+
+    createProject: async (parentPath, name) => {
+      const project = await invoke<Project>("create_project", {
+        parentPath,
+        name,
+      });
       get().addProject(project);
     },
 

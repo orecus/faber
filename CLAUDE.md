@@ -213,6 +213,5 @@ You have MCP tools provided by the Faber IDE for reporting your progress. You MU
 - `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task in the current project (always created as backlog).
 - `list_tasks(status?, label?)` — List all tasks in the current project with optional filters. Returns compact metadata (no body).
 
-
 Always call `report_status` first, then `report_progress` as you work, and `report_complete` when done.
 <!-- /Faber:MCP -->

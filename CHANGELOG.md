@@ -29,6 +29,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **GitHub Issue Detail Panel** — Click any issue in the Issues tab to preview its full body, labels, assignees, and comment thread in a right-side detail panel (matching the Pull Requests detail pattern), with one-click import and "Open in GitHub" actions
 - **Research → Implementation Flow** — When a research session completes, a centered prompt card slides in over the session pane (with backdrop blur) offering to continue to implementation. Clicking "Continue to Implementation" opens the Launch Task dialog pre-filled for that task; after launching, the research session auto-closes after a few seconds. Replaces the previous `promote_session` MCP tool with a user-driven UI flow that creates a proper task session with worktree isolation
 - **Chat Narration Mode Toggle** — Two rendering modes for ACP chat narration messages: "Split turns" (each narration creates its own turn with associated tool calls) and "Inline" (narrations are rendered inline between tool steps within a single turn). Toggle in the Chat view toolbar, persisted across sessions
+- **Create Project Dialog** — New "Create New..." option in the sidebar project menu scaffolds a project from scratch: name input, folder browser, git init with `.gitignore`, initial commit, and automatic registration in the app. Also accessible from the Welcome Screen as a secondary CTA
+- **Chat Waiting Card** — Dismissible alert card appears above the chat input when an ACP agent reports it's waiting for user clarification, showing the agent's question with auto-reappear on new waiting events
+- **Chat Draft Persistence** — Typed chat messages are auto-saved per session and restored on view switch, preventing accidental loss of in-progress messages
+- **Reusable Agent Card Grid** — Extracted agent selection cards into a shared `AgentCardGrid` component used by both the Welcome Screen and Chat agent picker, with placeholder skeletons during detection, CLI/ACP status badges, and animated entrance
 
 ### Changed
 
@@ -44,6 +48,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Bundle Optimization** — Split vendor dependencies into cache-friendly manual chunks (xterm, diff, markdown, ui, react) and wrapped view switches in `startTransition` so React keeps the current view visible while lazy chunks load
 - **Welcome Screen Agents** — Redesigned supported agents section from inline badges to a 3-per-row card grid showing agent icon, description, and live detection status (checkmark/empty circle). Removed manual path input
 - **Persisted State Hooks** — `usePersistedBoolean`, `usePersistedString`, and `usePersistedNumber` now return a third `loaded` boolean, allowing components to avoid UI flashes when the default value differs from the saved one
+- **Launcher Dialog Consolidation** — All session launch dialogs (Task, Research, Session, Continuous) moved to `Launchers/` directory with consistent `Launch*Dialog` naming convention
+- **Task Detail Title** — Task title moved from the details tab content area to the metadata header bar for better visibility; new compact display mode
+- **ACP Chat Session Styling** — Chat-based ACP sessions in the session grid now use a translucent card background instead of the terminal's opaque background for visual distinction
 
 ### Fixed
 

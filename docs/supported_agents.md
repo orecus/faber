@@ -2,7 +2,7 @@
 title: Supported Agents
 description: Which AI agents work with Faber and how they differ
 icon: bot
-order: 2
+order: 3
 ---
 
 # Supported Agents

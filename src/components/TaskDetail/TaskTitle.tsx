@@ -6,9 +6,10 @@ import { Input } from "../ui/input";
 interface TaskTitleProps {
   title: string;
   onChange: (title: string) => void;
+  compact?: boolean;
 }
 
-export default function TaskTitle({ title, onChange }: TaskTitleProps) {
+export default function TaskTitle({ title, onChange, compact }: TaskTitleProps) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(title);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -59,7 +60,7 @@ export default function TaskTitle({ title, onChange }: TaskTitleProps) {
           onChange={(e) => setDraft(e.target.value)}
           onBlur={commitEdit}
           onKeyDown={handleKeyDown}
-          className="h-auto border-none bg-transparent px-0 py-0 text-lg font-semibold text-foreground shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0"
+          className={`h-auto border-none bg-transparent px-0 py-0 font-semibold text-foreground shadow-none ring-0 focus-visible:ring-0 focus-visible:ring-offset-0 ${compact ? "text-[13px] leading-none" : "text-lg"}`}
         />
         <button
           onMouseDown={(e) => {
@@ -77,12 +78,12 @@ export default function TaskTitle({ title, onChange }: TaskTitleProps) {
   return (
     <button
       onClick={() => setEditing(true)}
-      className="group/title flex w-full cursor-pointer items-start gap-2 rounded-md text-left transition-colors hover:bg-accent/50 -mx-1 px-1 py-0.5"
+      className={`group/title flex cursor-pointer items-center gap-1.5 rounded-md text-left transition-colors hover:bg-accent/50 ${compact ? "min-w-0 max-w-[400px] py-0.5 px-1.5" : "w-full -mx-1 px-1 py-0.5"}`}
     >
-      <h1 className="flex-1 text-lg font-semibold text-foreground leading-snug">
+      <span className={`flex-1 font-semibold text-foreground ${compact ? "truncate text-[13px] leading-none" : "text-lg leading-snug"}`}>
         {title}
-      </h1>
-      <Pencil className="mt-1 size-3.5 shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100" />
+      </span>
+      <Pencil className={`shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100 ${compact ? "size-3" : "mt-1 size-3.5"}`} />
     </button>
   );
 }

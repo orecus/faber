@@ -10,7 +10,7 @@ import WindowControls from "./WindowControls";
 import type { ViewId } from "../../types";
 
 const VIEW_TABS: { id: ViewId; icon: React.ReactNode; label: string }[] = [
-  { id: "dashboard", icon: <LayoutDashboard size={14} />, label: "Tasks" },
+  { id: "dashboard", icon: <LayoutDashboard size={14} />, label: "Dashboard" },
   { id: "sessions", icon: <TerminalSquare size={14} />, label: "Sessions" },
   { id: "chat", icon: <MessageCircle size={14} />, label: "Chat" },
   { id: "github", icon: <Github size={14} />, label: "GitHub" },

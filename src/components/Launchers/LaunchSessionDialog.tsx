@@ -5,8 +5,6 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import type { SessionTransport } from "../../types";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
-import { AGENT_DESCRIPTIONS } from "../../lib/agentDescriptions";
-import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
 import { Checkbox } from "../ui/checkbox";
@@ -14,14 +12,13 @@ import {
   Dialog,
   DialogClose,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { borderAccentColors } from "../ui/orecus.io/lib/color-utils";
 import BranchSelect from "../ui/BranchSelect";
+import AgentCardGrid from "./AgentCardGrid";
 import {
   Select,
   SelectContent,
@@ -31,72 +28,41 @@ import {
 } from "../ui/select";
 import { Textarea } from "../ui/textarea";
 
-import type { Task } from "../../types";
 
-interface LaunchTaskDialogProps {
-  task: Task;
+interface LaunchSessionDialogProps {
   projectId: string;
-  onLaunched: () => void;
+  onSessionStarted: () => void;
   onDismiss: () => void;
 }
 
-export default function LaunchTaskDialog({
-  task,
+export default function LaunchSessionDialog({
   projectId,
-  onLaunched,
+  onSessionStarted,
   onDismiss,
-}: LaunchTaskDialogProps) {
+}: LaunchSessionDialogProps) {
   const accentColor = useProjectAccentColor();
   const agents = useAppStore((s) => s.agents);
-  const projectInfo = useAppStore((s) => s.projectInfo);
   const addBackgroundTask = useAppStore((s) => s.addBackgroundTask);
   const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
-  const getSessionPrompt = useAppStore((s) => s.getSessionPrompt);
-
-  // Resolve default prompt from template, with client-side {{task_id}} interpolation
-  const defaultPrompt = useMemo(() => {
-    const template = getSessionPrompt("task");
-    if (template) {
-      return template.prompt
-        .replace(/\{\{task_id\}\}/g, task.id)
-        .replace(/\{\{worktree_hint\}\}/g, "");
-    }
-    return `Let's start working on task ${task.id}. Use the \`get_task\` MCP tool to fetch the task details, then return a short summary and ask the user if they are ready to start.`;
-  }, [getSessionPrompt, task.id]);
-
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [selectedTransport, setSelectedTransport] = useState<SessionTransport>("pty");
-  const [baseBranch, setBaseBranch] = useState<string>("");
-  const [createWorktree, setCreateWorktree] = useState(true);
-  const [userPrompt, setUserPrompt] = useState(defaultPrompt);
+  const [selectedBranch, setSelectedBranch] = useState<string>("");
+  const [createWorktree, setCreateWorktree] = useState(false);
+  const [userPrompt, setUserPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [launching, setLaunching] = useState(false);
+  const [starting, setStarting] = useState(false);
 
-  // Resolve default agent: task.agent → project.default_agent → first installed
+  // Select first installed agent when agents load from context
   useEffect(() => {
-    if (agents.length === 0 || selectedAgentName) return;
-
-    const defaultAgentName =
-      task.agent ?? projectInfo?.project.default_agent ?? null;
-
-    const target = defaultAgentName
-      ? agents.find((a) => a.name === defaultAgentName && a.installed)
-      : null;
-    const resolved = target ?? agents.find((a) => a.installed) ?? agents[0];
-
-    if (resolved) {
-      setSelectedAgentName(resolved.name);
-
-      // If the task already has a model set, use it; otherwise default to "" (no --model flag)
-      const taskModel = task.model ?? "";
-      const validModel =
-        taskModel && resolved.supported_models.includes(taskModel)
-          ? taskModel
-          : "";
-      setSelectedModel(validModel);
+    if (agents.length > 0 && !selectedAgentName) {
+      const first = agents.find((a) => a.installed) ?? agents[0];
+      if (first) {
+        setSelectedAgentName(first.name);
+        setSelectedModel("");
+      }
     }
-  }, [agents, selectedAgentName, task.agent, task.model, projectInfo]);
+  }, [agents, selectedAgentName]);
 
   const currentAgent = agents.find((a) => a.name === selectedAgentName);
 
@@ -113,47 +79,45 @@ export default function LaunchTaskDialog({
     [agents],
   );
 
-  const canLaunch = useMemo(() => {
-    if (launching) return false;
+  const canStart = useMemo(() => {
+    if (starting) return false;
     if (!selectedAgentName) return false;
     return true;
-  }, [launching, selectedAgentName]);
+  }, [starting, selectedAgentName]);
 
-  const handleLaunch = useCallback(async () => {
-    if (!canLaunch) return;
+  const handleStart = useCallback(async () => {
+    if (!canStart) return;
     setError(null);
-    setLaunching(true);
-    const taskLabel = "Creating worktree & launching agent";
+    setStarting(true);
+    const taskLabel = "Launching agent session";
     addBackgroundTask(taskLabel);
     try {
-      await invoke("start_task_session", {
+      await invoke("start_vibe_session", {
         projectId,
-        taskId: task.id,
         agentName: selectedAgentName,
         model: selectedModel || null,
         createWorktree,
-        baseBranch: baseBranch || null,
+        baseBranch: selectedBranch || null,
         userPrompt: userPrompt.trim() || null,
         transport: selectedTransport,
       });
-      onLaunched();
+      onSessionStarted();
     } catch (err) {
       setError(formatErrorWithHint(err, "agent-launch"));
     } finally {
-      setLaunching(false);
+      setStarting(false);
       removeBackgroundTask(taskLabel);
     }
   }, [
-    canLaunch,
+    canStart,
     projectId,
-    task.id,
     selectedAgentName,
     selectedModel,
     selectedTransport,
     createWorktree,
-    baseBranch,
+    selectedBranch,
     userPrompt,
-    onLaunched,
+    onSessionStarted,
     addBackgroundTask,
     removeBackgroundTask,
   ]);
@@ -167,13 +131,10 @@ export default function LaunchTaskDialog({
     >
       <DialogContent
         showCloseButton={false}
-        className="min-w-[560px] max-w-[720px]"
+        className="min-w-[480px] max-w-[620px]"
       >
         <DialogHeader>
-          <DialogTitle>Launch Task</DialogTitle>
-          <DialogDescription className="truncate text-dim-foreground">
-            {task.title}
-          </DialogDescription>
+          <DialogTitle>New Agent</DialogTitle>
         </DialogHeader>
 
         {/* Agent Cards */}
@@ -181,38 +142,11 @@ export default function LaunchTaskDialog({
           <label className="mb-1.5 block text-xs text-dim-foreground">
             Agent
           </label>
-          <div className="grid grid-cols-3 gap-2">
-            {agents.map((agent) => {
-              const isSelected = selectedAgentName === agent.name;
-              const color = getAgentColor(agent.name);
-              const disabled = !agent.installed;
-              return (
-                <button
-                  key={agent.name}
-                  onClick={() => handleAgentSelect(agent.name)}
-                  disabled={disabled}
-                  className={`flex flex-col gap-1.5 rounded-[var(--radius-element)] px-3 py-2.5 text-left transition-all duration-150 border ${isSelected ? `${borderAccentColors[accentColor]} bg-accent` : "border-border bg-popover"} ${disabled ? "opacity-40 cursor-default" : "cursor-pointer"}`}
-                >
-                  <div className="flex items-center gap-2">
-                    <span
-                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md"
-                      style={{ background: `${color}20` }}
-                    >
-                      <AgentIcon agent={agent.name} size={18} />
-                    </span>
-                    <span
-                      className={`text-xs ${isSelected ? "font-medium" : "font-normal"} ${disabled ? "text-muted-foreground" : "text-foreground"}`}
-                    >
-                      {agent.display_name}
-                    </span>
-                  </div>
-                  <div className="text-[11px] leading-snug text-muted-foreground">
-                    {AGENT_DESCRIPTIONS[agent.name] ?? "AI coding agent"}
-                  </div>
-                </button>
-              );
-            })}
-          </div>
+          <AgentCardGrid
+            selectedAgentName={selectedAgentName}
+            onSelect={handleAgentSelect}
+            accentColor={accentColor}
+          />
         </div>
 
         {/* Transport toggle — only when agent supports ACP */}
@@ -314,8 +248,8 @@ export default function LaunchTaskDialog({
               projectId={projectId}
               currentBranch={null}
               mode="select"
-              value={baseBranch}
-              onChange={setBaseBranch}
+              value={selectedBranch}
+              onChange={setSelectedBranch}
               triggerVariant="select"
             />
             <p className="mt-1 text-[11px] text-muted-foreground">
@@ -327,13 +261,13 @@ export default function LaunchTaskDialog({
         {/* Prompt */}
         <div>
           <label className="mb-1 block text-xs text-dim-foreground">
-            Prompt
+            Prompt (optional)
           </label>
           <Textarea
             value={userPrompt}
             onChange={(e) => setUserPrompt(e.target.value)}
-            placeholder="Instructions for the agent..."
-            rows={4}
+            placeholder="What should the agent work on..."
+            rows={3}
             className="text-[13px]"
           />
         </div>
@@ -365,14 +299,14 @@ export default function LaunchTaskDialog({
             variant="color"
             color={accentColor}
             size="sm"
-            disabled={!canLaunch}
-            loading={launching}
-            onClick={handleLaunch}
+            disabled={!canStart}
+            loading={starting}
+            onClick={handleStart}
             leftIcon={<Play className="size-3.5" />}
             hoverEffect="scale-glow"
             clickEffect="scale"
           >
-            Launch
+            Start
           </Button>
         </DialogFooter>
       </DialogContent>

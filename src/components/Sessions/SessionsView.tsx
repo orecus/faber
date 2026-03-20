@@ -15,14 +15,14 @@ import { ptyBuffer } from "../../lib/ptyBuffer";
 import type { GridLayoutState } from "../../store/appStore";
 import type { Session } from "../../types";
 import ContinuousModeBar from "../Shell/ContinuousModeBar";
-import LaunchTaskDialog from "../Dashboard/LaunchTaskDialog";
+import LaunchTaskDialog from "../Launchers/LaunchTaskDialog";
 import { ViewLayout } from "../Shell/ViewLayout";
 import SessionsToolbar from "./SessionsToolbar";
 import SessionGrid from "./SessionGrid";
 import SessionPane from "./SessionPane";
 import SessionsEmptyState from "./SessionsEmptyState";
 import SessionDragOverlay from "./SessionDragOverlay";
-import SessionLauncher from "../Launchers/SessionLauncher";
+import LaunchSessionDialog from "../Launchers/LaunchSessionDialog";
 
 export default function SessionsView() {
   const sessions = useAppStore((s) => s.sessions);
@@ -267,7 +267,7 @@ export default function SessionsView() {
       )}
 
       {showLauncher && activeProjectId && (
-        <SessionLauncher
+        <LaunchSessionDialog
           projectId={activeProjectId}
           onSessionStarted={handleSessionStarted}
           onDismiss={() => setShowLauncher(false)}

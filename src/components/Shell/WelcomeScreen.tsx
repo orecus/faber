@@ -1,9 +1,8 @@
 import {
   ChevronRight,
-  Circle,
-  CircleCheck,
   FolderCode,
   FolderOpen,
+  FolderPlus,
   GitCompareArrows,
   LayoutDashboard,
   Loader2,
@@ -11,10 +10,7 @@ import {
   TerminalSquare,
 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
-import { useCallback, useMemo } from "react";
-
-import { AGENT_DESCRIPTIONS } from "../../lib/agentDescriptions";
-import { AgentIcon, getAgentColor } from "../../lib/agentIcons";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { handleDragRegionMouseDown } from "../../lib/platform";
 import { useAppStore } from "../../store/appStore";
 import { pickProjectFolder } from "../../utils/pickProjectFolder";
@@ -23,10 +19,12 @@ import { FaberLogo } from "../ui/FaberLogo";
 import { Card, CardContent } from "../ui/orecus.io/cards/card";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { EASE, STAGGER_DELAYS } from "../ui/orecus.io/lib/animation";
+import AgentCardGrid from "../Launchers/AgentCardGrid";
 import {
   type ThemeColor,
   gradientHexColors,
 } from "../ui/orecus.io/lib/color-utils";
+import CreateProjectDialog from "./CreateProjectDialog";
 import WindowControls from "./WindowControls";
 
 const CAPABILITIES: { icon: LucideIcon; label: string; description: string }[] =
@@ -48,14 +46,6 @@ const CAPABILITIES: { icon: LucideIcon; label: string; description: string }[] =
     },
   ];
 
-const AGENT_KEYS = [
-  "claude-code",
-  "codex",
-  "copilot",
-  "cursor-agent",
-  "gemini",
-  "opencode",
-] as const;
 
 const LOADING_LABELS = [
   "Loading projects",
@@ -68,15 +58,9 @@ export default function WelcomeScreen() {
   const projects = useAppStore((s) => s.projects);
   const openProject = useAppStore((s) => s.openProject);
   const backgroundTasks = useAppStore((s) => s.backgroundTasks);
-  const agents = useAppStore((s) => s.agents);
 
   const isLoading = useMemo(
     () => backgroundTasks.some((t) => LOADING_LABELS.includes(t)),
-    [backgroundTasks],
-  );
-
-  const isDetectingAgents = useMemo(
-    () => backgroundTasks.includes("Detecting agents"),
     [backgroundTasks],
   );
 
@@ -85,16 +69,21 @@ export default function WelcomeScreen() {
     [backgroundTasks],
   );
 
-  // Build a lookup: agent key -> { installed, display_name }
-  const agentDetection = useMemo(() => {
-    const map = new Map<string, { installed: boolean; displayName: string }>();
-    for (const a of agents) {
-      map.set(a.name, { installed: a.installed, displayName: a.display_name });
-    }
-    return map;
-  }, [agents]);
+  const [showCreateProject, setShowCreateProject] = useState(false);
 
-  const detectionDone = agents.length > 0 && !isDetectingAgents;
+  // Match right-column height to the left column
+  const leftColRef = useRef<HTMLDivElement>(null);
+  const [leftColHeight, setLeftColHeight] = useState<number>(0);
+
+  useEffect(() => {
+    const el = leftColRef.current;
+    if (!el) return;
+    const ro = new ResizeObserver(([entry]) => {
+      setLeftColHeight(entry.contentRect.height);
+    });
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, []);
 
   const hasProjects = projects.length > 0;
   const showProjects = hasProjects && !isLoading;
@@ -127,6 +116,7 @@ export default function WelcomeScreen() {
           >
             {/* Left column — CTA + capabilities + agents */}
             <motion.div
+              ref={leftColRef}
               layout
               transition={{ duration: 0.5, ease: EASE.panel }}
               className="flex flex-col items-center w-full max-w-[540px]"
@@ -209,6 +199,18 @@ export default function WelcomeScreen() {
                   >
                     Open Project Folder
                   </Button>
+
+                  {/* Secondary CTA */}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    hoverEffect="scale"
+                    clickEffect="scale"
+                    leftIcon={<FolderPlus className="size-3.5" />}
+                    onClick={() => setShowCreateProject(true)}
+                  >
+                    Create New Project
+                  </Button>
                 </CardContent>
               </Card>
 
@@ -252,104 +254,15 @@ export default function WelcomeScreen() {
                 <span className="text-[11px] text-muted-foreground">
                   Supported agents
                 </span>
-                <div className="grid grid-cols-3 gap-2.5 w-full">
-                  {AGENT_KEYS.map((key, i) => {
-                    const info = agentDetection.get(key);
-                    const displayName = info?.displayName ?? key;
-                    const description =
-                      AGENT_DESCRIPTIONS[
-                        key === "cursor-agent" ? "cursor" : key
-                      ] ?? "";
-                    const color = getAgentColor(key);
-                    const installed = info?.installed ?? false;
-
-                    return (
-                      <motion.div
-                        key={key}
-                        initial={{ opacity: 0, y: 8 }}
-                        animate={{ opacity: 1, y: 0 }}
-                        transition={{
-                          duration: 0.3,
-                          delay: 0.4 + i * STAGGER_DELAYS.fast,
-                          ease: EASE.out,
-                        }}
-                      >
-                        <Card
-                          type="subtle"
-                          radius="md"
-                          border
-                          hoverEffect="none"
-                          className="h-full"
-                        >
-                          <CardContent className="px-3 flex items-start gap-2.5">
-                            {/* Agent icon with brand-tinted background */}
-                            <div
-                              className="flex items-center justify-center size-8 rounded-md shrink-0"
-                              style={{ backgroundColor: `${color}18` }}
-                            >
-                              <AgentIcon agent={key} size={16} />
-                            </div>
-                            <div className="flex flex-col min-w-0 flex-1 gap-0.5">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-[12px] font-medium text-foreground truncate">
-                                  {displayName}
-                                </span>
-                                {/* Detection status indicator */}
-                                <AnimatePresence>
-                                  {detectionDone && (
-                                    <motion.span
-                                      initial={{ opacity: 0, scale: 0.5 }}
-                                      animate={{ opacity: 1, scale: 1 }}
-                                      transition={{
-                                        duration: 0.25,
-                                        delay: i * 0.04,
-                                        ease: EASE.out,
-                                      }}
-                                      className="shrink-0"
-                                      title={
-                                        installed
-                                          ? "Detected on system"
-                                          : "Not found in PATH"
-                                      }
-                                    >
-                                      {installed ? (
-                                        <CircleCheck
-                                          size={12}
-                                          className="text-success"
-                                        />
-                                      ) : (
-                                        <Circle
-                                          size={12}
-                                          className="text-muted-foreground/40"
-                                        />
-                                      )}
-                                    </motion.span>
-                                  )}
-                                  {!detectionDone && isDetectingAgents && (
-                                    <motion.span
-                                      initial={{ opacity: 0 }}
-                                      animate={{ opacity: 1 }}
-                                      exit={{ opacity: 0 }}
-                                      className="shrink-0"
-                                    >
-                                      <Loader2
-                                        size={11}
-                                        className="animate-spin text-muted-foreground/50"
-                                      />
-                                    </motion.span>
-                                  )}
-                                </AnimatePresence>
-                              </div>
-                              <span className="text-[10px] text-muted-foreground leading-snug">
-                                {description}
-                              </span>
-                            </div>
-                          </CardContent>
-                        </Card>
-                      </motion.div>
-                    );
-                  })}
-                </div>
+                <AgentCardGrid
+                  selectedAgentName={null}
+                  accentColor="blue"
+                  isDisabled={() => false}
+                  animated
+                  animationDelay={0.4}
+                  showStatus
+                  className="w-full"
+                />
               </motion.div>
             </motion.div>
 
@@ -362,15 +275,16 @@ export default function WelcomeScreen() {
                   animate={{ opacity: 1, x: 0 }}
                   exit={{ opacity: 0, x: 40 }}
                   transition={{ duration: 0.45, ease: EASE.panel }}
-                  className="w-[320px] shrink-0 pt-[68px]"
+                  className="w-[320px] shrink-0 pt-[68px] flex flex-col"
+                  style={leftColHeight ? { maxHeight: leftColHeight } : undefined}
                 >
-                  <div className="flex items-center gap-2 mb-2.5 px-1">
+                  <div className="flex items-center gap-2 mb-2.5 px-1 shrink-0">
                     <span className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
                       Your Projects
                     </span>
                     <div className="flex-1 h-px bg-border" />
                   </div>
-                  <div className="flex flex-col gap-1.5">
+                  <div className="flex flex-col gap-1.5 overflow-y-auto min-h-0 flex-1 p-1">
                     {projects.map((project, i) => {
                       const themeColor =
                         (project.color as ThemeColor) || "primary";
@@ -430,6 +344,10 @@ export default function WelcomeScreen() {
           </motion.div>
         </LayoutGroup>
       </div>
+
+      {showCreateProject && (
+        <CreateProjectDialog onDismiss={() => setShowCreateProject(false)} />
+      )}
     </div>
   );
 }

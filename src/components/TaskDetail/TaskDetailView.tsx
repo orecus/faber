@@ -197,6 +197,8 @@ export default function TaskDetailView() {
           {activeTaskId}
         </Badge>
 
+        <TaskTitle title={formData.title} onChange={handleTitleChange} compact />
+
         {/* GitHub issue badge */}
         {formData.github_issue && (
           <button
@@ -314,9 +316,6 @@ export default function TaskDetailView() {
           <div className="flex flex-col gap-3 pr-3 pb-4 px-1">
             {activeTab === "details" && (
               <>
-                {/* Title */}
-                <TaskTitle title={formData.title} onChange={handleTitleChange} />
-
                 {/* Body (preview by default, click to edit) */}
                 <div className={`flex min-h-[200px] flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
                   <TaskBody body={body} onChange={setBody} onSave={handleSave} />

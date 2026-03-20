@@ -417,7 +417,7 @@ export function AcpPermissionsTab() {
         <h3 className={sectionHeadingClass}>Recent Decisions</h3>
         {log.length > 0 ? (
           <div className="max-h-[200px] overflow-y-auto space-y-0.5">
-            {log.map((entry) => {
+            {log.slice(0, 5).map((entry) => {
               const isApproved =
                 entry.decision === "approved" || entry.decision === "auto_approved";
               const isAuto =

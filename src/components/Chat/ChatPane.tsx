@@ -15,6 +15,7 @@ import ChatInput from "./ChatInput";
 import ChatPlanQueue from "./ChatPlanQueue";
 import ChatMessage from "./ChatMessage";
 import PermissionDialog from "./PermissionDialog";
+import WaitingCard from "./WaitingCard";
 import { isHiddenToolCall, isWaitingToolCall } from "./ToolCallCard";
 import AgentTurnBlock from "./AgentTurnBlock";
 
@@ -265,6 +266,8 @@ export default React.memo(function ChatPane({
       </Conversation>
 
       <ChatPlanQueue sessionId={sessionId} />
+
+      <WaitingCard sessionId={sessionId} />
 
       <ChatInput
         sessionId={sessionId}

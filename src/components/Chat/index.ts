@@ -8,3 +8,4 @@ export { default as ThreadStatusBadge } from "./ThreadStatusBadge";
 export { default as ActivityBar } from "./ActivityBar";
 export { default as ContextCrease } from "./ContextCrease";
 export { default as AgentTurnBlock } from "./AgentTurnBlock";
+export { default as WaitingCard } from "./WaitingCard";

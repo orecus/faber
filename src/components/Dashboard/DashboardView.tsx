@@ -5,7 +5,7 @@ import { useDashboardFilters } from "../../hooks/useDashboardFilters";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { usePersistedBoolean } from "../../hooks/usePersistedState";
 import { useAppStore } from "../../store/appStore";
-import ContinuousModeDialog from "../Launchers/ContinuousModeDialog";
+import LaunchContinuousDialog from "../Launchers/LaunchContinuousDialog";
 import ContinuousModeBar from "../Shell/ContinuousModeBar";
 import { ViewLayout } from "../Shell/ViewLayout";
 import CreateTaskDialog from "../TaskDetail/CreateTaskDialog";
@@ -13,8 +13,8 @@ import DependencyGraph from "./DependencyGraph";
 import EmptyState from "./EmptyState";
 import FilterBar from "./FilterBar";
 import KanbanBoard from "./KanbanBoard";
-import LaunchTaskDialog from "./LaunchTaskDialog";
-import ResearchTaskDialog from "./ResearchTaskDialog";
+import LaunchResearchDialog from "../Launchers/LaunchResearchDialog";
+import LaunchTaskDialog from "../Launchers/LaunchTaskDialog";
 import SummaryHeader from "./SummaryHeader";
 import type { DashboardMode } from "./SummaryHeader";
 
@@ -209,7 +209,7 @@ export default function DashboardView() {
 
   // Research task dialog
   const researchTaskDialog = researchTask && activeProjectId && (
-    <ResearchTaskDialog
+    <LaunchResearchDialog
       task={researchTask}
       projectId={activeProjectId}
       onLaunched={() => {
@@ -222,7 +222,7 @@ export default function DashboardView() {
 
   // Continuous mode dialog
   const continuousModeDialog = showContinuousMode && activeProjectId && (
-    <ContinuousModeDialog
+    <LaunchContinuousDialog
       projectId={activeProjectId}
       readyTasks={readyTasks}
       onStarted={() => {

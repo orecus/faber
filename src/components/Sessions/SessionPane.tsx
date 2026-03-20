@@ -360,7 +360,7 @@ export default React.memo(function SessionPane({
       </div>
 
       {/* Content area — Terminal or Chat depending on transport */}
-      <div className="group/pane flex-1 min-h-0 relative bg-white dark:bg-[#0d1117]">
+      <div className={`group/pane flex-1 min-h-0 relative ${session.transport === "acp" ? "bg-card/80" : "bg-white dark:bg-[#0d1117]"}`}>
         {session.transport === "acp" ? (
           <ChatPane sessionId={session.id} sessionStatus={session.status} narrationMode={narrationMode} />
         ) : (

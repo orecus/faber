@@ -15,7 +15,12 @@ Faber is a desktop application for orchestrating AI coding agents. It provides a
 
 A **project** is a local Git repository you've added to Faber. Each project has its own tasks, sessions, worktrees, and settings. Switch between projects using the sidebar on the left.
 
-To add a project, click the **+** button in the sidebar's project list and select a folder. You can also drag-and-drop a folder onto the app window.
+To add a project, click the **+** button in the sidebar's project list:
+
+- **Open Existing…** — Select an existing folder on disk.
+- **Create New…** — Enter a project name and choose a parent folder. Faber creates the directory, initializes a Git repository with a `.gitignore`, makes an initial commit, and registers the project automatically.
+
+You can also drag-and-drop a folder onto the app window, or use the **Create New Project** button on the Welcome Screen.
 
 ### Tasks
 
@@ -35,9 +40,9 @@ You can set a **priority** (P0 / P1 / P2) and add **dependencies** between tasks
 
 ### Sessions
 
-A **session** is an AI agent (or plain terminal) running in a PTY. There are four ways to start one:
+A **session** is an AI agent (or plain terminal) running in either a PTY (terminal) or ACP (structured chat) transport. There are four ways to start one:
 
-- **Launch a task** — Click the play button on a task card in the Dashboard. Faber creates an isolated git worktree and branch, injects the task context into the agent's system prompt, and connects MCP progress reporting. The task moves to "In Progress".
+- **Launch a task** — Click the play button on a task card in the Dashboard. Faber creates an isolated git worktree and branch, injects the task context into the agent's system prompt, and connects MCP progress reporting. The task moves to "In Progress". If the selected agent supports ACP, you can choose between Terminal (PTY) and Chat (ACP) transport in the launch dialog.
 - **Research a task** — Click the lightbulb icon on a "Backlog" task card. This launches a lightweight agent session to analyze and plan the task without changing its status or creating a worktree. The agent reads the task file and collaborates with you to explore the problem space before committing to implementation. When the research completes, a prompt appears offering to continue directly to implementation — launching a full task session with worktree isolation while the research findings are preserved in the task file.
 - **New Agent** — Click "New Agent" in the Sessions toolbar. This starts a free-form agent session with no specific task — good for exploration, prototyping, or asking questions. You can optionally create a worktree for it.
 - **Terminal** — Click "Terminal" in the Sessions toolbar. This opens a plain shell with no agent, useful for running commands manually.
@@ -101,6 +106,10 @@ A multi-pane terminal grid showing all active agent sessions. Features:
 - Each pane shows the agent name and MCP status overlay
 - **Quick Action Bar** — hover over an active agent session to reveal floating action buttons (Commit, Fix Errors, Summarize, etc.) that send one-click prompts to the agent. Configure actions in Settings > Prompts.
 - Terminal output is buffered so you can switch views and come back without losing output
+
+### Chat
+
+A lightweight conversational interface for talking to ACP-capable agents without launching a task or creating a worktree. Use it to discuss architecture, explore ideas, or ask questions about your project. See the [Project Chat](chat) guide for full details.
 
 ### GitHub
 

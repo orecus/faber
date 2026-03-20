@@ -2,7 +2,7 @@
 title: Continuous Mode
 description: Queue tasks and run them sequentially with automatic handoff
 icon: list-checks
-order: 3
+order: 4
 ---
 
 # Continuous Mode

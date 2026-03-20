@@ -10,8 +10,8 @@ import {
 import { useCallback, useMemo, useState } from "react";
 
 import { useAppStore } from "../../store/appStore";
-import LaunchTaskDialog from "../Dashboard/LaunchTaskDialog";
-import ResearchTaskDialog from "../Dashboard/ResearchTaskDialog";
+import LaunchResearchDialog from "../Launchers/LaunchResearchDialog";
+import LaunchTaskDialog from "../Launchers/LaunchTaskDialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
 import type { Task } from "../../types";
@@ -239,7 +239,7 @@ export default function TaskDetailActions({
       )}
 
       {showResearchDialog && (
-        <ResearchTaskDialog
+        <LaunchResearchDialog
           task={task}
           projectId={projectId}
           onLaunched={handleResearchLaunched}

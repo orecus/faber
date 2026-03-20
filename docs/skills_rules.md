@@ -2,7 +2,7 @@
 title: Extensions
 description: Manage agent rules, install skills, and browse Claude Code plugins
 icon: puzzle
-order: 4
+order: 6
 ---
 
 # Extensions

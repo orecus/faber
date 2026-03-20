@@ -11,6 +11,8 @@ import {
   ClipboardList,
   Eye,
   FlaskConical,
+  FolderOpen,
+  FolderPlus,
   GitFork,
   Lightbulb,
   Loader2,
@@ -40,6 +42,13 @@ import { ProjectsTab } from "../Settings/ProjectsTab";
 import { PromptsTab } from "../Settings/PromptsTab";
 import { TerminalTab } from "../Settings/TerminalTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "../ui/dropdown-menu";
+import CreateProjectDialog from "./CreateProjectDialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { gradientHexColors } from "../ui/orecus.io/lib/color-utils";
 import { FaberLogo } from "../ui/FaberLogo";
@@ -629,6 +638,7 @@ export default function Sidebar() {
   const [settingsDialog, setSettingsDialog] = useState<SettingsDialogId | null>(
     null,
   );
+  const [showCreateProject, setShowCreateProject] = useState(false);
   const [version, setVersion] = useState("");
 
   useEffect(() => {
@@ -683,17 +693,36 @@ export default function Sidebar() {
         >
           <Settings size={13} />
         </Button>
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          hoverEffect="none"
-          clickEffect="none"
-          onClick={handleAddProject}
-          title="Add project"
-        >
-          <Plus size={14} />
-        </Button>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                hoverEffect="none"
+                clickEffect="none"
+                title="Add project"
+              />
+            }
+          >
+            <Plus size={14} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom" sideOffset={4} className="min-w-44">
+            <DropdownMenuItem onClick={handleAddProject}>
+              <FolderOpen size={14} />
+              Open Existing…
+            </DropdownMenuItem>
+            <DropdownMenuItem onClick={() => setShowCreateProject(true)}>
+              <FolderPlus size={14} />
+              Create New…
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
       </div>
+
+      {showCreateProject && (
+        <CreateProjectDialog onDismiss={() => setShowCreateProject(false)} />
+      )}
 
       {/* ── Scrollable project list ── */}
       <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/40">

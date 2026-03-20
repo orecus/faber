@@ -139,7 +139,92 @@ fn do_read_instruction_file(
     }
 }
 
+fn do_create_project(
+    conn: &Connection,
+    parent_path: String,
+    name: String,
+) -> Result<Project, AppError> {
+    // 1. Validate name
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err(AppError::Validation("Project name cannot be empty".into()));
+    }
+    // Block filesystem-unsafe characters
+    if name.contains(['/', '\\', ':', '*', '?', '"', '<', '>', '|']) {
+        return Err(AppError::Validation(
+            "Project name contains invalid characters (/ \\ : * ? \" < > |)".into(),
+        ));
+    }
+
+    // 2. Build full path
+    let parent = Path::new(&parent_path);
+    if !parent.is_dir() {
+        return Err(AppError::Validation(format!(
+            "Parent directory does not exist: {parent_path}"
+        )));
+    }
+    let full_path = parent.join(&name);
+
+    // 3. Check path doesn't already exist (or is an empty dir)
+    if full_path.exists() {
+        if full_path.is_dir() {
+            // Allow if dir is completely empty
+            let is_empty = std::fs::read_dir(&full_path)
+                .map(|mut d| d.next().is_none())
+                .unwrap_or(false);
+            if !is_empty {
+                return Err(AppError::Validation(format!(
+                    "Directory already exists and is not empty: {}",
+                    full_path.display()
+                )));
+            }
+        } else {
+            return Err(AppError::Validation(format!(
+                "A file already exists at: {}",
+                full_path.display()
+            )));
+        }
+    }
+
+    // 4. Create directory
+    std::fs::create_dir_all(&full_path)?;
+
+    // 5. Git init + initial commit
+    let repo = git2::Repository::init(&full_path)
+        .map_err(|e| AppError::Git(format!("Failed to initialize git repository: {e}")))?;
+
+    // Create .gitignore with sensible defaults
+    let gitignore_content = "# OS files\n.DS_Store\nThumbs.db\n\n# IDE\n.idea/\n.vscode/\n*.swp\n*.swo\n\n# Dependencies\nnode_modules/\ntarget/\n";
+    std::fs::write(full_path.join(".gitignore"), gitignore_content)?;
+
+    // Create initial commit so HEAD exists
+    let sig = git2::Signature::now("Faber", "faber@local")
+        .map_err(|e| AppError::Git(format!("Failed to create git signature: {e}")))?;
+    let mut index = repo.index()?;
+    index.add_path(Path::new(".gitignore"))?;
+    index.write()?;
+    let tree_id = index.write_tree()?;
+    let tree = repo.find_tree(tree_id)?;
+    repo.commit(Some("HEAD"), &sig, &sig, "Initial commit", &tree, &[])?;
+
+    // 6. Register in DB via existing do_add_project
+    let full_path_str = full_path.to_string_lossy().into_owned();
+    do_add_project(conn, full_path_str, Some(name))
+}
+
 // ── IPC Commands ──
+
+#[tauri::command]
+pub fn create_project(
+    state: State<'_, DbState>,
+    parent_path: String,
+    name: String,
+) -> Result<Project, AppError> {
+    let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let project = do_create_project(&conn, parent_path, name)?;
+    tracing::info!(project_id = %project.id, name = %project.name, path = %project.path, "Project created");
+    Ok(project)
+}
 
 #[tauri::command]
 pub fn add_project(
@@ -404,6 +489,96 @@ mod tests {
     }
 
     // ── Command logic tests (via do_* functions) ──
+
+    // ── Create project tests ──
+
+    #[test]
+    fn create_project_success() {
+        let conn = setup();
+        let tmp = TempDir::new().unwrap();
+
+        let project = do_create_project(
+            &conn,
+            tmp.path().to_string_lossy().into_owned(),
+            "my-new-project".to_string(),
+        )
+        .unwrap();
+
+        assert_eq!(project.name, "my-new-project");
+        assert!(project.id.starts_with("proj_"));
+
+        // Verify directory was created
+        let project_dir = tmp.path().join("my-new-project");
+        assert!(project_dir.is_dir());
+
+        // Verify it's a git repo with a commit
+        let repo = git2::Repository::open(&project_dir).unwrap();
+        assert!(repo.head().is_ok());
+
+        // Verify .gitignore exists
+        assert!(project_dir.join(".gitignore").is_file());
+    }
+
+    #[test]
+    fn create_project_empty_name_fails() {
+        let conn = setup();
+        let tmp = TempDir::new().unwrap();
+
+        let result = do_create_project(
+            &conn,
+            tmp.path().to_string_lossy().into_owned(),
+            "  ".to_string(),
+        );
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("empty"));
+    }
+
+    #[test]
+    fn create_project_invalid_chars_fails() {
+        let conn = setup();
+        let tmp = TempDir::new().unwrap();
+
+        let result = do_create_project(
+            &conn,
+            tmp.path().to_string_lossy().into_owned(),
+            "bad/name".to_string(),
+        );
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("invalid characters"));
+    }
+
+    #[test]
+    fn create_project_existing_nonempty_dir_fails() {
+        let conn = setup();
+        let tmp = TempDir::new().unwrap();
+
+        // Create a non-empty directory
+        let existing = tmp.path().join("existing");
+        fs::create_dir_all(&existing).unwrap();
+        fs::write(existing.join("file.txt"), "content").unwrap();
+
+        let result = do_create_project(
+            &conn,
+            tmp.path().to_string_lossy().into_owned(),
+            "existing".to_string(),
+        );
+        assert!(result.is_err());
+        assert!(format!("{}", result.unwrap_err()).contains("not empty"));
+    }
+
+    #[test]
+    fn create_project_parent_not_found_fails() {
+        let conn = setup();
+
+        let result = do_create_project(
+            &conn,
+            "/nonexistent/path/that/does/not/exist".to_string(),
+            "test".to_string(),
+        );
+        assert!(result.is_err());
+    }
+
+    // ── Add project tests ──
 
     #[test]
     fn add_project_validates_git_repo() {
