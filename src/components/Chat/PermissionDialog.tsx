@@ -278,8 +278,9 @@ export default React.memo(function PermissionDialog({
   const [timeoutSeconds, setTimeoutSeconds] = useState(DEFAULT_TIMEOUT_SECONDS);
   useEffect(() => {
     if (!projectId) return;
-    invoke<string | null>("get_setting", {
-      key: `acp_permission_timeout_${projectId}`,
+    invoke<string | null>("get_project_setting", {
+      projectId,
+      key: "acp_permission_timeout",
     })
       .then((val) => {
         if (val) {

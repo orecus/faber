@@ -9,9 +9,11 @@ import {
   ListChecks,
   Loader2,
   Paperclip,
+  SendIcon,
   Sparkles,
   SquareIcon,
   Terminal,
+  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -158,6 +160,20 @@ export default React.memo(function ChatInput({
       });
     return () => { cancelled = true; };
   }, [sessionId, disabled]);
+
+  // ── Stop & Send confirmation state ──
+  const [showStopConfirm, setShowStopConfirm] = useState(false);
+  /** True while we're waiting for the agent to stop (after Stop or Stop & Send). */
+  const [isStopping, setIsStopping] = useState(false);
+  const pendingMessageRef = useRef<PromptInputMessage | null>(null);
+
+  // Clear confirmation / stopping state when promptPending becomes false (agent finished/cancelled)
+  useEffect(() => {
+    if (!promptPending) {
+      if (showStopConfirm) setShowStopConfirm(false);
+      if (isStopping) setIsStopping(false);
+    }
+  }, [promptPending, showStopConfirm, isStopping]);
 
   // ── Suggestion overlay state ──
   const [suggestionType, setSuggestionType] = useState<"slash" | "file" | null>(
@@ -385,11 +401,11 @@ export default React.memo(function ChatInput({
     [suggestionType, suggestions.length, selectedIdx, applySuggestion, closeSuggestions],
   );
 
-  const handleSubmit = useCallback(
+  /** Actually send a message (no guards — called after confirmation or when agent is idle). */
+  const doSend = useCallback(
     async (message: PromptInputMessage) => {
       const text = message.text.trim();
       const hasFiles = message.files && message.files.length > 0;
-      if ((!text && !hasFiles) || disabled) return;
 
       closeSuggestions();
       setAcpDraftText(sessionId, "");
@@ -430,15 +446,84 @@ export default React.memo(function ChatInput({
         setAcpPromptPending(sessionId, false);
       }
     },
-    [sessionId, disabled, addAcpUserMessage, setAcpPromptPending, setAcpDraftText, closeSuggestions],
+    [sessionId, addAcpUserMessage, setAcpPromptPending, setAcpDraftText, closeSuggestions],
   );
 
-  const handleStop = useCallback(async () => {
+  const handleSubmit = useCallback(
+    async (message: PromptInputMessage) => {
+      const text = message.text.trim();
+      const hasFiles = message.files && message.files.length > 0;
+      if ((!text && !hasFiles) || disabled) return;
+
+      // Block while we're waiting for a stop/stop-and-send to complete
+      if (isStopping) return;
+
+      // If agent is currently working, show confirmation instead of sending
+      if (promptPending) {
+        pendingMessageRef.current = message;
+        setShowStopConfirm(true);
+        return;
+      }
+
+      doSend(message);
+    },
+    [disabled, promptPending, isStopping, doSend],
+  );
+
+  /** User confirmed "Stop & Send" — cancel the agent, queue the message, then send. */
+  const handleStopAndSend = useCallback(async () => {
+    const message = pendingMessageRef.current;
+    if (!message) return;
+
+    setShowStopConfirm(false);
+    pendingMessageRef.current = null;
+    setIsStopping(true);
+
+    // Cancel the current agent work
     try {
       await invoke("cancel_acp_session", { sessionId });
     } catch (e) {
       console.error("Failed to cancel ACP session:", e);
     }
+
+    // Wait for promptPending to clear (cancel triggers acp-prompt-complete/error event)
+    // Poll briefly — the event usually fires within a few hundred ms
+    const waitForIdle = () =>
+      new Promise<void>((resolve) => {
+        const check = () => {
+          const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
+          if (!pending) {
+            resolve();
+          } else {
+            setTimeout(check, 50);
+          }
+        };
+        // Start checking after a small delay to let the cancel propagate
+        setTimeout(check, 100);
+      });
+
+    await waitForIdle();
+    setIsStopping(false);
+    doSend(message);
+  }, [sessionId, doSend]);
+
+  /** User dismissed the confirmation bar. */
+  const handleDismissStopConfirm = useCallback(() => {
+    setShowStopConfirm(false);
+    pendingMessageRef.current = null;
+    textareaRef.current?.focus();
+  }, []);
+
+  const handleStop = useCallback(async () => {
+    setShowStopConfirm(false);
+    pendingMessageRef.current = null;
+    setIsStopping(true);
+    try {
+      await invoke("cancel_acp_session", { sessionId });
+    } catch (e) {
+      console.error("Failed to cancel ACP session:", e);
+    }
+    // isStopping clears when promptPending becomes false
   }, [sessionId]);
 
   const chatStatus = disabled
@@ -451,8 +536,32 @@ export default React.memo(function ChatInput({
 
   return (
     <div className="border-t border-border/40 px-3 py-2 relative">
+      {/* Stop & Send confirmation bar */}
+      {showStopConfirm && (
+        <div className="absolute bottom-full left-3 right-3 mb-1 flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg z-50">
+          <span className="text-xs text-muted-foreground flex-1">
+            Agent is working. Stop and send your message?
+          </span>
+          <button
+            type="button"
+            onClick={handleStopAndSend}
+            className="flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
+          >
+            <SendIcon size={12} />
+            Stop &amp; Send
+          </button>
+          <button
+            type="button"
+            onClick={handleDismissStopConfirm}
+            className="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
+          >
+            <X size={14} />
+          </button>
+        </div>
+      )}
+
       {/* Suggestion overlay */}
-      {suggestionType && suggestions.length > 0 && (
+      {suggestionType && suggestions.length > 0 && !showStopConfirm && (
         <SuggestionOverlay
           type={suggestionType}
           suggestions={suggestions}
@@ -472,11 +581,11 @@ export default React.memo(function ChatInput({
               ? placeholderOverride
               : disabled
                 ? "Session ended"
-                : promptPending
+                : (isStopping || promptPending)
                   ? " "
                   : "Send a message… (/ for commands, @ for files)"
           }
-          disabled={disabled && !promptPending}
+          disabled={(disabled && !promptPending) || isStopping}
           className="min-h-[36px] text-sm"
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
@@ -484,10 +593,12 @@ export default React.memo(function ChatInput({
           onBlur={() => setIsFocused(false)}
         />
         {/* Shimmer working indicator — positioned after the textarea, same visual position as placeholder */}
-        {promptPending && !placeholderOverride && !isFocused && (
+        {promptPending && !placeholderOverride && !isFocused && !draftText && (
           <div className="flex items-center justify-start gap-2 px-3 py-2 -mt-9 pointer-events-none w-full">
             <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
-            <Shimmer duration={2} className="text-sm">Agent is working...</Shimmer>
+            <Shimmer duration={2} className="text-sm">
+              {isStopping ? "Stopping agent…" : "Agent is working..."}
+            </Shimmer>
           </div>
         )}
         <PromptInputFooter className="justify-between cursor-default">
@@ -516,7 +627,8 @@ export default React.memo(function ChatInput({
                 onStop={handleStop}
                 variant="destructive"
                 size="icon-sm"
-                className="cursor-pointer"
+                disabled={isStopping}
+                className={isStopping ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
               >
                 <SquareIcon className="size-3.5" />
               </PromptInputSubmit>

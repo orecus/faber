@@ -1379,8 +1379,9 @@ export const useAppStore = create<AppState>()(
               .catch(() => set({ tasks: [] }))
               .finally(() => rmBg("Syncing tasks"));
 
-            // Start file watcher for the new project
+            // Start file watchers for the new project
             invoke("start_task_watcher", { projectId: pid }).catch(() => {});
+            invoke("start_config_watcher", { projectId: pid }).catch(() => {});
 
             // Also refresh sessions/worktrees from backend for freshness
             // (skip during initial load — the list_projects handler already triggers refreshProject)
@@ -1389,9 +1390,10 @@ export const useAppStore = create<AppState>()(
             }
           }, 250);
 
-          // Stop watcher for previous project (if any)
+          // Stop watchers for previous project (if any)
           if (prevPid && prevPid !== pid) {
             invoke("stop_task_watcher", { projectId: prevPid }).catch(() => {});
+            invoke("stop_config_watcher", { projectId: prevPid }).catch(() => {});
           }
         },
       );
@@ -1895,6 +1897,31 @@ export const useAppStore = create<AppState>()(
             invoke<Task[]>("list_tasks", { projectId })
               .then((tasks) => set({ tasks }))
               .catch(() => {});
+          }
+        }),
+      );
+
+      // Config file watcher: project-config-changed event
+      eventCleanups.push(
+        listen<string>("project-config-changed", (event) => {
+          if (disposed) return;
+          const projectId = event.payload;
+          if (projectId === get().activeProjectId) {
+            // Reload project info (which includes updated settings from DB)
+            invoke<ProjectInfo>("get_project_info", { id: projectId })
+              .then((info) => {
+                const projects = get().projects.map((p) =>
+                  p.id === projectId ? info.project : p
+                );
+                set({ projects });
+              })
+              .catch(() => {});
+            // Also dispatch a custom event so persisted-setting hooks can re-read
+            window.dispatchEvent(
+              new CustomEvent("persisted-setting-change", {
+                detail: { scope: "project" },
+              })
+            );
           }
         }),
       );

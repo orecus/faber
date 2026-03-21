@@ -3,14 +3,13 @@ import { Kanban, ListChecks, ListTree, Plus } from "lucide-react";
 
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
-import type { Session, Task } from "../../types";
+import type { Task } from "../../types";
 import type { ThemeColor } from "../ui/orecus.io/lib/color-utils";
 
 export type DashboardMode = "board" | "graph";
 
 interface SummaryHeaderProps {
   tasks: Task[];
-  sessions: Session[];
   onNewTask?: () => void;
   onContinuousMode?: () => void;
   continuousModeEnabled?: boolean;
@@ -33,7 +32,6 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 
 const SummaryHeader = memo(function SummaryHeader({
   tasks,
-  sessions,
   onNewTask,
   onContinuousMode,
   continuousModeEnabled = false,
@@ -43,9 +41,6 @@ const SummaryHeader = memo(function SummaryHeader({
   hasDependencies = false,
 }: SummaryHeaderProps) {
   const stats = useMemo(() => {
-    const activeSessions = sessions.filter(
-      (s) => s.status === "running" || s.status === "starting",
-    );
     const inProgressTasks = tasks.filter((t) => t.status === "in-progress");
     const doneTasks = tasks.filter((t) => t.status === "done");
     const linkedIssues = tasks.filter((t) => t.github_issue).length;
@@ -53,10 +48,9 @@ const SummaryHeader = memo(function SummaryHeader({
       total: tasks.length,
       active: inProgressTasks.length,
       done: doneTasks.length,
-      agents: activeSessions.length,
       linkedIssues,
     };
-  }, [tasks, sessions]);
+  }, [tasks]);
 
   return (
     <>
@@ -71,8 +65,6 @@ const SummaryHeader = memo(function SummaryHeader({
         <Stat label="active" value={stats.active} />
         <span className="text-border">·</span>
         <Stat label="done" value={stats.done} />
-        <span className="text-border">·</span>
-        <Stat label="agents" value={stats.agents} />
         {stats.linkedIssues > 0 && (
           <>
             <span className="text-border">·</span>

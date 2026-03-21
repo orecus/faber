@@ -107,6 +107,7 @@ pnpm tauri dev
 ```bash
 pnpm dev                # Vite dev server only (frontend HMR, no Tauri backend)
 pnpm build              # Type-check + Vite production build
+pnpm preview            # Preview production build locally
 pnpm prepare-sidecar    # Rebuild the faber-mcp sidecar binary (debug)
 
 # Rust (from src-tauri/)
@@ -114,6 +115,24 @@ cargo build             # Build Rust backend
 cargo test              # Run Rust unit tests
 cargo clippy            # Lint Rust code
 ```
+
+> **Note:** `pnpm tauri dev` automatically builds the MCP sidecar binary before starting (via `beforeDevCommand` in `tauri.conf.json`). If you need to rebuild the sidecar manually, use `pnpm prepare-sidecar`.
+
+### Building for production
+
+```bash
+# Build the full desktop app (produces platform-specific installers)
+pnpm tauri build
+```
+
+Build outputs:
+
+| Platform | Formats | Path |
+|----------|---------|------|
+| Linux | `.deb`, `.rpm`, `.AppImage` | `src-tauri/target/release/bundle/` |
+| macOS | `.dmg`, `.app` | `src-tauri/target/release/bundle/` |
+| Windows (installer) | `.exe` (NSIS) | `src-tauri/target/release/bundle/nsis/` |
+| Windows (portable) | `faber.exe` | `src-tauri/target/release/` |
 
 ## Code Style & Conventions
 
@@ -228,6 +247,57 @@ We welcome feature suggestions! When proposing a feature:
 ### Security vulnerabilities
 
 If you discover a security vulnerability, please **do not** open a public issue. Instead, email the maintainers directly or use GitHub's [private vulnerability reporting](https://docs.github.com/en/code-security/security-advisories/guidance-on-reporting-and-managing-vulnerabilities/privately-reporting-a-security-vulnerability).
+
+## Releases
+
+### Version numbers
+
+The app version is defined in **three files** that must be kept in sync:
+
+| File | Field | Example |
+|------|-------|---------|
+| `package.json` | `"version"` | `"0.6.0"` |
+| `src-tauri/Cargo.toml` | `version` under `[package]` | `"0.6.0"` |
+| `src-tauri/tauri.conf.json` | `"version"` | `"0.6.0"` |
+
+We follow [Semantic Versioning](https://semver.org/): `MAJOR.MINOR.PATCH`.
+
+- **PATCH** (`0.5.0` → `0.5.1`) — Bug fixes, minor tweaks
+- **MINOR** (`0.5.1` → `0.6.0`) — New features, backward-compatible changes
+- **MAJOR** (`0.6.0` → `1.0.0`) — Breaking changes, major milestones
+
+### Creating a release
+
+1. **Update the version** in all three files listed above.
+
+2. **Commit the version bump:**
+
+   ```bash
+   git add package.json src-tauri/Cargo.toml src-tauri/tauri.conf.json
+   git commit -m "chore: bump version to 0.7.0"
+   ```
+
+3. **Create and push a tag** (must start with `v`):
+
+   ```bash
+   git tag v0.7.0
+   git push origin main --tags
+   ```
+
+4. **The release workflow runs automatically.** It builds for all platforms, signs the binaries, and creates a **draft** GitHub Release with installer artifacts.
+
+5. **Publish the release** — Go to [GitHub Releases](../../releases), review the draft, edit the release notes if needed, and click **Publish**.
+
+> **Note:** The release is created as a draft so you can review release notes before making it public. The auto-updater endpoint (`latest.json`) only picks up published (non-draft) releases.
+
+You can also trigger the release workflow manually from the GitHub Actions UI via `workflow_dispatch` (the tag must already exist).
+
+### CI/CD
+
+GitHub Actions workflows are in `.github/workflows/`:
+
+- **`ci.yml`** — Runs on push to `main` and pull requests. Rust tests + clippy on all platforms, then builds and uploads artifacts.
+- **`release.yml`** — Triggered on tag push (`v*`). Builds all platforms and creates a draft GitHub Release with installer artifacts.
 
 ---
 

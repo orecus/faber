@@ -18,6 +18,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
+import { colorStyles, solidColorGradients } from "../ui/orecus.io/lib/color-utils";
 import AgentCardGrid from "./AgentCardGrid";
 import {
   Select,
@@ -61,10 +62,25 @@ export default function LaunchResearchDialog({
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [defaultTransport, setDefaultTransport] = useState<SessionTransport>("pty");
   const [selectedTransport, setSelectedTransport] = useState<SessionTransport>("pty");
   const [userPrompt, setUserPrompt] = useState(defaultPrompt);
   const [error, setError] = useState<string | null>(null);
   const [launching, setLaunching] = useState(false);
+
+  // Load default transport from project settings
+  useEffect(() => {
+    invoke<string | null>("get_project_setting", {
+      projectId,
+      key: "default_transport",
+    })
+      .then((val) => {
+        const t = (val as SessionTransport) || "pty";
+        setDefaultTransport(t);
+        setSelectedTransport(t);
+      })
+      .catch(() => {});
+  }, [projectId]);
 
   // Resolve default agent: task.agent -> project.default_agent -> first installed
   useEffect(() => {
@@ -98,10 +114,10 @@ export default function LaunchResearchDialog({
       setSelectedAgentName(name);
       setError(null);
       setSelectedModel("");
-      // Default to ACP if agent has adapter installed, otherwise fall back to PTY
-      setSelectedTransport(agent.acp_installed ? "acp" : "pty");
+      // Use project default if agent supports it, otherwise fall back to PTY
+      setSelectedTransport(agent.acp_installed ? defaultTransport : "pty");
     },
-    [agents],
+    [agents, defaultTransport],
   );
 
   const canLaunch = useMemo(() => {
@@ -184,13 +200,13 @@ export default function LaunchResearchDialog({
             <label className="mb-1.5 block text-xs text-dim-foreground">
               Transport
             </label>
-            <div className="inline-flex rounded-[var(--radius-element)] bg-muted/50 p-0.5 ring-1 ring-border/40">
+            <div className="flex rounded-[var(--radius-element)] bg-muted/50 p-0.5 ring-1 ring-border/40">
               <button
                 type="button"
                 onClick={() => setSelectedTransport("pty")}
-                className={`flex items-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
                   selectedTransport === "pty"
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/60 font-medium"
+                    ? `bg-linear-to-r ${solidColorGradients[accentColor]} ${colorStyles[accentColor].text} shadow-sm font-medium`
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -200,9 +216,9 @@ export default function LaunchResearchDialog({
               <button
                 type="button"
                 onClick={() => setSelectedTransport("acp")}
-                className={`flex items-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
                   selectedTransport === "acp"
-                    ? "bg-background text-foreground shadow-sm ring-1 ring-border/60 font-medium"
+                    ? `bg-linear-to-r ${solidColorGradients[accentColor]} ${colorStyles[accentColor].text} shadow-sm font-medium`
                     : "text-muted-foreground hover:text-foreground"
                 }`}
               >

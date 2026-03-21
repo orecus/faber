@@ -6,7 +6,9 @@ import {
   GitBranch,
   Info,
   Link,
+  MessageSquare,
   Play,
+  Terminal,
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
@@ -26,7 +28,7 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { borderAccentColors } from "../ui/orecus.io/lib/color-utils";
+import { borderAccentColors, colorStyles, solidColorGradients } from "../ui/orecus.io/lib/color-utils";
 import AgentCardGrid from "./AgentCardGrid";
 import {
   Select,
@@ -36,7 +38,7 @@ import {
   SelectValue,
 } from "../ui/select";
 
-import type { BranchingStrategy, Task } from "../../types";
+import type { BranchingStrategy, SessionTransport, Task } from "../../types";
 
 interface LaunchContinuousDialogProps {
   projectId: string;
@@ -71,10 +73,26 @@ export default function LaunchContinuousDialog({
   const [strategy, setStrategy] = useState<BranchingStrategy>("independent");
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
   const [selectedModel, setSelectedModel] = useState<string>("");
+  const [defaultTransport, setDefaultTransport] = useState<SessionTransport>("pty");
+  const [selectedTransport, setSelectedTransport] = useState<SessionTransport>("pty");
   const [baseBranch, setBaseBranch] = useState<string>("");
   const [branches, setBranches] = useState<string[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
+
+  // Load default transport from project settings
+  useEffect(() => {
+    invoke<string | null>("get_project_setting", {
+      projectId,
+      key: "default_transport",
+    })
+      .then((val) => {
+        const t = (val as SessionTransport) || "pty";
+        setDefaultTransport(t);
+        setSelectedTransport(t);
+      })
+      .catch(() => {});
+  }, [projectId]);
 
   // Resolve default agent
   useEffect(() => {
@@ -215,8 +233,9 @@ export default function LaunchContinuousDialog({
       setSelectedAgentName(name);
       setError(null);
       setSelectedModel("");
+      setSelectedTransport(agent.acp_installed ? defaultTransport : "pty");
     },
-    [agents],
+    [agents, defaultTransport],
   );
 
   const handleToggleTask = useCallback((index: number) => {
@@ -266,6 +285,7 @@ export default function LaunchContinuousDialog({
         baseBranch: baseBranch || null,
         agentName: selectedAgentName || null,
         model: selectedModel || null,
+        transport: selectedTransport,
       });
       onStarted();
     } catch (err) {
@@ -282,6 +302,7 @@ export default function LaunchContinuousDialog({
     baseBranch,
     selectedAgentName,
     selectedModel,
+    selectedTransport,
     onStarted,
     addBackgroundTask,
     removeBackgroundTask,
@@ -460,6 +481,46 @@ export default function LaunchContinuousDialog({
             accentColor={accentColor}
           />
         </div>
+
+        {/* Transport toggle — only when agent supports ACP */}
+        {currentAgent?.acp_installed && (
+          <div>
+            <label className="mb-1.5 block text-xs text-dim-foreground">
+              Transport
+            </label>
+            <div className="flex rounded-[var(--radius-element)] bg-muted/50 p-0.5 ring-1 ring-border/40">
+              <button
+                type="button"
+                onClick={() => setSelectedTransport("pty")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
+                  selectedTransport === "pty"
+                    ? `bg-linear-to-r ${solidColorGradients[accentColor]} ${colorStyles[accentColor].text} shadow-sm font-medium`
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <Terminal size={13} />
+                Terminal
+              </button>
+              <button
+                type="button"
+                onClick={() => setSelectedTransport("acp")}
+                className={`flex flex-1 items-center justify-center gap-1.5 rounded-[calc(var(--radius-element)-2px)] px-3 py-1.5 text-xs transition-all duration-150 ${
+                  selectedTransport === "acp"
+                    ? `bg-linear-to-r ${solidColorGradients[accentColor]} ${colorStyles[accentColor].text} shadow-sm font-medium`
+                    : "text-muted-foreground hover:text-foreground"
+                }`}
+              >
+                <MessageSquare size={13} />
+                Chat
+              </button>
+            </div>
+            <p className="mt-1 text-[11px] text-muted-foreground">
+              {selectedTransport === "acp"
+                ? "Structured chat UI with tool calls and permission management"
+                : "Classic terminal session with PTY output"}
+            </p>
+          </div>
+        )}
 
         {/* Model */}
         {currentAgent && currentAgent.supported_models.length > 0 && (

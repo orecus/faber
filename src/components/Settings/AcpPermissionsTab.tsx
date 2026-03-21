@@ -76,14 +76,17 @@ export function AcpPermissionsTab() {
           projectId: activeProjectId,
           limit: 20,
         }),
-        invoke<string | null>("get_setting", {
-          key: `acp_trust_mode_policy_${activeProjectId}`,
+        invoke<string | null>("get_project_setting", {
+          projectId: activeProjectId,
+          key: "acp_trust_mode_policy",
         }).catch(() => null),
-        invoke<string | null>("get_setting", {
-          key: `acp_default_policy_${activeProjectId}`,
+        invoke<string | null>("get_project_setting", {
+          projectId: activeProjectId,
+          key: "acp_default_policy",
         }).catch(() => null),
-        invoke<string | null>("get_setting", {
-          key: `acp_permission_timeout_${activeProjectId}`,
+        invoke<string | null>("get_project_setting", {
+          projectId: activeProjectId,
+          key: "acp_permission_timeout",
         }).catch(() => null),
       ]);
       setRules(rulesData);
@@ -125,7 +128,7 @@ export function AcpPermissionsTab() {
   const deleteRule = useCallback(
     async (ruleId: string) => {
       try {
-        await invoke("delete_permission_rule", { ruleId });
+        await invoke("delete_permission_rule", { projectId: activeProjectId, ruleId });
         await loadData();
       } catch (e) {
         console.error("Failed to delete rule:", e);
@@ -151,8 +154,9 @@ export function AcpPermissionsTab() {
       if (!activeProjectId) return;
       setTrustModePolicy(value);
       try {
-        await invoke("set_setting", {
-          key: `acp_trust_mode_policy_${activeProjectId}`,
+        await invoke("set_project_setting", {
+          projectId: activeProjectId,
+          key: "acp_trust_mode_policy",
           value,
         });
       } catch (e) {
@@ -167,8 +171,9 @@ export function AcpPermissionsTab() {
       if (!activeProjectId) return;
       setDefaultPolicy(value as PermissionAction);
       try {
-        await invoke("set_setting", {
-          key: `acp_default_policy_${activeProjectId}`,
+        await invoke("set_project_setting", {
+          projectId: activeProjectId,
+          key: "acp_default_policy",
           value,
         });
       } catch (e) {
@@ -184,8 +189,9 @@ export function AcpPermissionsTab() {
       const clamped = Math.max(10, Math.min(600, seconds));
       setPermissionTimeout(clamped);
       try {
-        await invoke("set_setting", {
-          key: `acp_permission_timeout_${activeProjectId}`,
+        await invoke("set_project_setting", {
+          projectId: activeProjectId,
+          key: "acp_permission_timeout",
           value: String(clamped),
         });
       } catch (e) {

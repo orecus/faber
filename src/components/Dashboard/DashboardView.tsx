@@ -238,7 +238,6 @@ export default function DashboardView() {
     <SummaryHeader
       accentColor={accentColor}
       tasks={boardTasks}
-      sessions={sessions}
       onNewTask={() => setShowCreateTask(true)}
       onContinuousMode={() => setShowContinuousMode(true)}
       continuousModeEnabled={readyTasks.length >= 2 && !hasContinuousRun}
