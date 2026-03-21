@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
-import type { Priority } from "../../types";
+import type { Priority, TaskStatus } from "../../types";
 import type { FilterState, FilterAction } from "../../hooks/useDashboardFilters";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
@@ -8,6 +8,14 @@ import { gradientHexColors } from "../ui/orecus.io/lib/color-utils";
 import { Separator } from "../ui/separator";
 
 const PRIORITIES: Priority[] = ["P0", "P1", "P2"];
+
+const STATUSES: { value: TaskStatus; label: string }[] = [
+  { value: "backlog", label: "Backlog" },
+  { value: "ready", label: "Ready" },
+  { value: "in-progress", label: "In Progress" },
+  { value: "in-review", label: "In Review" },
+  { value: "done", label: "Done" },
+];
 
 const PRIORITY_COLORS: Record<Priority, string> = {
   P0: "var(--destructive)",
@@ -127,6 +135,21 @@ export default function FilterBar({
           active={filters.priorities.has(p)}
           color={PRIORITY_COLORS[p]}
           onClick={() => dispatchFilter({ type: "TOGGLE_PRIORITY", priority: p })}
+        />
+      ))}
+
+      {/* Status toggles */}
+      <Separator orientation="vertical" className="mx-0.5 h-4" />
+      <span className="text-[11px] text-muted-foreground mr-0.5">
+        Status:
+      </span>
+      {STATUSES.map((s) => (
+        <ToggleChip
+          key={s.value}
+          label={s.label}
+          active={filters.statuses.has(s.value)}
+          color={accentHex}
+          onClick={() => dispatchFilter({ type: "TOGGLE_STATUS", status: s.value })}
         />
       ))}
 

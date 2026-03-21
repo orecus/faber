@@ -9,7 +9,8 @@ import {
   type DragEndEvent,
 } from "@dnd-kit/core";
 import type { Task, Session, TaskStatus } from "../../types";
-import { topoSortTasks, buildDependentsMap } from "../../lib/taskSort";
+import { topoSortTasks, buildDependentsMap, sortTasksByMode, type ColumnSortMode } from "../../lib/taskSort";
+import { usePersistedString, usePersistedBoolean } from "../../hooks/usePersistedState";
 import KanbanColumn from "./KanbanColumn";
 import TaskCard from "./TaskCard";
 
@@ -18,6 +19,7 @@ const BOARD_COLUMNS: TaskStatus[] = ["backlog", "ready", "in-progress", "in-revi
 interface KanbanBoardProps {
   tasks: Task[];
   sessionMap: Map<string, Session>;
+  allLabels: string[];
   onTaskClick: (taskId: string) => void;
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
   onStartSession: (taskId: string) => void;
@@ -28,6 +30,7 @@ interface KanbanBoardProps {
 export default function KanbanBoard({
   tasks,
   sessionMap,
+  allLabels,
   onTaskClick,
   onStatusChange,
   onStartSession,
@@ -35,6 +38,37 @@ export default function KanbanBoard({
   onViewSession,
 }: KanbanBoardProps) {
   const [activeTask, setActiveTask] = useState<Task | null>(null);
+
+  // Persisted sort mode (shared across all columns)
+  const [sortMode, setSortMode] = usePersistedString("kanban_sort_mode", "topological") as [ColumnSortMode, (v: string) => void, boolean];
+
+  // Persisted collapsed state per column
+  const [backlogCollapsed, setBacklogCollapsed] = usePersistedBoolean("kanban_col_backlog_collapsed", false);
+  const [readyCollapsed, setReadyCollapsed] = usePersistedBoolean("kanban_col_ready_collapsed", false);
+  const [inProgressCollapsed, setInProgressCollapsed] = usePersistedBoolean("kanban_col_in-progress_collapsed", false);
+  const [inReviewCollapsed, setInReviewCollapsed] = usePersistedBoolean("kanban_col_in-review_collapsed", false);
+  const [doneCollapsed, setDoneCollapsed] = usePersistedBoolean("kanban_col_done_collapsed", false);
+
+  const collapsedMap = useMemo<Record<TaskStatus, boolean>>(() => ({
+    backlog: backlogCollapsed,
+    ready: readyCollapsed,
+    "in-progress": inProgressCollapsed,
+    "in-review": inReviewCollapsed,
+    done: doneCollapsed,
+    archived: false,
+  }), [backlogCollapsed, readyCollapsed, inProgressCollapsed, inReviewCollapsed, doneCollapsed]);
+
+  const toggleCollapsed = useCallback((status: TaskStatus) => {
+    const setters: Record<string, (v: boolean) => void> = {
+      backlog: setBacklogCollapsed,
+      ready: setReadyCollapsed,
+      "in-progress": setInProgressCollapsed,
+      "in-review": setInReviewCollapsed,
+      done: setDoneCollapsed,
+    };
+    const setter = setters[status];
+    if (setter) setter(!collapsedMap[status]);
+  }, [collapsedMap, setBacklogCollapsed, setReadyCollapsed, setInProgressCollapsed, setInReviewCollapsed, setDoneCollapsed]);
 
   const sensors = useSensors(
     useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
@@ -69,7 +103,7 @@ export default function KanbanBoard({
   const taskMap = useMemo(() => new Map(tasks.map((t) => [t.id, t])), [tasks]);
   const dependentsMap = useMemo(() => buildDependentsMap(tasks), [tasks]);
 
-  // Group tasks into columns with topological sorting
+  // Group tasks into columns with sorting
   const columnTasks = useMemo(() => {
     const map = new Map<TaskStatus, Task[]>();
     for (const col of BOARD_COLUMNS) map.set(col, []);
@@ -77,15 +111,19 @@ export default function KanbanBoard({
       const col = map.get(task.status);
       if (col) col.push(task);
     }
-    // Apply topological sort within each column
+    // Apply sort mode within each column
     for (const col of BOARD_COLUMNS) {
       const colTasks = map.get(col);
       if (colTasks && colTasks.length > 1) {
-        map.set(col, topoSortTasks(colTasks, tasks));
+        if (sortMode === "topological") {
+          map.set(col, topoSortTasks(colTasks, tasks));
+        } else {
+          map.set(col, sortTasksByMode(colTasks, sortMode));
+        }
       }
     }
     return map;
-  }, [tasks]);
+  }, [tasks, sortMode]);
 
   return (
     <DndContext
@@ -104,10 +142,15 @@ export default function KanbanBoard({
             taskMap={taskMap}
             dependentsMap={dependentsMap}
             sessionMap={sessionMap}
+            allLabels={allLabels}
             onTaskClick={onTaskClick}
             onStartSession={onStartSession}
             onResearchSession={onResearchSession}
             onViewSession={onViewSession}
+            sortMode={sortMode}
+            onSortChange={setSortMode}
+            collapsed={collapsedMap[status]}
+            onToggleCollapsed={() => toggleCollapsed(status)}
           />
         ))}
       </div>

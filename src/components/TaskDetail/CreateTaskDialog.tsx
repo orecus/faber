@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Play, Plus, X } from "lucide-react";
+import { ChevronDown, Play, Plus, X } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
+import { Badge } from "../ui/badge";
 
 import type { GitHubIssueCreated, Priority, Task } from "../../types";
 
@@ -51,6 +52,9 @@ export default function CreateTaskDialog({
   const addBackgroundTask = useAppStore((s) => s.addBackgroundTask);
   const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
 
+  const tasks = useAppStore((s) => s.tasks);
+  const installedAgents = useAppStore((s) => s.agents).filter((a) => a.installed);
+
   const [title, setTitle] = useState("");
   const [priority, setPriority] = useState<Priority>("P2");
   const [body, setBody] = useState(DEFAULT_BODY_TEMPLATE);
@@ -60,6 +64,12 @@ export default function CreateTaskDialog({
   const ghAuthStatus = useAppStore((s) => s.ghAuthStatus);
   const [ghSyncAvailable, setGhSyncAvailable] = useState(false);
   const [createAsIssue, setCreateAsIssue] = useState(false);
+
+  // Advanced fields
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [labelsInput, setLabelsInput] = useState("");
+  const [selectedDeps, setSelectedDeps] = useState<string[]>([]);
+  const [selectedAgent, setSelectedAgent] = useState<string>("");
 
   // Check if GitHub sync is available for this project.
   // If the project has an explicit github_sync setting, use it.
@@ -121,6 +131,13 @@ export default function CreateTaskDialog({
     return trimmed;
   }, [body]);
 
+  const parsedLabels = labelsInput
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean);
+
+  const hasAdvancedFields = parsedLabels.length > 0 || selectedDeps.length > 0 || selectedAgent !== "";
+
   /** Core create logic — returns the created task or null on error */
   const createTask = useCallback(async (): Promise<Task | null> => {
     if (!canCreate || !activeProjectId) return null;
@@ -128,12 +145,30 @@ export default function CreateTaskDialog({
     setCreating(true);
     addBackgroundTask("Creating task");
     try {
-      const task = await invoke<Task>("create_task", {
+      let task = await invoke<Task>("create_task", {
         projectId: activeProjectId,
         title: title.trim(),
         priority,
         body: getBodyParam(),
       });
+
+      // If advanced fields were set, update the task file
+      if (hasAdvancedFields) {
+        task = await invoke<Task>("save_task_content", {
+          projectId: activeProjectId,
+          taskId: task.id,
+          title: task.title,
+          status: task.status,
+          priority: task.priority,
+          agent: selectedAgent || null,
+          model: null,
+          branch: null,
+          githubIssue: null,
+          dependsOn: selectedDeps,
+          labels: parsedLabels,
+          body: getBodyParam() || "",
+        });
+      }
 
       // Re-fetch tasks
       const freshTasks = await invoke<Task[]>("list_tasks", {
@@ -154,6 +189,10 @@ export default function CreateTaskDialog({
     title,
     priority,
     getBodyParam,
+    hasAdvancedFields,
+    parsedLabels,
+    selectedDeps,
+    selectedAgent,
     setTasks,
     addBackgroundTask,
     removeBackgroundTask,
@@ -341,6 +380,142 @@ export default function CreateTaskDialog({
             Ctrl+Enter to create
           </p>
         </div>
+
+        {/* Advanced fields toggle */}
+        <button
+          type="button"
+          onClick={() => setShowAdvanced((v) => !v)}
+          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+        >
+          <ChevronDown
+            className={`size-3 transition-transform duration-150 ${showAdvanced ? "rotate-0" : "-rotate-90"}`}
+          />
+          Advanced
+          {hasAdvancedFields && (
+            <span className="size-1.5 rounded-full bg-primary" />
+          )}
+        </button>
+
+        {showAdvanced && (
+          <div className="space-y-3 rounded-[var(--radius-element)] border border-border p-3">
+            {/* Labels */}
+            <div>
+              <label className="mb-1 block text-xs text-dim-foreground">
+                Labels
+              </label>
+              <Input
+                value={labelsInput}
+                onChange={(e) => setLabelsInput(e.target.value)}
+                placeholder="frontend, api, ux"
+                className="text-xs"
+              />
+              {parsedLabels.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {parsedLabels.map((label) => (
+                    <Badge
+                      key={label}
+                      variant="secondary"
+                      className="text-[10px] px-1.5 py-0"
+                    >
+                      {label}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Dependencies */}
+            <div>
+              <label className="mb-1 block text-xs text-dim-foreground">
+                Depends on
+              </label>
+              <Select
+                value="__placeholder__"
+                onValueChange={(v) => {
+                  if (v && v !== "__placeholder__" && !selectedDeps.includes(v)) {
+                    setSelectedDeps((prev) => [...prev, v]);
+                  }
+                }}
+                items={[
+                  { value: "__placeholder__", label: "Add dependency…" },
+                  ...tasks
+                    .filter((t) => !selectedDeps.includes(t.id))
+                    .map((t) => ({ value: t.id, label: `${t.id} — ${t.title}` })),
+                ]}
+              >
+                <SelectTrigger className="w-full text-xs">
+                  <SelectValue placeholder="Add dependency…" />
+                </SelectTrigger>
+                <SelectContent>
+                  {tasks
+                    .filter((t) => !selectedDeps.includes(t.id))
+                    .map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="font-mono text-muted-foreground mr-1">{t.id}</span>
+                        {t.title}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+              {selectedDeps.length > 0 && (
+                <div className="flex flex-wrap gap-1 mt-1.5">
+                  {selectedDeps.map((depId) => {
+                    const depTask = tasks.find((t) => t.id === depId);
+                    return (
+                      <Badge
+                        key={depId}
+                        variant="outline"
+                        className="text-[10px] px-1.5 py-0 gap-1 cursor-pointer"
+                        onClick={() =>
+                          setSelectedDeps((prev) =>
+                            prev.filter((d) => d !== depId),
+                          )
+                        }
+                      >
+                        {depTask ? `${depId} ${depTask.title}` : depId}
+                        <X className="size-2.5" />
+                      </Badge>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+
+            {/* Agent */}
+            {installedAgents.length > 0 && (
+              <div>
+                <label className="mb-1 block text-xs text-dim-foreground">
+                  Agent
+                </label>
+                <Select
+                  value={selectedAgent || "__none__"}
+                  onValueChange={(v) =>
+                    setSelectedAgent(!v || v === "__none__" ? "" : v)
+                  }
+                  items={[
+                    { value: "__none__", label: "None" },
+                    ...installedAgents.map((a) => ({
+                      value: a.name,
+                      label: a.display_name,
+                    })),
+                  ]}
+                >
+                  <SelectTrigger className="w-full text-xs">
+                    <SelectValue placeholder="None" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">None</SelectItem>
+                    {installedAgents.map((a) => (
+                      <SelectItem key={a.name} value={a.name}>
+                        {a.display_name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+        )}
 
         {/* GitHub sync checkbox */}
         {ghSyncAvailable && (

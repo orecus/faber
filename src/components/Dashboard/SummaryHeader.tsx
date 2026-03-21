@@ -1,5 +1,5 @@
 import { memo, useMemo } from "react";
-import { Kanban, ListChecks, ListTree, Plus } from "lucide-react";
+import { Archive, Kanban, ListChecks, ListTree, Plus } from "lucide-react";
 
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
@@ -10,6 +10,9 @@ export type DashboardMode = "board" | "graph";
 
 interface SummaryHeaderProps {
   tasks: Task[];
+  archivedCount?: number;
+  showArchived?: boolean;
+  onToggleArchived?: () => void;
   onNewTask?: () => void;
   onContinuousMode?: () => void;
   continuousModeEnabled?: boolean;
@@ -32,6 +35,9 @@ function Stat({ label, value }: { label: string; value: number | string }) {
 
 const SummaryHeader = memo(function SummaryHeader({
   tasks,
+  archivedCount = 0,
+  showArchived = false,
+  onToggleArchived,
   onNewTask,
   onContinuousMode,
   continuousModeEnabled = false,
@@ -43,11 +49,28 @@ const SummaryHeader = memo(function SummaryHeader({
   const stats = useMemo(() => {
     const inProgressTasks = tasks.filter((t) => t.status === "in-progress");
     const doneTasks = tasks.filter((t) => t.status === "done");
+    const readyTasks = tasks.filter((t) => t.status === "ready");
     const linkedIssues = tasks.filter((t) => t.github_issue).length;
+
+    // A task is blocked if it has dependencies and at least one dependency is not done
+    const taskStatusMap = new Map(tasks.map((t) => [t.id, t.status]));
+    const blockedCount = tasks.filter(
+      (t) =>
+        t.status !== "done" &&
+        t.status !== "archived" &&
+        t.depends_on.length > 0 &&
+        t.depends_on.some((depId) => {
+          const depStatus = taskStatusMap.get(depId);
+          return depStatus !== "done";
+        }),
+    ).length;
+
     return {
       total: tasks.length,
       active: inProgressTasks.length,
       done: doneTasks.length,
+      ready: readyTasks.length,
+      blocked: blockedCount,
       linkedIssues,
     };
   }, [tasks]);
@@ -64,17 +87,48 @@ const SummaryHeader = memo(function SummaryHeader({
         <span className="text-border">·</span>
         <Stat label="active" value={stats.active} />
         <span className="text-border">·</span>
+        <Stat label="ready" value={stats.ready} />
+        <span className="text-border">·</span>
         <Stat label="done" value={stats.done} />
+        {stats.blocked > 0 && (
+          <>
+            <span className="text-border">·</span>
+            <Stat label="blocked" value={stats.blocked} />
+          </>
+        )}
         {stats.linkedIssues > 0 && (
           <>
             <span className="text-border">·</span>
             <Stat label="github issues" value={stats.linkedIssues} />
           </>
         )}
+        {showArchived && archivedCount > 0 && (
+          <>
+            <span className="text-border">·</span>
+            <Stat label="archived" value={archivedCount} />
+          </>
+        )}
       </div>
 
       {/* Spacer */}
       <div className="flex-1" />
+
+      {/* Archive toggle */}
+      {archivedCount > 0 && onToggleArchived && (
+        <button
+          onClick={onToggleArchived}
+          className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-[var(--radius-element)] border transition-colors cursor-pointer ${
+            showArchived
+              ? "bg-accent text-foreground border-border"
+              : "text-muted-foreground border-transparent hover:text-foreground hover:bg-accent/50"
+          }`}
+          title={showArchived ? "Hide archived tasks" : "Show archived tasks"}
+        >
+          <Archive className="size-3" />
+          Archive
+          <span className="text-[10px] tabular-nums opacity-70">{archivedCount}</span>
+        </button>
+      )}
 
       {/* View toggle — Board / Graph */}
       {hasDependencies && onDashboardModeChange && (

@@ -1,21 +1,35 @@
-import { useReducer, useCallback } from "react";
-import type { Priority } from "../types";
+import { useCallback } from "react";
+import { useAppStore } from "../store/appStore";
+import type { Priority, TaskStatus } from "../types";
 
 export interface FilterState {
   priorities: Set<Priority>;
   labels: Set<string>;
   agents: Set<string>;
+  statuses: Set<TaskStatus>;
   searchQuery: string;
+  showArchived: boolean;
 }
 
 export type FilterAction =
   | { type: "TOGGLE_PRIORITY"; priority: Priority }
   | { type: "TOGGLE_LABEL"; label: string }
   | { type: "TOGGLE_AGENT"; agent: string }
+  | { type: "TOGGLE_STATUS"; status: TaskStatus }
   | { type: "SET_SEARCH"; text: string }
+  | { type: "TOGGLE_ARCHIVED" }
   | { type: "CLEAR_ALL" };
 
-function reducer(state: FilterState, action: FilterAction): FilterState {
+export const initialFilterState: FilterState = {
+  priorities: new Set(),
+  labels: new Set(),
+  agents: new Set(),
+  statuses: new Set(),
+  searchQuery: "",
+  showArchived: false,
+};
+
+export function filterReducer(state: FilterState, action: FilterAction): FilterState {
   switch (action.type) {
     case "TOGGLE_PRIORITY": {
       const next = new Set(state.priorities);
@@ -35,34 +49,53 @@ function reducer(state: FilterState, action: FilterAction): FilterState {
       else next.add(action.agent);
       return { ...state, agents: next };
     }
+    case "TOGGLE_STATUS": {
+      const next = new Set(state.statuses);
+      if (next.has(action.status)) next.delete(action.status);
+      else next.add(action.status);
+      return { ...state, statuses: next };
+    }
     case "SET_SEARCH":
       return { ...state, searchQuery: action.text };
+    case "TOGGLE_ARCHIVED":
+      return { ...state, showArchived: !state.showArchived };
     case "CLEAR_ALL":
-      return { priorities: new Set(), labels: new Set(), agents: new Set(), searchQuery: "" };
+      return { ...initialFilterState };
   }
 }
 
-const initialState: FilterState = {
-  priorities: new Set(),
-  labels: new Set(),
-  agents: new Set(),
-  searchQuery: "",
-};
-
 export function useDashboardFilters() {
-  const [filters, dispatchFilter] = useReducer(reducer, initialState);
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const projectFilters = useAppStore((s) => s.projectFilters);
+  const setProjectFilters = useAppStore((s) => s.setProjectFilters);
+
+  const filters = activeProjectId
+    ? (projectFilters[activeProjectId] ?? initialFilterState)
+    : initialFilterState;
+
+  const dispatchFilter = useCallback(
+    (action: FilterAction) => {
+      if (!activeProjectId) return;
+      const current = useAppStore.getState().projectFilters[activeProjectId] ?? initialFilterState;
+      const next = filterReducer(current, action);
+      setProjectFilters(activeProjectId, next);
+    },
+    [activeProjectId, setProjectFilters],
+  );
 
   const hasActiveFilters =
     filters.priorities.size > 0 ||
     filters.labels.size > 0 ||
     filters.agents.size > 0 ||
+    filters.statuses.size > 0 ||
     filters.searchQuery.length > 0;
 
   const matchesFilters = useCallback(
-    (task: { id: string; title: string; priority: Priority; labels: string[]; agent: string | null }) => {
+    (task: { id: string; title: string; status: TaskStatus; priority: Priority; labels: string[]; agent: string | null }) => {
       if (filters.priorities.size > 0 && !filters.priorities.has(task.priority)) return false;
       if (filters.labels.size > 0 && !task.labels.some((l) => filters.labels.has(l))) return false;
       if (filters.agents.size > 0 && (!task.agent || !filters.agents.has(task.agent))) return false;
+      if (filters.statuses.size > 0 && !filters.statuses.has(task.status)) return false;
       if (filters.searchQuery.length > 0) {
         const q = filters.searchQuery.toLowerCase();
         const inTitle = task.title.toLowerCase().includes(q);

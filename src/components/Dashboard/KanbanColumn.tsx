@@ -1,12 +1,14 @@
-import { memo, useMemo } from "react";
+import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
 import { useDroppable } from "@dnd-kit/core";
+import { ArrowUpDown, PanelLeftClose, PanelLeftOpen, Check } from "lucide-react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import TaskCard from "./TaskCard";
 import type { TaskCardVariant } from "./TaskCard";
+import TaskCardContextMenu from "./TaskCardContextMenu";
 import GhostParentCard from "./GhostParentCard";
 import { ringColors } from "../ui/orecus.io/lib/color-utils";
-import { isTaskBlocked, buildColumnItems } from "../../lib/taskSort";
+import { isTaskBlocked, buildColumnItems, SORT_MODE_LABELS, type ColumnSortMode } from "../../lib/taskSort";
 
 import type { Session, Task, TaskStatus } from "../../types";
 
@@ -40,11 +42,18 @@ interface KanbanColumnProps {
   taskMap: Map<string, Task>;
   dependentsMap: Record<string, string[]>;
   sessionMap: Map<string, Session>;
+  allLabels: string[];
   onTaskClick: (taskId: string) => void;
   onStartSession: (taskId: string) => void;
   onResearchSession: (taskId: string) => void;
   onViewSession: (sessionId: string) => void;
+  sortMode: ColumnSortMode;
+  onSortChange: (mode: ColumnSortMode) => void;
+  collapsed: boolean;
+  onToggleCollapsed: () => void;
 }
+
+const SORT_MODES: ColumnSortMode[] = ["topological", "priority", "newest", "oldest", "alphabetical", "agent"];
 
 const KanbanColumn = memo(function KanbanColumn({
   status,
@@ -52,20 +61,48 @@ const KanbanColumn = memo(function KanbanColumn({
   taskMap,
   dependentsMap,
   sessionMap,
+  allLabels,
   onTaskClick,
   onStartSession,
   onResearchSession,
   onViewSession,
+  sortMode,
+  onSortChange,
+  collapsed,
+  onToggleCollapsed,
 }: KanbanColumnProps) {
   const accentColor = useProjectAccentColor();
   const { isOver, setNodeRef } = useDroppable({ id: status });
+  const [showSortMenu, setShowSortMenu] = useState(false);
+  const sortMenuRef = useRef<HTMLDivElement>(null);
 
   const variant = getVariantForColumn(status);
 
-  // Build column items with ghost parents and depth info for all columns
+  // Close sort menu on outside click
+  useEffect(() => {
+    if (!showSortMenu) return;
+    const handler = (e: MouseEvent) => {
+      if (sortMenuRef.current && !sortMenuRef.current.contains(e.target as Node)) {
+        setShowSortMenu(false);
+      }
+    };
+    document.addEventListener("mousedown", handler);
+    return () => document.removeEventListener("mousedown", handler);
+  }, [showSortMenu]);
+
+  const handleSortSelect = useCallback((mode: ColumnSortMode) => {
+    onSortChange(mode);
+    setShowSortMenu(false);
+  }, [onSortChange]);
+
+  // Build column items — use tree structure only for topological sort,
+  // flat list for all other sort modes to preserve the requested order
   const columnItems = useMemo(
-    () => buildColumnItems(tasks, taskMap),
-    [tasks, taskMap],
+    () =>
+      sortMode === "topological"
+        ? buildColumnItems(tasks, taskMap)
+        : tasks.map((task): import("../../lib/taskSort").ColumnItem => ({ type: "task", task, depth: 0 })),
+    [tasks, taskMap, sortMode],
   );
 
   // Count blocked tasks for column subtitle
@@ -73,6 +110,39 @@ const KanbanColumn = memo(function KanbanColumn({
     if (status !== "backlog" && status !== "ready") return 0;
     return tasks.filter((t) => isTaskBlocked(t, taskMap)).length;
   }, [status, tasks, taskMap]);
+
+  // Collapsed view — narrow vertical strip
+  if (collapsed) {
+    return (
+      <div
+        ref={setNodeRef}
+        className={`w-10 min-h-0 flex flex-col items-center rounded-[var(--radius-panel)] overflow-hidden transition-all duration-150 cursor-pointer select-none ${
+          isOver
+            ? `ring-1 ${ringColors[accentColor]} bg-accent/50`
+            : "ring-1 ring-border/40 bg-card/50"
+        }`}
+        onClick={onToggleCollapsed}
+        title={`Expand ${COLUMN_LABELS[status]}`}
+      >
+        <div className="py-2">
+          <PanelLeftOpen className="size-3.5 text-muted-foreground" />
+        </div>
+        <span className={`text-[11px] tabular-nums rounded-full px-1 ${
+          tasks.length > 0 ? "text-dim-foreground bg-accent" : "text-muted-foreground"
+        }`}>
+          {tasks.length}
+        </span>
+        <div className="flex-1 flex items-center justify-center">
+          <span
+            className="text-[11px] font-semibold text-dim-foreground uppercase tracking-[0.5px]"
+            style={{ writingMode: "vertical-lr", textOrientation: "mixed" }}
+          >
+            {COLUMN_LABELS[status]}
+          </span>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div
@@ -95,11 +165,50 @@ const KanbanColumn = memo(function KanbanColumn({
             </span>
           )}
         </div>
-        <span className={`text-[11px] tabular-nums min-w-[1.25rem] text-center rounded-full px-1 ${
-          tasks.length > 0 ? "text-dim-foreground bg-accent" : "text-muted-foreground"
-        }`}>
-          {tasks.length}
-        </span>
+        <div className="flex items-center gap-1">
+          {/* Sort button */}
+          <div className="relative" ref={sortMenuRef}>
+            <button
+              onClick={() => setShowSortMenu((v) => !v)}
+              className={`p-0.5 rounded hover:bg-accent/60 transition-colors ${
+                sortMode !== "topological" ? "text-primary" : "text-muted-foreground"
+              }`}
+              title={`Sort: ${SORT_MODE_LABELS[sortMode]}`}
+            >
+              <ArrowUpDown className="size-3" />
+            </button>
+            {showSortMenu && (
+              <div className="absolute right-0 top-full mt-1 z-50 min-w-[140px] rounded-md border border-border bg-popover p-1 shadow-md">
+                {SORT_MODES.map((mode) => (
+                  <button
+                    key={mode}
+                    onClick={() => handleSortSelect(mode)}
+                    className="flex items-center gap-2 w-full px-2 py-1 text-[11px] text-left rounded hover:bg-accent/60 transition-colors"
+                  >
+                    <Check className={`size-3 ${sortMode === mode ? "opacity-100" : "opacity-0"}`} />
+                    <span className={sortMode === mode ? "text-foreground font-medium" : "text-muted-foreground"}>
+                      {SORT_MODE_LABELS[mode]}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          {/* Collapse button */}
+          <button
+            onClick={onToggleCollapsed}
+            className="p-0.5 rounded hover:bg-accent/60 transition-colors text-muted-foreground"
+            title={`Collapse ${COLUMN_LABELS[status]}`}
+          >
+            <PanelLeftClose className="size-3" />
+          </button>
+          {/* Task count */}
+          <span className={`text-[11px] tabular-nums min-w-[1.25rem] text-center rounded-full px-1 ${
+            tasks.length > 0 ? "text-dim-foreground bg-accent" : "text-muted-foreground"
+          }`}>
+            {tasks.length}
+          </span>
+        </div>
       </div>
 
       {/* Card list */}
@@ -119,20 +228,35 @@ const KanbanColumn = memo(function KanbanColumn({
           const blocked = isTaskBlocked(task, taskMap);
           const deps = dependentsMap[task.id] ?? [];
           return (
-            <TaskCard
+            <TaskCardContextMenu
               key={task.id}
               task={task}
-              linkedSession={session}
-              onClick={onTaskClick}
+              allLabels={allLabels}
+              onTaskClick={onTaskClick}
               onStartSession={onStartSession}
               onResearchSession={onResearchSession}
               onViewSession={onViewSession}
-              variant={variant}
-              taskMap={taskMap}
-              dependents={deps}
-              isBlocked={blocked}
-              treeDepth={depth}
-            />
+            >
+              {(menuProps) => (
+                <TaskCard
+                  task={task}
+                  linkedSession={session}
+                  onClick={onTaskClick}
+                  onStartSession={onStartSession}
+                  onResearchSession={onResearchSession}
+                  onViewSession={onViewSession}
+                  variant={variant}
+                  taskMap={taskMap}
+                  dependents={deps}
+                  isBlocked={blocked}
+                  treeDepth={depth}
+                  onContextMenu={menuProps.onContextMenu}
+                  isEditingTitle={menuProps.isEditingTitle}
+                  onTitleSave={menuProps.onTitleSave}
+                  onTitleEditCancel={menuProps.onTitleEditCancel}
+                />
+              )}
+            </TaskCardContextMenu>
           );
         })}
       </div>

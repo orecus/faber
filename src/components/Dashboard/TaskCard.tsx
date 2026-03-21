@@ -1,6 +1,6 @@
-import React from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { Play, Search, CirclePause, CheckCircle2, Loader2, Github, AlertTriangle, Lightbulb, FlaskConical, Bug, Code, ClipboardList, Eye } from "lucide-react";
+import { Play, Search, CirclePause, CheckCircle2, Loader2, Github, AlertTriangle, Lightbulb, FlaskConical, Bug, Code, ClipboardList, Eye, MoreVertical } from "lucide-react";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { useAppStore } from "../../store/appStore";
 import type { Task, Session } from "../../types";
@@ -25,9 +25,13 @@ interface TaskCardProps {
   dependents?: string[];
   isBlocked?: boolean;
   treeDepth?: number;
+  onContextMenu?: (e: React.MouseEvent) => void;
+  isEditingTitle?: boolean;
+  onTitleSave?: (newTitle: string) => void;
+  onTitleEditCancel?: () => void;
 }
 
-export default React.memo(function TaskCard({ task, linkedSession, onClick, onStartSession, onResearchSession, onViewSession, isDragOverlay, variant = "default", taskMap, dependents = [], isBlocked = false, treeDepth = 0 }: TaskCardProps) {
+export default React.memo(function TaskCard({ task, linkedSession, onClick, onStartSession, onResearchSession, onViewSession, isDragOverlay, variant = "default", taskMap, dependents = [], isBlocked = false, treeDepth = 0, onContextMenu, isEditingTitle = false, onTitleSave, onTitleEditCancel }: TaskCardProps) {
   const accentColor = useProjectAccentColor();
   const mcpData = useAppStore((s) => linkedSession ? s.mcpStatus[linkedSession.id] : undefined);
 
@@ -59,6 +63,28 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
     ? { marginLeft: `${treeDepth * 12}px` }
     : undefined;
 
+  // ── Inline title editing ──
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const [editValue, setEditValue] = useState(task.title);
+
+  useEffect(() => {
+    if (isEditingTitle) {
+      setEditValue(task.title);
+      // Focus after render
+      requestAnimationFrame(() => titleInputRef.current?.focus());
+    }
+  }, [isEditingTitle, task.title]);
+
+  const handleTitleKeyDown = useCallback((e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      onTitleSave?.(editValue);
+    } else if (e.key === "Escape") {
+      e.preventDefault();
+      onTitleEditCancel?.();
+    }
+  }, [editValue, onTitleSave, onTitleEditCancel]);
+
   // ── Compact variant (for Done column) ──
   if (isCompact) {
     return (
@@ -79,6 +105,7 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
           e.stopPropagation();
           onClick(task.id);
         }}
+        onContextMenu={onContextMenu}
       >
         <div className="flex items-center gap-1.5">
           <div className={`size-1.5 shrink-0 rounded-full ${
@@ -122,9 +149,11 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
       {...listeners}
       {...attributes}
       onClick={(e) => {
+        if (isEditingTitle) return;
         e.stopPropagation();
         onClick(task.id);
       }}
+      onContextMenu={onContextMenu}
     >
       {/* Top row: id + priority + deps + actions */}
       <div className="flex items-center gap-1.5 mb-1">
@@ -195,14 +224,62 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
                 <Play className="size-3" />
               </Button>
             )}
+            {onContextMenu && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                hoverEffect="scale"
+                clickEffect="scale"
+                title="More actions"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onContextMenu(e);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <MoreVertical className="size-3" />
+              </Button>
+            )}
           </div>
         )}
       </div>
 
-      {/* Title */}
-      <div className={`text-xs font-medium text-foreground leading-snug overflow-hidden text-ellipsis ${isDetailed ? "line-clamp-3" : "line-clamp-2"}`}>
-        {task.title}
-      </div>
+      {/* Title — inline editable */}
+      {isEditingTitle ? (
+        <input
+          ref={titleInputRef}
+          className="w-full text-xs font-medium text-foreground leading-snug bg-accent/60 border border-border rounded px-1 py-0.5 outline-none focus:ring-1 focus:ring-primary/50"
+          value={editValue}
+          onChange={(e) => setEditValue(e.target.value)}
+          onKeyDown={handleTitleKeyDown}
+          onBlur={() => onTitleSave?.(editValue)}
+          onClick={(e) => e.stopPropagation()}
+          onPointerDown={(e) => e.stopPropagation()}
+        />
+      ) : (
+        <div className={`text-xs font-medium text-foreground leading-snug overflow-hidden text-ellipsis ${isDetailed ? "line-clamp-3" : "line-clamp-2"}`}>
+          {task.title}
+        </div>
+      )}
+
+      {/* Labels */}
+      {task.labels.length > 0 && (
+        <div className="flex items-center gap-1 mt-1 overflow-hidden">
+          {task.labels.slice(0, 3).map((label) => (
+            <span
+              key={label}
+              className="inline-block px-1.5 py-px text-[9px] font-medium rounded-full bg-accent text-muted-foreground truncate max-w-[80px]"
+            >
+              {label}
+            </span>
+          ))}
+          {task.labels.length > 3 && (
+            <span className="text-[9px] text-muted-foreground shrink-0">
+              +{task.labels.length - 3}
+            </span>
+          )}
+        </div>
+      )}
 
       {/* Agent row */}
       {task.agent && !showMcpFooter && (

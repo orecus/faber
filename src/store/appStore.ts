@@ -45,6 +45,7 @@ import type {
   ViewId,
   WorktreeInfo,
 } from "../types";
+import type { FilterState } from "../hooks/useDashboardFilters";
 import { layoutGraph, type GraphNode } from "../lib/graphLayout";
 import {
   initNotifications,
@@ -170,6 +171,7 @@ interface AppState {
   projectWorktrees: Record<string, WorktreeInfo[]>;
   projectGitData: Record<string, ProjectGitData>;
   projectBranches: Record<string, string | null>;
+  projectFilters: Record<string, FilterState>;
 
   // Actions — state setters
   setProjects: (projects: Project[]) => void;
@@ -185,6 +187,7 @@ interface AppState {
   updateTask: (task: Task) => void;
   setActiveTask: (id: string | null) => void;
   setProjectInfo: (info: ProjectInfo | null) => void;
+  setProjectFilters: (projectId: string, filters: FilterState) => void;
   toggleCommandPalette: () => void;
   closeCommandPalette: () => void;
   setGridLayout: (layout: Partial<GridLayoutState>) => void;
@@ -353,6 +356,7 @@ export const useAppStore = create<AppState>()(
     projectWorktrees: {},
     projectGitData: {},
     projectBranches: {},
+    projectFilters: {},
 
     // ── Actions ──
 
@@ -404,6 +408,7 @@ export const useAppStore = create<AppState>()(
         const { [id]: _s, ...restSessions } = state.projectSessions;
         const { [id]: _w, ...restWorktrees } = state.projectWorktrees;
         const { [id]: _g, ...restGitData } = state.projectGitData;
+        const { [id]: _f, ...restFilters } = state.projectFilters;
         invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
         return {
           projects,
@@ -412,6 +417,7 @@ export const useAppStore = create<AppState>()(
           projectSessions: restSessions,
           projectWorktrees: restWorktrees,
           projectGitData: restGitData,
+          projectFilters: restFilters,
         };
       }),
 
@@ -435,6 +441,7 @@ export const useAppStore = create<AppState>()(
         const { [id]: _s, ...restSessions } = state.projectSessions;
         const { [id]: _w, ...restWorktrees } = state.projectWorktrees;
         const { [id]: _g, ...restGitData } = state.projectGitData;
+        const { [id]: _f, ...restFilters } = state.projectFilters;
         invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
         return {
           openProjectIds,
@@ -442,6 +449,7 @@ export const useAppStore = create<AppState>()(
           projectSessions: restSessions,
           projectWorktrees: restWorktrees,
           projectGitData: restGitData,
+          projectFilters: restFilters,
         };
       }),
 
@@ -488,6 +496,10 @@ export const useAppStore = create<AppState>()(
     setActiveTask: (id) => set({ activeTaskId: id }),
 
     setProjectInfo: (info) => set({ projectInfo: info }),
+    setProjectFilters: (projectId, filters) =>
+      set((state) => ({
+        projectFilters: { ...state.projectFilters, [projectId]: filters },
+      })),
 
     toggleCommandPalette: () =>
       set((state) => ({ commandPaletteOpen: !state.commandPaletteOpen })),

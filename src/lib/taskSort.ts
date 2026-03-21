@@ -1,5 +1,52 @@
 import type { Task, TaskStatus } from "../types";
 
+// ── Sort modes ──
+
+export type ColumnSortMode = "topological" | "priority" | "newest" | "oldest" | "alphabetical" | "agent";
+
+export const SORT_MODE_LABELS: Record<ColumnSortMode, string> = {
+  topological: "Dependencies",
+  priority: "Priority",
+  newest: "Newest First",
+  oldest: "Oldest First",
+  alphabetical: "Alphabetical",
+  agent: "Agent",
+};
+
+/** Sort tasks by a given mode (non-topological). Returns a new sorted array. */
+export function sortTasksByMode(tasks: Task[], mode: ColumnSortMode): Task[] {
+  if (mode === "topological") return tasks; // handled separately
+  const sorted = [...tasks];
+  switch (mode) {
+    case "priority":
+      sorted.sort((a, b) => {
+        const pa = PRIORITY_ORDER[a.priority] ?? 2;
+        const pb = PRIORITY_ORDER[b.priority] ?? 2;
+        if (pa !== pb) return pa - pb;
+        return a.created_at.localeCompare(b.created_at);
+      });
+      break;
+    case "newest":
+      sorted.sort((a, b) => b.created_at.localeCompare(a.created_at));
+      break;
+    case "oldest":
+      sorted.sort((a, b) => a.created_at.localeCompare(b.created_at));
+      break;
+    case "alphabetical":
+      sorted.sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: "base" }));
+      break;
+    case "agent":
+      sorted.sort((a, b) => {
+        const aa = a.agent ?? "";
+        const ab = b.agent ?? "";
+        if (aa !== ab) return aa.localeCompare(ab);
+        return a.created_at.localeCompare(b.created_at);
+      });
+      break;
+  }
+  return sorted;
+}
+
 // ── Dependency helpers ──
 
 /**

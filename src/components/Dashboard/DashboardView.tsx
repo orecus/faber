@@ -14,6 +14,7 @@ import DependencyGraph from "./DependencyGraph";
 import EmptyState from "./EmptyState";
 import FilterBar from "./FilterBar";
 import KanbanBoard from "./KanbanBoard";
+import ArchivedTaskList from "./ArchivedTaskList";
 import LaunchResearchDialog from "../Launchers/LaunchResearchDialog";
 import LaunchTaskDialog from "../Launchers/LaunchTaskDialog";
 import SummaryHeader from "./SummaryHeader";
@@ -108,6 +109,25 @@ export default function DashboardView() {
     () => tasks.filter((t) => t.status !== "archived"),
     [tasks],
   );
+
+  // Archived tasks
+  const archivedTasks = useMemo(
+    () => tasks.filter((t) => t.status === "archived"),
+    [tasks],
+  );
+
+  // Filtered archived tasks (search applies)
+  const filteredArchivedTasks = useMemo(
+    () =>
+      filters.searchQuery.length > 0
+        ? archivedTasks.filter(matchesFilters)
+        : archivedTasks,
+    [archivedTasks, filters.searchQuery, matchesFilters],
+  );
+
+  const handleToggleArchived = useCallback(() => {
+    dispatchFilter({ type: "TOGGLE_ARCHIVED" });
+  }, [dispatchFilter]);
 
   // Apply filters
   const filteredTasks = useMemo(
@@ -258,11 +278,57 @@ export default function DashboardView() {
     />
   );
 
+  // Restore archived task → backlog
+  const handleRestoreTask = useCallback(
+    async (taskId: string) => {
+      const currentTasks = useAppStore.getState().tasks;
+      preUpdateTasksRef.current = currentTasks;
+      const optimistic = currentTasks.map((t) =>
+        t.id === taskId ? { ...t, status: "backlog" as TaskStatus } : t,
+      );
+      setTasks(optimistic);
+      try {
+        const updated = await invoke<Task>("update_task_status", {
+          projectId: activeProjectId,
+          taskId,
+          status: "backlog",
+        });
+        updateTask(updated);
+      } catch {
+        setTasks(preUpdateTasksRef.current);
+        useAppStore.getState().flashError("Failed to restore task");
+      }
+    },
+    [setTasks, updateTask, activeProjectId],
+  );
+
+  // Permanently delete a task
+  const handleDeleteTask = useCallback(
+    async (taskId: string) => {
+      try {
+        await invoke("delete_task", {
+          projectId: activeProjectId,
+          taskId,
+        });
+        const freshTasks = await invoke<Task[]>("list_tasks", {
+          projectId: activeProjectId,
+        });
+        setTasks(freshTasks);
+      } catch {
+        useAppStore.getState().flashError("Failed to delete task");
+      }
+    },
+    [activeProjectId, setTasks],
+  );
+
   // Shared toolbar
   const toolbar = (
     <SummaryHeader
       accentColor={accentColor}
       tasks={boardTasks}
+      archivedCount={archivedTasks.length}
+      showArchived={filters.showArchived}
+      onToggleArchived={handleToggleArchived}
       onNewTask={() => setShowCreateTask(true)}
       onContinuousMode={() => setShowContinuousMode(true)}
       continuousModeEnabled={readyTasks.length >= 2 && !hasContinuousRun}
@@ -308,7 +374,14 @@ export default function DashboardView() {
           searchInputRef={searchInputRef}
         />
 
-        {filteredTasks.length === 0 && hasActiveFilters ? (
+        {filters.showArchived ? (
+          <ArchivedTaskList
+            tasks={filteredArchivedTasks}
+            onTaskClick={handleTaskClick}
+            onRestore={handleRestoreTask}
+            onDelete={handleDeleteTask}
+          />
+        ) : filteredTasks.length === 0 && hasActiveFilters ? (
           <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground">
             <SearchX className="size-8 opacity-40" />
             <p className="text-sm">No tasks match your filters</p>
@@ -326,6 +399,7 @@ export default function DashboardView() {
           <KanbanBoard
             tasks={filteredTasks}
             sessionMap={sessionMap}
+            allLabels={allLabels}
             onTaskClick={handleTaskClick}
             onStatusChange={handleStatusChange}
             onStartSession={handleStartSession}
