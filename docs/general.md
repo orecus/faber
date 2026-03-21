@@ -33,10 +33,11 @@ Tasks live on the **Dashboard** (the Kanban board). Each task has a status that 
 | **In Progress** | An agent session is actively working on it |
 | **In Review** | Work is done, awaiting review |
 | **Done** | Completed |
+| **Archived** | Hidden from the board; viewable via the archive toggle |
 
 Tasks are stored as Markdown files with YAML frontmatter in your project's `.agents/tasks/` directory, so they travel with your repo.
 
-You can set a **priority** (P0 / P1 / P2) and add **dependencies** between tasks using the `depends_on` field. Dependencies are visible directly on task cards — a link icon shows the count, and clicking it reveals a popover listing all linked tasks with their statuses. Blocked tasks (with unmet dependencies) are dimmed and show a lock icon.
+You can set a **priority** (P0 / P1 / P2), add **labels** (comma-separated tags), assign an **agent**, and add **dependencies** between tasks. When creating a task, expand the **Advanced** section to set labels, dependencies, and agent up front. Dependencies are visible directly on task cards — a link icon shows the count, and clicking it reveals a popover listing all linked tasks with their statuses. Blocked tasks (with unmet dependencies) are dimmed and show a lock icon.
 
 ### Sessions
 
@@ -63,6 +64,8 @@ Navigate between views using the top bar tabs or the command palette.
 
 ### Dashboard (Tasks)
 
+The summary bar at the top shows task counts (total, active, ready, done, blocked, linked issues). The **Archive** button appears when archived tasks exist, toggling the archive view.
+
 The Dashboard has two display modes, toggled from the **Board | Tree** switch in the toolbar:
 
 #### Board View (Kanban)
@@ -73,8 +76,13 @@ The default Kanban board for managing tasks. From here you can:
 - Drag tasks between columns to change status
 - Launch agent sessions on tasks using the play button (visible on hover)
 - Research backlog tasks using the lightbulb button (analyzes the task without changing status)
-- Filter tasks by priority, label, or agent
+- Filter tasks by priority, label, agent, or status
+- Search tasks by title or ID
 - See live MCP status on in-progress task cards (only active sessions show the status footer)
+- **Right-click context menu** on any task card for quick actions: rename (inline editing), change status, set priority, assign agent, manage labels, and archive/delete
+- **Sort columns** using the sort dropdown in each column header — choose from Dependencies (topological), Priority, Newest First, Oldest First, Alphabetical, or Agent. Sort preference is persisted.
+- **Collapse columns** into narrow vertical strips to focus on what matters. Collapsed state is persisted per column.
+- **Archive toggle** in the summary header to view and manage archived tasks (restore to backlog or permanently delete)
 
 Task cards adapt to their column:
 
@@ -86,7 +94,9 @@ Task cards adapt to their column:
 | **In Review** | Default cards with "View session" button |
 | **Done** | Compact single-line cards to save space |
 
-Tasks within each column are **topologically sorted** — blockers appear above the tasks that depend on them.
+Task cards also display **labels** (up to 3 as compact badges) when present.
+
+Tasks within each column are **topologically sorted** by default — blockers appear above the tasks that depend on them. Use the sort dropdown to switch to other orderings.
 
 #### Tree View
 
