@@ -922,7 +922,7 @@ pub fn has_remote(repo_path: &Path) -> bool {
 /// Uses `git merge-base --is-ancestor <branch> <target>` which returns
 /// exit code 0 if the branch tip is an ancestor of (i.e. merged into) the target.
 pub fn is_branch_merged(repo_path: &Path, branch: &str, target: &str) -> bool {
-    match std::process::Command::new("git")
+    match crate::cmd_no_window("git")
         .args(["merge-base", "--is-ancestor", branch, target])
         .current_dir(repo_path)
         .stdout(std::process::Stdio::null())

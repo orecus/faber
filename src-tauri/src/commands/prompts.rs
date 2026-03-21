@@ -90,8 +90,13 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             icon: "zap".into(),
             prompt: "You are running in continuous mode ({{mode}}). \
                      Use the `get_task` MCP tool to fetch task {{task_id}} details, \
-                     then begin working on it autonomously. \
-                     Call `report_complete` when finished."
+                     then begin working on it autonomously.\n\n\
+                     IMPORTANT: Only call `report_complete` when you have FULLY completed \
+                     the task — all code written, tested, and verified. Calling `report_complete` \
+                     marks the task as done and immediately advances to the next task in the queue. \
+                     Do NOT call it prematurely (e.g. after just reading the task, or before verifying \
+                     your changes work). If you need user input or clarification, use `report_waiting`. \
+                     If you hit a hard blocker (build failure, missing dependency, etc.), use `report_error`."
                 .into(),
             category: PromptCategory::Session,
             session_mode: Some("continuous".into()),

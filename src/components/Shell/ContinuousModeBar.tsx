@@ -138,6 +138,11 @@ export default function ContinuousModeBar({ projectId }: ContinuousModeBarProps)
                   <span className="text-[11px] text-dim-foreground truncate">
                     {currentTask.title}
                   </span>
+                  {currentItem?.agent_name && currentItem.agent_name !== run.agent_name && (
+                    <span className="shrink-0 rounded px-1 py-px text-[10px] font-medium bg-primary/15 text-primary">
+                      {currentItem.agent_name}
+                    </span>
+                  )}
                 </>
               )}
               {hasError && currentItem?.error && (

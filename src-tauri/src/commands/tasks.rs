@@ -373,9 +373,10 @@ fn do_save_task_content(
         if let Some(ref file_path) = task.task_file_path {
             std::fs::write(file_path, &content)?;
 
-            // Re-parse and upsert into DB
+            // Re-parse and upsert into DB, preserving DB-only fields
             let parsed = tasks::parse_task_file(&content, Path::new(file_path))?;
-            let new_task = tasks::to_new_task(&parsed, project_id);
+            let mut new_task = tasks::to_new_task(&parsed, project_id);
+            new_task.worktree_path = task.worktree_path.clone();
             db::tasks::upsert(conn, &new_task)?
         } else {
             // No file path — save as DB-only with body
@@ -571,6 +572,7 @@ pub fn get_task_file_content(
 #[allow(clippy::too_many_arguments)]
 pub fn save_task_content(
     state: State<'_, DbState>,
+    watcher: State<'_, TaskWatcherState>,
     project_id: String,
     task_id: String,
     title: String,
@@ -603,6 +605,11 @@ pub fn save_task_content(
         )?
     };
     tracing::info!(task_id = %task_id, title = %title, source = "user", "Task content saved");
+    // Mark file as written by app so the task watcher ignores our own write
+    if let Some(ref fp) = task.task_file_path {
+        let guard = watcher.blocking_lock();
+        guard.mark_written_sync(&project_id, PathBuf::from(fp));
+    }
     // Write TODOS.md outside DB lock
     if let Some(t) = todos { t.write(); }
     Ok(task)

@@ -739,6 +739,7 @@ export interface ContinuousQueueItem {
   status: QueueItemStatus;
   session_id: string | null;
   error: string | null;
+  agent_name: string | null;
 }
 
 export interface ContinuousRun {

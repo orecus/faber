@@ -278,7 +278,7 @@ export default function TaskCardContextMenu({
               {/* Edit title */}
               <MenuPrimitive.Item
                 className={menuItemClass}
-                onSelect={() => {
+                onClick={() => {
                   setMenuOpen(false);
                   setIsEditingTitle(true);
                 }}
@@ -303,7 +303,7 @@ export default function TaskCardContextMenu({
                         <MenuPrimitive.Item
                           key={p.value}
                           className={menuItemClass}
-                          onSelect={() => handlePriorityChange(p.value)}
+                          onClick={() => handlePriorityChange(p.value)}
                         >
                           <span className={cn("size-2 rounded-full shrink-0", {
                             "bg-destructive": p.value === "P0",
@@ -334,7 +334,7 @@ export default function TaskCardContextMenu({
                           key={s.value}
                           className={menuItemClass}
                           disabled={task.status === s.value}
-                          onSelect={() => handleStatusChange(s.value)}
+                          onClick={() => handleStatusChange(s.value)}
                         >
                           {s.label}
                           {task.status === s.value && <CheckIcon className="size-3.5 ml-auto text-primary" />}
@@ -357,7 +357,7 @@ export default function TaskCardContextMenu({
                     <MenuPrimitive.Popup className={cn(popupClass, "min-w-[140px]")}>
                       <MenuPrimitive.Item
                         className={menuItemClass}
-                        onSelect={() => handleAgentChange(null)}
+                        onClick={() => handleAgentChange(null)}
                       >
                         <span className="text-muted-foreground">None</span>
                         {!task.agent && <CheckIcon className="size-3.5 ml-auto text-primary" />}
@@ -366,7 +366,7 @@ export default function TaskCardContextMenu({
                         <MenuPrimitive.Item
                           key={agent}
                           className={menuItemClass}
-                          onSelect={() => handleAgentChange(agent)}
+                          onClick={() => handleAgentChange(agent)}
                         >
                           {agent}
                           {task.agent === agent && <CheckIcon className="size-3.5 ml-auto text-primary" />}
@@ -392,11 +392,8 @@ export default function TaskCardContextMenu({
                           <MenuPrimitive.Item
                             key={label}
                             className={menuItemClass}
-                            onSelect={(e) => {
-                              // Prevent menu close so user can toggle multiple labels
-                              e.preventDefault();
-                              handleLabelToggle(label);
-                            }}
+                            closeOnClick={false}
+                            onClick={() => handleLabelToggle(label)}
                           >
                             <span className={cn(
                               "size-3.5 rounded-sm border flex items-center justify-center shrink-0",
@@ -419,7 +416,7 @@ export default function TaskCardContextMenu({
               {onStartSession && task.status !== "done" && task.status !== "in-review" && (
                 <MenuPrimitive.Item
                   className={menuItemClass}
-                  onSelect={() => {
+                  onClick={() => {
                     setMenuOpen(false);
                     onStartSession(task.id);
                   }}
@@ -431,7 +428,7 @@ export default function TaskCardContextMenu({
               {onResearchSession && (task.status === "backlog" || task.status === "ready") && (
                 <MenuPrimitive.Item
                   className={menuItemClass}
-                  onSelect={() => {
+                  onClick={() => {
                     setMenuOpen(false);
                     onResearchSession(task.id);
                   }}
@@ -444,7 +441,7 @@ export default function TaskCardContextMenu({
               {/* Open in detail view */}
               <MenuPrimitive.Item
                 className={menuItemClass}
-                onSelect={() => {
+                onClick={() => {
                   setMenuOpen(false);
                   onTaskClick(task.id);
                 }}
@@ -459,7 +456,7 @@ export default function TaskCardContextMenu({
               {task.status !== "archived" && (
                 <MenuPrimitive.Item
                   className={menuItemClass}
-                  onSelect={handleArchive}
+                  onClick={handleArchive}
                 >
                   <Archive className="size-3.5" />
                   Archive
@@ -469,7 +466,7 @@ export default function TaskCardContextMenu({
               {/* Delete */}
               <MenuPrimitive.Item
                 className={destructiveItemClass}
-                onSelect={() => {
+                onClick={() => {
                   setMenuOpen(false);
                   setShowDeleteConfirm(true);
                 }}

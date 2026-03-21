@@ -179,7 +179,11 @@ pub fn scan_and_sync(
             Err(_) => continue, // skip unparseable files
         };
         found_ids.push(parsed.frontmatter.id.clone());
-        let new_task = to_new_task(&parsed, project_id);
+        let mut new_task = to_new_task(&parsed, project_id);
+        // Preserve DB-only fields (not stored in task files) from existing record
+        if let Ok(Some(existing)) = db::tasks::get(conn, &new_task.id, project_id) {
+            new_task.worktree_path = existing.worktree_path;
+        }
         db::tasks::upsert(conn, &new_task)?;
         count += 1;
     }

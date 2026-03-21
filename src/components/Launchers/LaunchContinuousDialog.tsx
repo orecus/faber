@@ -363,6 +363,14 @@ export default function LaunchContinuousDialog({
                       </span>
                     )}
                   </span>
+                  {item.task.agent && item.task.agent !== selectedAgentName && (
+                    <span
+                      className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/15 text-primary"
+                      title={`This task will use ${item.task.agent} instead of ${selectedAgentName}`}
+                    >
+                      {item.task.agent}
+                    </span>
+                  )}
                   <span
                     className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${PRIORITY_COLORS[item.task.priority] ?? "bg-muted text-muted-foreground"}`}
                   >
@@ -470,18 +478,6 @@ export default function LaunchContinuousDialog({
           )}
         </div>
 
-        {/* Agent Cards */}
-        <div>
-          <label className="mb-1.5 block text-xs text-dim-foreground">
-            Agent
-          </label>
-          <AgentCardGrid
-            selectedAgentName={selectedAgentName}
-            onSelect={handleAgentSelect}
-            accentColor={accentColor}
-          />
-        </div>
-
         {/* Transport toggle — only when agent supports ACP */}
         {currentAgent?.acp_installed && (
           <div>
@@ -521,6 +517,21 @@ export default function LaunchContinuousDialog({
             </p>
           </div>
         )}
+
+        {/* Agent Cards */}
+        <div>
+          <label className="mb-1.5 block text-xs text-dim-foreground">
+            Agent
+          </label>
+          <AgentCardGrid
+            selectedAgentName={selectedAgentName}
+            onSelect={handleAgentSelect}
+            accentColor={accentColor}
+          />
+          <p className="mt-1.5 text-[11px] text-muted-foreground">
+            Tasks with their own agent set will use that agent instead of the one selected here.
+          </p>
+        </div>
 
         {/* Model */}
         {currentAgent && currentAgent.supported_models.length > 0 && (

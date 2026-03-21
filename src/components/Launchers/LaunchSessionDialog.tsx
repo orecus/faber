@@ -153,18 +153,6 @@ export default function LaunchSessionDialog({
           <DialogTitle>New Agent</DialogTitle>
         </DialogHeader>
 
-        {/* Agent Cards */}
-        <div>
-          <label className="mb-1.5 block text-xs text-dim-foreground">
-            Agent
-          </label>
-          <AgentCardGrid
-            selectedAgentName={selectedAgentName}
-            onSelect={handleAgentSelect}
-            accentColor={accentColor}
-          />
-        </div>
-
         {/* Transport toggle — only when agent supports ACP */}
         {currentAgent?.acp_installed && (
           <div>
@@ -204,6 +192,18 @@ export default function LaunchSessionDialog({
             </p>
           </div>
         )}
+
+        {/* Agent Cards */}
+        <div>
+          <label className="mb-1.5 block text-xs text-dim-foreground">
+            Agent
+          </label>
+          <AgentCardGrid
+            selectedAgentName={selectedAgentName}
+            onSelect={handleAgentSelect}
+            accentColor={accentColor}
+          />
+        </div>
 
         {/* Model */}
         {currentAgent && currentAgent.supported_models.length > 0 && (

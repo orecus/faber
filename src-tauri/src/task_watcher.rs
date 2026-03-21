@@ -131,6 +131,14 @@ impl TaskWatcherRegistry {
             map.insert(file_path, Instant::now());
         }
     }
+
+    /// Synchronous version of `mark_written` for use in blocking Tauri commands.
+    pub fn mark_written_sync(&self, project_id: &str, file_path: PathBuf) {
+        if let Some(entry) = self.watchers.get(project_id) {
+            let mut map = entry.written_by_app.blocking_lock();
+            map.insert(file_path, Instant::now());
+        }
+    }
 }
 
 /// Handle a filesystem event from the notify watcher.

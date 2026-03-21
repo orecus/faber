@@ -63,8 +63,9 @@ pub fn start_continuous_mode(
     // Get MCP port BEFORE acquiring DB lock to avoid nested mutex contention
     let mcp_port = session::get_mcp_port(&mcp);
 
-    // Validate all tasks exist and are in "ready" status
+    // Validate all tasks exist and are in "ready" status, resolve per-task agent
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let mut queue: Vec<ContinuousQueueItem> = Vec::with_capacity(task_ids.len());
     for tid in &task_ids {
         let task = db::tasks::get(&conn, tid, &project_id)?
             .ok_or_else(|| AppError::NotFound(format!("Task {tid}")))?;
@@ -74,18 +75,16 @@ pub fn start_continuous_mode(
                 tid, task.status
             )));
         }
-    }
-
-    // Build the queue
-    let mut queue: Vec<ContinuousQueueItem> = task_ids
-        .iter()
-        .map(|tid| ContinuousQueueItem {
+        // Per-task agent: task.agent overrides run-level agent_name
+        let resolved_agent = task.agent.or_else(|| agent_name.clone());
+        queue.push(ContinuousQueueItem {
             task_id: tid.clone(),
             status: QueueItemStatus::Pending,
             session_id: None,
             error: None,
-        })
-        .collect();
+            agent_name: resolved_agent,
+        });
+    }
 
     let mut last_branch: Option<String> = None;
 
@@ -97,6 +96,7 @@ pub fn start_continuous_mode(
             // Launch ALL tasks in parallel — each gets its own session from base branch
             for (i, tid) in task_ids.iter().enumerate() {
                 queue[i].status = QueueItemStatus::Running;
+                let task_agent = queue[i].agent_name.as_deref();
 
                 let mut vars = HashMap::new();
                 vars.insert("task_id", tid.as_str());
@@ -109,7 +109,7 @@ pub fn start_continuous_mode(
                     SessionTransport::Acp => {
                         let opts = session::AcpTaskSessionOpts {
                             task_id: tid,
-                            agent_name: agent_name.as_deref(),
+                            agent_name: task_agent,
                             model: model.as_deref(),
                             create_worktree: true,
                             base_branch: base_branch.as_deref(),
@@ -121,7 +121,7 @@ pub fn start_continuous_mode(
                     SessionTransport::Pty => {
                         session::start_task_session(
                             &conn, &pty, &app, &mcp, port, &project_id,
-                            tid, agent_name.as_deref(), model.as_deref(),
+                            tid, task_agent, model.as_deref(),
                             true, base_branch.as_deref(), user_prompt.as_deref(),
                         )
                     }
@@ -141,6 +141,7 @@ pub fn start_continuous_mode(
         BranchingStrategy::Chained => {
             // Sequential — launch only the first task
             queue[0].status = QueueItemStatus::Running;
+            let first_agent = queue[0].agent_name.as_deref();
 
             let first_task_id = &task_ids[0];
             let mut vars = HashMap::new();
@@ -152,7 +153,7 @@ pub fn start_continuous_mode(
                 SessionTransport::Acp => {
                     let opts = session::AcpTaskSessionOpts {
                         task_id: first_task_id,
-                        agent_name: agent_name.as_deref(),
+                        agent_name: first_agent,
                         model: model.as_deref(),
                         create_worktree: true,
                         base_branch: base_branch.as_deref(),
@@ -164,7 +165,7 @@ pub fn start_continuous_mode(
                 SessionTransport::Pty => {
                     session::start_task_session(
                         &conn, &pty, &app, &mcp, mcp_port, &project_id,
-                        first_task_id, agent_name.as_deref(), model.as_deref(),
+                        first_task_id, first_agent, model.as_deref(),
                         true, base_branch.as_deref(), first_user_prompt.as_deref(),
                     )?
                 }

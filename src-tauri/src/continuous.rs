@@ -47,6 +47,8 @@ pub struct ContinuousQueueItem {
     pub status: QueueItemStatus,
     pub session_id: Option<String>,
     pub error: Option<String>,
+    /// Resolved agent for this task (task-level override or run-level default).
+    pub agent_name: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -189,7 +191,8 @@ pub fn try_advance(app: &AppHandle, project_id: &str) -> Result<(), AppError> {
 
             let task_id = run.queue[next_index].task_id.clone();
             tracing::info!(project_id, next_task_id = %task_id, "Continuous mode advancing to next task");
-            let agent = run.agent_name.clone();
+            // Use per-task agent (already resolved: task.agent || run.agent_name)
+            let agent = run.queue[next_index].agent_name.clone();
             let model = run.model.clone();
             let base_branch = run.base_branch.clone();
             let last_branch = run.last_branch.clone();
