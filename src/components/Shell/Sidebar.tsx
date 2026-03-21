@@ -9,7 +9,9 @@ import {
   CirclePause,
   CirclePlay,
   ClipboardList,
+  Ellipsis,
   Eye,
+  EyeOff,
   FlaskConical,
   FolderOpen,
   FolderPlus,
@@ -23,7 +25,6 @@ import {
   Shield,
   SlidersHorizontal,
   TerminalSquare,
-  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { invoke } from "@tauri-apps/api/core";
@@ -38,7 +39,8 @@ import { AcpPermissionsTab } from "../Settings/AcpPermissionsTab";
 import { AgentsTab } from "../Settings/AgentsTab";
 import { GeneralTab } from "../Settings/GeneralTab";
 
-import { ProjectsTab } from "../Settings/ProjectsTab";
+import { ManageProjectsTab } from "../Settings/ProjectsTab";
+import { ProjectSettingsDialog } from "../Settings/ProjectSettingsDialog";
 import { PromptsTab } from "../Settings/PromptsTab";
 import { TerminalTab } from "../Settings/TerminalTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
@@ -46,6 +48,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
 import CreateProjectDialog from "./CreateProjectDialog";
@@ -71,7 +74,7 @@ type SettingsDialogId =
   | "terminal"
   | "agents"
   | "prompts"
-  | "projects"
+  | "manage-projects"
   | "acp-permissions";
 
 const SETTINGS_ITEMS: {
@@ -121,7 +124,7 @@ const SETTINGS_ITEMS: {
 // Dialog config for items not in the settings bar (opened externally)
 const EXTRA_DIALOG_CONFIG: Record<string, { title: string; maxWidth: string }> =
   {
-    projects: { title: "Project Settings", maxWidth: "sm:max-w-2xl" },
+    "manage-projects": { title: "Manage Projects", maxWidth: "sm:max-w-xl" },
   };
 
 function SettingsBar({
@@ -187,12 +190,7 @@ function SettingsBar({
               {openDialog === "terminal" && <TerminalTab />}
               {openDialog === "agents" && <AgentsTab agents={agents} />}
               {openDialog === "prompts" && <PromptsTab />}
-              {openDialog === "projects" && (
-                <ProjectsTab
-                  agents={agents}
-                  onClose={() => setOpenDialog(null)}
-                />
-              )}
+              {openDialog === "manage-projects" && <ManageProjectsTab />}
               {openDialog === "acp-permissions" && <AcpPermissionsTab />}
             </div>
           </DialogContent>
@@ -493,6 +491,7 @@ const ProjectItem = React.memo(function ProjectItem({
   showIcons,
   onSelect,
   onClose,
+  onOpenSettings,
 }: {
   project: {
     id: string;
@@ -505,6 +504,7 @@ const ProjectItem = React.memo(function ProjectItem({
   showIcons: boolean;
   onSelect: () => void;
   onClose: () => void;
+  onOpenSettings: () => void;
 }) {
   const [expanded, setExpanded] = useState(true);
   const branch = useAppStore((s) => s.projectBranches[project.id] ?? null);
@@ -586,16 +586,29 @@ const ProjectItem = React.memo(function ProjectItem({
             <span className="text-[10px] text-warning font-normal ml-1">{changeCount}∆</span>
           )}
         </span>
-        <span
-          onClick={(e) => {
-            e.stopPropagation();
-            onClose();
-          }}
-          className="cursor-pointer text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0"
-          title="Close project"
-        >
-          <X size={12} />
-        </span>
+        <DropdownMenu>
+          <DropdownMenuTrigger
+            render={
+              <span
+                onClick={(e) => e.stopPropagation()}
+                className="cursor-pointer text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 inline-flex items-center justify-center size-5 rounded-sm hover:bg-accent/50"
+              />
+            }
+          >
+            <Ellipsis size={13} />
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end" side="bottom" sideOffset={4} className="min-w-40">
+            <DropdownMenuItem onClick={onOpenSettings}>
+              <Settings size={14} />
+              Settings
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onClick={onClose}>
+              <EyeOff size={14} />
+              Hide Project
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
         <span
           onClick={(e) => {
             e.stopPropagation();
@@ -634,10 +647,12 @@ export default function Sidebar() {
   const setActiveProject = useAppStore((s) => s.setActiveProject);
   const closeProject = useAppStore((s) => s.closeProject);
   const addProjectFromPath = useAppStore((s) => s.addProjectFromPath);
+  const agents = useAppStore((s) => s.agents);
   const [showIcons] = usePersistedBoolean("show_project_icons", true);
   const [settingsDialog, setSettingsDialog] = useState<SettingsDialogId | null>(
     null,
   );
+  const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
   const [showCreateProject, setShowCreateProject] = useState(false);
   const [version, setVersion] = useState("");
 
@@ -688,8 +703,8 @@ export default function Sidebar() {
           size="icon-sm"
           hoverEffect="none"
           clickEffect="none"
-          onClick={() => setSettingsDialog("projects")}
-          title="Project settings"
+          onClick={() => setSettingsDialog("manage-projects")}
+          title="Manage projects"
         >
           <Settings size={13} />
         </Button>
@@ -724,6 +739,14 @@ export default function Sidebar() {
         <CreateProjectDialog onDismiss={() => setShowCreateProject(false)} />
       )}
 
+      {projectSettingsId && (
+        <ProjectSettingsDialog
+          projectId={projectSettingsId}
+          agents={agents}
+          onDismiss={() => setProjectSettingsId(null)}
+        />
+      )}
+
       {/* ── Scrollable project list ── */}
       <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/40">
         {openProjects.map((project) => (
@@ -734,6 +757,7 @@ export default function Sidebar() {
             showIcons={showIcons}
             onSelect={() => handleSelectProject(project.id)}
             onClose={() => handleCloseProject(project.id)}
+            onOpenSettings={() => setProjectSettingsId(project.id)}
           />
         ))}
       </div>
