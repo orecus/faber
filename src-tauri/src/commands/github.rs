@@ -8,6 +8,7 @@ use crate::db;
 use crate::db::DbState;
 use crate::error::AppError;
 use crate::github;
+use crate::project_config;
 use crate::tasks;
 
 /// A GitHub issue sent from the frontend for import.
@@ -558,6 +559,21 @@ pub fn set_project_setting(
     value: String,
 ) -> Result<(), AppError> {
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    db::settings::set_value(&conn, "project", Some(&project_id), &key, &value)?;
+
+    // Try to write through faber.json first (for keys the config file manages).
+    // Falls back to DB-only for unknown keys.
+    if let Ok(Some(project)) = db::projects::get(&conn, &project_id) {
+        let project_path = Path::new(&project.path);
+        if let Err(e) =
+            project_config::update_setting(&conn, &project_id, project_path, &key, &value)
+        {
+            tracing::warn!(project_id = %project_id, %e, "Config file write failed, falling back to DB");
+            db::settings::set_value(&conn, "project", Some(&project_id), &key, &value)?;
+        }
+    } else {
+        // Project not found in DB — just write directly
+        db::settings::set_value(&conn, "project", Some(&project_id), &key, &value)?;
+    }
+
     Ok(())
 }

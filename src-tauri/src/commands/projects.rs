@@ -9,6 +9,7 @@ use crate::db;
 use crate::db::models::{NewProject, Project, UpdateProject};
 use crate::db::DbState;
 use crate::error::AppError;
+use crate::project_config;
 
 // ── Response types ──
 
@@ -106,8 +107,18 @@ fn do_get_project_info(conn: &Connection, id: String) -> Result<ProjectInfo, App
 
     let project_path = Path::new(&project.path);
 
+    // Ensure .agents/faber.json exists (auto-create from DB if missing, sync to DB if present)
+    if let Err(e) = project_config::ensure_config(conn, &id, project_path) {
+        tracing::warn!(project_id = %id, %e, "Failed to ensure project config");
+    }
+
     let branch = current_branch(project_path);
-    let has_config_file = project_path.join(".agents").join("config.json").is_file();
+    let has_config_file = project_config::config_path(project_path).is_file();
+
+    // Re-read project from DB in case ensure_config updated it
+    let project = db::projects::get(conn, &id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {id}")))?;
+
     let instruction_file =
         find_instruction_file(project_path, project.instruction_file_path.as_deref());
 
@@ -267,19 +278,41 @@ pub fn update_project(
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
 
     // Verify project exists
-    db::projects::get(&conn, &id)?.ok_or_else(|| AppError::NotFound(format!("Project {id}")))?;
+    let existing =
+        db::projects::get(&conn, &id)?.ok_or_else(|| AppError::NotFound(format!("Project {id}")))?;
 
     let upd = UpdateProject {
         name,
-        default_agent,
-        default_model,
-        branch_naming_pattern,
-        instruction_file_path,
+        default_agent: default_agent.clone(),
+        default_model: default_model.clone(),
+        branch_naming_pattern: branch_naming_pattern.clone(),
+        instruction_file_path: instruction_file_path.clone(),
         icon_path,
         color,
     };
 
     let project = db::projects::update(&conn, &id, &upd)?;
+
+    // Sync project fields to faber.json (if any config-relevant fields changed)
+    if default_agent.is_some()
+        || default_model.is_some()
+        || branch_naming_pattern.is_some()
+        || instruction_file_path.is_some()
+    {
+        let project_path = Path::new(&existing.path);
+        if let Err(e) = project_config::update_project_fields(
+            &conn,
+            &id,
+            project_path,
+            default_agent,
+            default_model,
+            branch_naming_pattern,
+            instruction_file_path,
+        ) {
+            tracing::warn!(project_id = %id, %e, "Failed to update faber.json");
+        }
+    }
+
     tracing::info!(project_id = %id, "Project updated");
     Ok(project)
 }

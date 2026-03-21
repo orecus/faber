@@ -5,6 +5,7 @@ use tracing::{error, info, warn};
 mod acp;
 mod agent;
 mod commands;
+mod config_watcher;
 mod continuous;
 mod db;
 mod error;
@@ -13,6 +14,7 @@ mod git;
 mod github;
 mod logging;
 mod mcp;
+mod project_config;
 mod pty;
 mod session;
 mod task_logger;
@@ -168,6 +170,7 @@ pub fn run() {
             app.manage(pty::new_state());
             app.manage(continuous::new_state());
             app.manage(task_watcher::new_state());
+            app.manage(config_watcher::new_state());
             app.manage(acp::state::new_state());
             app.manage(acp::state::new_pending_permissions_registry());
 
@@ -247,6 +250,8 @@ pub fn run() {
             commands::tasks::get_task_activity,
             commands::tasks::start_task_watcher,
             commands::tasks::stop_task_watcher,
+            commands::tasks::start_config_watcher,
+            commands::tasks::stop_config_watcher,
             commands::pty::spawn_pty,
             commands::pty::write_pty,
             commands::pty::resize_pty,
