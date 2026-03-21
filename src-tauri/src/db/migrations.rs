@@ -280,7 +280,41 @@ const MIGRATION_016: &str = r#"
 ALTER TABLE sessions ADD COLUMN acp_session_id TEXT;
 "#;
 
-const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012, MIGRATION_013, MIGRATION_014, MIGRATION_015, MIGRATION_016];
+// Move ACP settings from global scope (with `_<projectId>` suffix in the key)
+// to proper project scope (scope='project', scope_id=projectId, plain key).
+// This migration extracts the project ID from the key suffix and re-inserts
+// the settings in the correct scope.
+const MIGRATION_017: &str = r#"
+INSERT OR REPLACE INTO settings (scope, scope_id, key, value)
+SELECT 'project',
+       SUBSTR(key, INSTR(key, 'acp_trust_mode_policy_') + LENGTH('acp_trust_mode_policy_')),
+       'acp_trust_mode_policy',
+       value
+FROM settings
+WHERE scope = 'global' AND key LIKE 'acp_trust_mode_policy_%';
+
+INSERT OR REPLACE INTO settings (scope, scope_id, key, value)
+SELECT 'project',
+       SUBSTR(key, INSTR(key, 'acp_default_policy_') + LENGTH('acp_default_policy_')),
+       'acp_default_policy',
+       value
+FROM settings
+WHERE scope = 'global' AND key LIKE 'acp_default_policy_%';
+
+INSERT OR REPLACE INTO settings (scope, scope_id, key, value)
+SELECT 'project',
+       SUBSTR(key, INSTR(key, 'acp_permission_timeout_') + LENGTH('acp_permission_timeout_')),
+       'acp_permission_timeout',
+       value
+FROM settings
+WHERE scope = 'global' AND key LIKE 'acp_permission_timeout_%';
+
+DELETE FROM settings WHERE scope = 'global' AND key LIKE 'acp_trust_mode_policy_%';
+DELETE FROM settings WHERE scope = 'global' AND key LIKE 'acp_default_policy_%';
+DELETE FROM settings WHERE scope = 'global' AND key LIKE 'acp_permission_timeout_%';
+"#;
+
+const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012, MIGRATION_013, MIGRATION_014, MIGRATION_015, MIGRATION_016, MIGRATION_017];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
@@ -331,13 +365,13 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 16);
+        assert_eq!(version, 17);
 
         // Running again is a no-op
         run(&conn).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 16);
+        assert_eq!(count, 17);
     }
 }

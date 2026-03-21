@@ -15,7 +15,11 @@ use super::handler::PendingPermissions;
 /// Per-session ACP state.
 pub struct AcpSessionState {
     /// The ACP client managing the agent subprocess and connection.
-    pub client: AcpClient,
+    ///
+    /// Wrapped in `Arc` so that `cancel()` can be called concurrently with an
+    /// in-progress `prompt()` — both methods take `&self`. Code that needs to
+    /// call prompt/cancel clones the Arc and releases the state-map mutex first.
+    pub client: Arc<AcpClient>,
     /// The ACP session ID returned by `session/new`.
     pub acp_session_id: Option<acp::SessionId>,
     /// Pending permission requests for this session (shared with handler).
@@ -40,15 +44,10 @@ pub fn new_state() -> AcpState {
 
 /// Registry of pending permission maps keyed by Faber session ID.
 ///
-/// This is a **separate** piece of managed state from `AcpState` because
-/// `AcpState` temporarily removes session entries during `prompt()` calls
-/// (to avoid holding the mutex). If `respond_permission` tried to look up
-/// pending permissions via `AcpState`, it would find nothing and silently
-/// drop the user's response — causing the agent to time out and deny.
-///
-/// By storing the `PendingPermissions` Arc in its own registry, it remains
-/// accessible regardless of whether the session is temporarily removed
-/// from `AcpState`.
+/// This is a **separate** piece of managed state from `AcpState` so that
+/// permission responses can be resolved without needing to lock `AcpState`.
+/// Keeping them separate avoids potential lock ordering issues between the
+/// permission handler and prompt code paths.
 pub type PendingPermissionsRegistry = Arc<Mutex<HashMap<String, PendingPermissions>>>;
 
 /// Create a new empty pending permissions registry.

@@ -1121,12 +1121,13 @@ fn spawn_acp_session(
                 acp_session_id = %acp_session_id,
                 "ACP client initialized and session created — storing state"
             );
+            let client = Arc::new(client);
             let shutdown_signal = Arc::new(tokio::sync::Notify::new());
             let shutdown_signal_clone = shutdown_signal.clone();
             {
                 let mut state = acp_state_clone.lock().await;
                 state.insert(session_id_clone.clone(), AcpSessionState {
-                    client,
+                    client: client.clone(),
                     acp_session_id: Some(acp_session_id.clone()),
                     pending_permissions: pending_permissions.clone(),
                     shutdown_signal,
@@ -1165,24 +1166,9 @@ fn spawn_acp_session(
             );
             let content = vec![acp::ContentBlock::Text(acp::TextContent::new(&prompt_content))];
 
-            // IMPORTANT: We must NOT hold the ACP state mutex during the prompt() call.
-            // See start_acp_task_session comment for full explanation.
-            let prompt_result = {
-                let mut session_state = {
-                    let mut state = acp_state_clone.lock().await;
-                    state.remove(&session_id_clone)
-                };
-                if let Some(ref mut ss) = session_state {
-                    let result = ss.client.prompt(acp_session_id.clone(), content).await;
-                    {
-                        let mut state = acp_state_clone.lock().await;
-                        state.insert(session_id_clone.clone(), session_state.take().unwrap());
-                    }
-                    Some(result)
-                } else {
-                    None
-                }
-            };
+            // Call prompt on the Arc-cloned client — no need to remove/reinsert
+            // from the state map. The Arc allows concurrent cancel() calls.
+            let prompt_result = Some(client.prompt(acp_session_id.clone(), content).await);
 
             match prompt_result {
                 Some(Ok(response)) => {
@@ -1864,6 +1850,7 @@ pub fn resume_acp_chat_session(
                 acp_session_id = %acp_session_id,
                 "ACP session loaded — storing state"
             );
+            let client = Arc::new(client);
             let shutdown_signal = Arc::new(tokio::sync::Notify::new());
             let shutdown_signal_clone = shutdown_signal.clone();
             {
@@ -2238,7 +2225,7 @@ pub fn shutdown_acp_client(acp_state: &AcpState, session_id: &str, app: Option<&
 
         rt.block_on(async move {
             let mut state = acp_state.lock().await;
-            if let Some(mut session_state) = state.remove(&session_id) {
+            if let Some(session_state) = state.remove(&session_id) {
                 // Signal the keepalive thread (for sessions without an initial prompt)
                 // to exit so its LocalSet drops cleanly.
                 session_state.shutdown_signal.notify_one();
@@ -2247,7 +2234,22 @@ pub fn shutdown_acp_client(acp_state: &AcpState, session_id: &str, app: Option<&
                 if let Some(ref acp_sid) = session_state.acp_session_id {
                     let _ = session_state.client.cancel(acp_sid.clone()).await;
                 }
-                session_state.client.shutdown().await;
+
+                // Try to get exclusive ownership for clean shutdown
+                match Arc::try_unwrap(session_state.client) {
+                    Ok(mut client) => {
+                        client.shutdown().await;
+                    }
+                    Err(arc) => {
+                        // Another reference still exists (prompt in progress).
+                        // Kill the process tree as fallback — the Arc will clean up
+                        // when the last reference is dropped.
+                        if let Some(pid) = arc.pid() {
+                            crate::pty::kill_process_tree(pid, "acp-agent");
+                        }
+                        tracing::warn!(session_id = %session_id, "ACP client still referenced — killed process tree");
+                    }
+                }
                 tracing::info!(session_id = %session_id, "ACP session shut down");
             }
         });

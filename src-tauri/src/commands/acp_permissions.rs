@@ -1,9 +1,40 @@
+use std::path::Path;
+
 use tauri::State;
 
 use crate::acp::permissions::{self, PermissionAction, PermissionRule, PermissionLogEntry};
 use crate::acp::state::PendingPermissionsRegistry;
+use crate::db;
 use crate::db::DbState;
 use crate::error::AppError;
+use crate::project_config;
+
+// ── Helpers ──
+
+/// Sync the current DB permission rules into the project's faber.json config file.
+fn sync_rules_to_config(conn: &rusqlite::Connection, project_id: &str) {
+    if let Ok(Some(project)) = db::projects::get(conn, project_id) {
+        let project_path = Path::new(&project.path);
+        let config_path = project_config::config_path(project_path);
+        if config_path.is_file() {
+            let mut cfg = project_config::load(project_path);
+            if let Ok(rules) = permissions::list_rules(conn, project_id) {
+                cfg.acp.rules = rules
+                    .into_iter()
+                    .map(|r| project_config::AcpPermissionRule {
+                        capability: r.capability,
+                        path_pattern: r.path_pattern,
+                        command_pattern: r.command_pattern,
+                        action: r.action.as_str().to_string(),
+                    })
+                    .collect();
+                if let Err(e) = project_config::save(project_path, &cfg) {
+                    tracing::warn!(%e, "Failed to sync permission rules to faber.json");
+                }
+            }
+        }
+    }
+}
 
 // ── Permission Rule Management ──
 
@@ -28,23 +59,30 @@ pub fn create_permission_rule(
     let action = PermissionAction::from_str(&action)
         .ok_or_else(|| AppError::Validation(format!("Invalid action: {action}")))?;
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    Ok(permissions::create_rule(
+    let rule = permissions::create_rule(
         &conn,
         &project_id,
         &capability,
         path_pattern.as_deref(),
         command_pattern.as_deref(),
         action,
-    )?)
+    )?;
+    sync_rules_to_config(&conn, &project_id);
+    Ok(rule)
 }
 
 #[tauri::command]
 pub fn delete_permission_rule(
     db: State<'_, DbState>,
+    project_id: String,
     rule_id: String,
 ) -> Result<bool, AppError> {
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    Ok(permissions::delete_rule(&conn, &rule_id)?)
+    let deleted = permissions::delete_rule(&conn, &rule_id)?;
+    if deleted {
+        sync_rules_to_config(&conn, &project_id);
+    }
+    Ok(deleted)
 }
 
 #[tauri::command]
@@ -53,7 +91,9 @@ pub fn reset_permission_rules(
     project_id: String,
 ) -> Result<usize, AppError> {
     let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-    Ok(permissions::delete_all_rules(&conn, &project_id)?)
+    let count = permissions::delete_all_rules(&conn, &project_id)?;
+    sync_rules_to_config(&conn, &project_id);
+    Ok(count)
 }
 
 // ── Permission Log ──
@@ -98,19 +138,21 @@ pub async fn respond_permission(
     if always_allow.unwrap_or(false) {
         if let (Some(cap), Some(pid)) = (&capability, &project_id) {
             let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
-            let _ = permissions::create_rule(
+            if permissions::create_rule(
                 &conn,
                 pid,
                 cap,
                 path_pattern.as_deref(),
                 None,
                 PermissionAction::AutoApprove,
-            );
-            tracing::info!(
-                capability = %cap,
-                project_id = %pid,
-                "Created auto-approve rule from permission dialog"
-            );
+            ).is_ok() {
+                sync_rules_to_config(&conn, pid);
+                tracing::info!(
+                    capability = %cap,
+                    project_id = %pid,
+                    "Created auto-approve rule from permission dialog"
+                );
+            }
         }
     }
 

@@ -535,13 +535,14 @@ impl acp::Client for FaberAcpHandler {
                 );
 
                 // Read configurable timeout from settings (default 120s)
-                // Settings are stored in global scope with key "acp_permission_timeout_<projectId>"
                 let timeout_secs = {
                     let db_state: tauri::State<'_, DbState> = self.app_handle.state();
-                    let key = format!("acp_permission_timeout_{}", self.project_id);
                     db_state.lock().ok()
                         .and_then(|conn| {
-                            crate::db::settings::get_value(&conn, "global", None, &key).ok()
+                            crate::db::settings::get_value(
+                                &conn, "project", Some(&self.project_id),
+                                "acp_permission_timeout",
+                            ).ok()
                         })
                         .flatten()
                         .and_then(|v| v.parse::<u64>().ok())

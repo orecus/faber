@@ -3,6 +3,7 @@ use std::path::{Path, PathBuf};
 use serde::Serialize;
 use tauri::State;
 
+use crate::config_watcher::ConfigWatcherState;
 use crate::db;
 use crate::db::models::{Task, TaskStatus};
 use crate::db::DbState;
@@ -663,6 +664,40 @@ pub async fn start_task_watcher(
 #[tauri::command]
 pub async fn stop_task_watcher(
     watcher_state: State<'_, TaskWatcherState>,
+    project_id: String,
+) -> Result<(), AppError> {
+    let mut registry = watcher_state.lock().await;
+    registry.stop(&project_id);
+    Ok(())
+}
+
+// ── Config File Watcher Commands ──
+
+#[tauri::command]
+pub async fn start_config_watcher(
+    db_state: State<'_, DbState>,
+    watcher_state: State<'_, ConfigWatcherState>,
+    app_handle: tauri::AppHandle,
+    project_id: String,
+) -> Result<(), AppError> {
+    let project_path = {
+        let conn = db_state
+            .lock()
+            .map_err(|e| AppError::Database(e.to_string()))?;
+        let project = db::projects::get(&conn, &project_id)?
+            .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+        PathBuf::from(&project.path)
+    };
+
+    let mut registry = watcher_state.lock().await;
+    registry
+        .start(project_id, project_path, app_handle)
+        .map_err(AppError::Validation)
+}
+
+#[tauri::command]
+pub async fn stop_config_watcher(
+    watcher_state: State<'_, ConfigWatcherState>,
     project_id: String,
 ) -> Result<(), AppError> {
     let mut registry = watcher_state.lock().await;

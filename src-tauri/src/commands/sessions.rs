@@ -531,7 +531,9 @@ pub fn send_acp_message(
     let attachments = attachments.unwrap_or_default();
 
     // Spawn prompt in a background thread with LocalSet (ACP uses !Send futures)
-    // IMPORTANT: Do NOT hold the ACP state mutex during prompt() — see session.rs comment.
+    // Clone the Arc<AcpClient> so we can release the state-map mutex before the
+    // long-running prompt() call. cancel() can be called concurrently via the
+    // same Arc from cancel_acp_session.
     let acp_state = acp.inner().clone();
     std::thread::spawn(move || {
         let rt = tokio::runtime::Builder::new_current_thread()
@@ -541,50 +543,48 @@ pub fn send_acp_message(
 
         let local = tokio::task::LocalSet::new();
         local.block_on(&rt, async move {
-            // Take session out of state map (releases mutex before prompt)
-            let mut session_state = {
-                let mut state = acp_state.lock().await;
-                state.remove(&session_id)
+            // Clone the Arc<AcpClient> and session ID, then release the mutex
+            let (client, acp_sid) = {
+                let state = acp_state.lock().await;
+                match state.get(&session_id) {
+                    Some(ss) => match ss.acp_session_id.clone() {
+                        Some(sid) => (ss.client.clone(), sid),
+                        None => return,
+                    },
+                    None => return,
+                }
             };
-            if let Some(ref mut ss) = session_state {
-                if let Some(acp_sid) = ss.acp_session_id.clone() {
-                    let content = build_content_blocks(&text, &attachments);
 
+            let content = build_content_blocks(&text, &attachments);
+
+            tracing::info!(
+                session_id = %session_id,
+                text_len = text.len(),
+                attachment_count = attachments.len(),
+                content_blocks = content.len(),
+                "Sending ACP message with attachments"
+            );
+
+            match client.prompt(acp_sid, content).await {
+                Ok(response) => {
+                    let stop_reason = format!("{:?}", response.stop_reason);
                     tracing::info!(
                         session_id = %session_id,
-                        text_len = text.len(),
-                        attachment_count = attachments.len(),
-                        content_blocks = content.len(),
-                        "Sending ACP message with attachments"
+                        stop_reason = %stop_reason,
+                        "ACP follow-up prompt completed"
                     );
-
-                    match ss.client.prompt(acp_sid, content).await {
-                        Ok(response) => {
-                            let stop_reason = format!("{:?}", response.stop_reason);
-                            tracing::info!(
-                                session_id = %session_id,
-                                stop_reason = %stop_reason,
-                                "ACP follow-up prompt completed"
-                            );
-                            // Emit prompt-complete so the frontend clears promptPending
-                            let _ = app.emit(EVENT_ACP_PROMPT_COMPLETE, AcpPromptCompletePayload {
-                                session_id: session_id.clone(),
-                                stop_reason,
-                            });
-                        }
-                        Err(e) => {
-                            tracing::error!(session_id = %session_id, error = %e, "ACP follow-up prompt failed");
-                            // Emit error so the frontend clears promptPending
-                            let _ = app.emit(EVENT_ACP_ERROR, AcpErrorPayload {
-                                session_id: session_id.clone(),
-                                error: e.to_string(),
-                            });
-                        }
-                    }
+                    let _ = app.emit(EVENT_ACP_PROMPT_COMPLETE, AcpPromptCompletePayload {
+                        session_id: session_id.clone(),
+                        stop_reason,
+                    });
                 }
-                // Put session back into state map
-                let mut state = acp_state.lock().await;
-                state.insert(session_id, session_state.take().unwrap());
+                Err(e) => {
+                    tracing::error!(session_id = %session_id, error = %e, "ACP follow-up prompt failed");
+                    let _ = app.emit(EVENT_ACP_ERROR, AcpErrorPayload {
+                        session_id: session_id.clone(),
+                        error: e.to_string(),
+                    });
+                }
             }
         });
     });
@@ -608,13 +608,20 @@ pub fn cancel_acp_session(
 
         let local = tokio::task::LocalSet::new();
         local.block_on(&rt, async move {
-            let state = acp_state.lock().await;
-            if let Some(session_state) = state.get(&session_id_clone) {
-                if let Some(acp_sid) = session_state.acp_session_id.clone() {
-                    let _ = session_state.client.cancel(acp_sid).await;
-                    tracing::info!(session_id = %session_id_clone, "ACP session cancelled");
+            // Clone Arc<AcpClient> and release the mutex — cancel works even
+            // while a prompt() is in progress on another thread.
+            let (client, acp_sid) = {
+                let state = acp_state.lock().await;
+                match state.get(&session_id_clone) {
+                    Some(ss) => match ss.acp_session_id.clone() {
+                        Some(sid) => (ss.client.clone(), sid),
+                        None => return,
+                    },
+                    None => return,
                 }
-            }
+            };
+            let _ = client.cancel(acp_sid).await;
+            tracing::info!(session_id = %session_id_clone, "ACP session cancelled");
         });
     });
 
