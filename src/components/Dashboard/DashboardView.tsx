@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
@@ -7,6 +7,7 @@ import { usePersistedBoolean } from "../../hooks/usePersistedState";
 import { useAppStore } from "../../store/appStore";
 import LaunchContinuousDialog from "../Launchers/LaunchContinuousDialog";
 import ContinuousModeBar from "../Shell/ContinuousModeBar";
+import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { ViewLayout } from "../Shell/ViewLayout";
 import CreateTaskDialog from "../TaskDetail/CreateTaskDialog";
 import DependencyGraph from "./DependencyGraph";
@@ -19,6 +20,7 @@ import SummaryHeader from "./SummaryHeader";
 import type { DashboardMode } from "./SummaryHeader";
 
 import type { Session, Task, TaskStatus } from "../../types";
+import { SearchX } from "lucide-react";
 
 export default function DashboardView() {
   const tasks = useAppStore((s) => s.tasks);
@@ -32,6 +34,29 @@ export default function DashboardView() {
   const accentColor = useProjectAccentColor();
   const { filters, dispatchFilter, hasActiveFilters, matchesFilters } =
     useDashboardFilters();
+
+  // Search input ref for keyboard shortcut focus
+  const searchInputRef = useRef<HTMLInputElement | null>(null);
+
+  // Keyboard shortcut: "/" or Ctrl+F to focus search
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      // Don't intercept if user is typing in an input/textarea/contenteditable
+      const tag = (e.target as HTMLElement).tagName;
+      const isEditable =
+        tag === "INPUT" || tag === "TEXTAREA" || (e.target as HTMLElement).isContentEditable;
+
+      if (e.key === "/" && !isEditable) {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      } else if ((e.ctrlKey || e.metaKey) && e.key === "f") {
+        e.preventDefault();
+        searchInputRef.current?.focus();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, []);
 
   const continuousMode = useAppStore((s) => s.continuousMode);
   const hasContinuousRun = !!(activeProjectId && continuousMode[activeProjectId]);
@@ -280,9 +305,24 @@ export default function DashboardView() {
           hasActiveFilters={hasActiveFilters}
           allLabels={allLabels}
           allAgents={allAgents}
+          searchInputRef={searchInputRef}
         />
 
-        {dashboardMode === "board" ? (
+        {filteredTasks.length === 0 && hasActiveFilters ? (
+          <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground">
+            <SearchX className="size-8 opacity-40" />
+            <p className="text-sm">No tasks match your filters</p>
+            <Button
+              variant="link"
+              size="sm"
+              hoverEffect="none"
+              clickEffect="none"
+              onClick={() => dispatchFilter({ type: "CLEAR_ALL" })}
+            >
+              Clear filters
+            </Button>
+          </div>
+        ) : dashboardMode === "board" ? (
           <KanbanBoard
             tasks={filteredTasks}
             sessionMap={sessionMap}

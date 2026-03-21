@@ -5,12 +5,14 @@ export interface FilterState {
   priorities: Set<Priority>;
   labels: Set<string>;
   agents: Set<string>;
+  searchQuery: string;
 }
 
 export type FilterAction =
   | { type: "TOGGLE_PRIORITY"; priority: Priority }
   | { type: "TOGGLE_LABEL"; label: string }
   | { type: "TOGGLE_AGENT"; agent: string }
+  | { type: "SET_SEARCH"; text: string }
   | { type: "CLEAR_ALL" };
 
 function reducer(state: FilterState, action: FilterAction): FilterState {
@@ -33,8 +35,10 @@ function reducer(state: FilterState, action: FilterAction): FilterState {
       else next.add(action.agent);
       return { ...state, agents: next };
     }
+    case "SET_SEARCH":
+      return { ...state, searchQuery: action.text };
     case "CLEAR_ALL":
-      return { priorities: new Set(), labels: new Set(), agents: new Set() };
+      return { priorities: new Set(), labels: new Set(), agents: new Set(), searchQuery: "" };
   }
 }
 
@@ -42,19 +46,31 @@ const initialState: FilterState = {
   priorities: new Set(),
   labels: new Set(),
   agents: new Set(),
+  searchQuery: "",
 };
 
 export function useDashboardFilters() {
   const [filters, dispatchFilter] = useReducer(reducer, initialState);
 
   const hasActiveFilters =
-    filters.priorities.size > 0 || filters.labels.size > 0 || filters.agents.size > 0;
+    filters.priorities.size > 0 ||
+    filters.labels.size > 0 ||
+    filters.agents.size > 0 ||
+    filters.searchQuery.length > 0;
 
   const matchesFilters = useCallback(
-    (task: { priority: Priority; labels: string[]; agent: string | null }) => {
+    (task: { id: string; title: string; priority: Priority; labels: string[]; agent: string | null }) => {
       if (filters.priorities.size > 0 && !filters.priorities.has(task.priority)) return false;
       if (filters.labels.size > 0 && !task.labels.some((l) => filters.labels.has(l))) return false;
       if (filters.agents.size > 0 && (!task.agent || !filters.agents.has(task.agent))) return false;
+      if (filters.searchQuery.length > 0) {
+        const q = filters.searchQuery.toLowerCase();
+        const inTitle = task.title.toLowerCase().includes(q);
+        const inId = task.id.toLowerCase().includes(q);
+        const inLabels = task.labels.some((l) => l.toLowerCase().includes(q));
+        const inAgent = task.agent?.toLowerCase().includes(q) ?? false;
+        if (!inTitle && !inId && !inLabels && !inAgent) return false;
+      }
       return true;
     },
     [filters],

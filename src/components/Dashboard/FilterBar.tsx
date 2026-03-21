@@ -1,3 +1,5 @@
+import { useCallback, useEffect, useRef, useState } from "react";
+import { Search, X } from "lucide-react";
 import type { Priority } from "../../types";
 import type { FilterState, FilterAction } from "../../hooks/useDashboardFilters";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
@@ -19,6 +21,7 @@ interface FilterBarProps {
   hasActiveFilters: boolean;
   allLabels: string[];
   allAgents: string[];
+  searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
 function ToggleChip({
@@ -54,11 +57,65 @@ export default function FilterBar({
   hasActiveFilters,
   allLabels,
   allAgents,
+  searchInputRef,
 }: FilterBarProps) {
   const accentColor = useProjectAccentColor();
   const accentHex = gradientHexColors[accentColor]?.start ?? "var(--primary)";
+
+  // Debounced search input
+  const [localSearch, setLocalSearch] = useState(filters.searchQuery);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  const handleSearchChange = useCallback(
+    (value: string) => {
+      setLocalSearch(value);
+      clearTimeout(debounceRef.current);
+      debounceRef.current = setTimeout(() => {
+        dispatchFilter({ type: "SET_SEARCH", text: value });
+      }, 250);
+    },
+    [dispatchFilter],
+  );
+
+  const clearSearch = useCallback(() => {
+    setLocalSearch("");
+    clearTimeout(debounceRef.current);
+    dispatchFilter({ type: "SET_SEARCH", text: "" });
+    searchInputRef?.current?.focus();
+  }, [dispatchFilter, searchInputRef]);
+
+  // Sync local state if cleared externally (e.g. "Clear filters")
+  useEffect(() => {
+    if (filters.searchQuery === "" && localSearch !== "") {
+      setLocalSearch("");
+    }
+  }, [filters.searchQuery]);
+
   return (
     <div className="flex items-center gap-2 flex-wrap py-1.5">
+      {/* Search input */}
+      <div className="relative flex items-center">
+        <Search className="absolute left-2 size-3.5 text-muted-foreground pointer-events-none" />
+        <input
+          ref={searchInputRef}
+          type="text"
+          value={localSearch}
+          onChange={(e) => handleSearchChange(e.target.value)}
+          placeholder="Search tasks…"
+          className="h-6 w-44 pl-7 pr-6 text-[11px] rounded-[var(--radius-element)] bg-transparent border border-border text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-primary/60 transition-colors"
+        />
+        {localSearch && (
+          <button
+            onClick={clearSearch}
+            className="absolute right-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+          >
+            <X className="size-3" />
+          </button>
+        )}
+      </div>
+
+      <Separator orientation="vertical" className="mx-0.5 h-4" />
+
       {/* Priority toggles */}
       <span className="text-[11px] text-muted-foreground mr-0.5">
         Priority:
