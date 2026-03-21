@@ -5,73 +5,44 @@ All notable changes to Faber will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [0.9.0] - 2026-03-xx - WIP
+## [0.9.0] - 2026-03-21
 
 ### Added
 
-- **ACP (Agent Client Protocol) Support** — Full support for structured agent communication via ACP as an alternative to PTY-based sessions. Agents can now communicate through a typed JSON-RPC protocol with real-time streaming of messages, tool calls, thinking blocks, and plans. Includes a new `SessionTransport` layer (`pty` | `acp`) so every session type (task, research, continuous) can run in either mode
-- **Project Chat** — New lightweight chat view (Chat tab in the top bar) for interactive conversations with ACP-capable agents. No task binding or worktree — just open a conversation about your project, discuss architecture, explore ideas, or ask questions. Features message attachments, slash commands, edit-and-resend, thinking/reasoning display, and inline tool call visualization
-- **ACP Permission System** — Granular permission framework controlling what agents can do. Per-project rules with glob pattern matching for file paths and commands, three actions (auto-approve, ask, deny), trust mode overrides for continuous mode, permission request timeout, and a full audit log. In-session permission dialogs appear when agents request access, with an option to create permanent rules
-- **ACP Permissions Settings Tab** — New settings tab for managing permission rules, viewing the audit log, and configuring trust mode policy and timeout
-- **Floating Permission Banner** — Fixed banner appears when any session has pending permission requests, showing count and which sessions need approval with click-to-navigate
-- **Agent Registry & Extensions Tab** — Auto-discovery and version tracking of ACP adapters from a public registry. The Extensions tab (renamed from Skills & Rules) shows adapter installation status, available updates, and install commands. Badge on the tab shows count of available updates
-- **Chat UI Primitives** — Reusable AI chat element library (`ai-elements/`) with message bubbles, reasoning blocks, chain-of-thought visualization, code snippets, attachments, plans, shimmer loading, and toolbar components
-- **Transport Selector** — Launch Task and Research dialogs now show a PTY/ACP transport toggle when the selected agent has an ACP adapter installed, defaulting to ACP when available
-- **Permission Notifications** — OS notifications fire when agents request permissions (uses the "waiting" notification toggle), with click-to-navigate
-- **Agent Install Hints** — Agent cards in settings now show CLI install commands and links for agents that aren't installed yet
-- **Chat Close Confirmation** — Closing the chat session now shows a confirmation dialog to prevent accidental loss of conversation history
-- **Task Detail GitHub Tab** — Restructured TaskDetailView with top-level tabs (Task Details, Agent Activity, GitHub). For tasks imported from GitHub issues, the new GitHub tab shows the live issue body, state badge, labels, metadata, full comment thread, and a comment composer — all without leaving the task view
-- **GitHub Copilot CLI Agent** — Added Copilot CLI (`copilot`) as the 6th supported agent with Rust adapter, MCP config (`.copilot/mcp-config.json`), `AGENTS.md` instruction file mapping, frontend icons/colors, and documentation
-- **Sidebar Branch Info** — Branch name and change count shown inline in each sidebar project entry (e.g. `● ProjectName · main 3∆`), with auto-refresh on project load, switch, and MCP events
-- **GitHub Settings Tab** — Dedicated GitHub settings tab accessible from the Git view toolbar, with label mapping color swatches, all 6 status mappings, proper Select components, and one-click "Create default labels" setup
-- **GitHub Sync Dialog** — Safe confirmation dialog for GitHub issue sync with granular field selection (title, body, status, labels), replacing the previous instant sync. Configurable default checkbox states in GitHub Settings
-- **GitHub Auth Gate** — Shared `GitHubAuthGate` component replacing duplicated auth/remote checks in Issues and Pull Requests tabs
-- **GitHub Issue Detail Panel** — Click any issue in the Issues tab to preview its full body, labels, assignees, and comment thread in a right-side detail panel (matching the Pull Requests detail pattern), with one-click import and "Open in GitHub" actions
-- **Research → Implementation Flow** — When a research session completes, a centered prompt card slides in over the session pane (with backdrop blur) offering to continue to implementation. Clicking "Continue to Implementation" opens the Launch Task dialog pre-filled for that task; after launching, the research session auto-closes after a few seconds. Replaces the previous `promote_session` MCP tool with a user-driven UI flow that creates a proper task session with worktree isolation
-- **Chat Narration Mode Toggle** — Two rendering modes for ACP chat narration messages: "Split turns" (each narration creates its own turn with associated tool calls) and "Inline" (narrations are rendered inline between tool steps within a single turn). Toggle in the Chat view toolbar, persisted across sessions
-- **Create Project Dialog** — New "Create New..." option in the sidebar project menu scaffolds a project from scratch: name input, folder browser, git init with `.gitignore`, initial commit, and automatic registration in the app. Also accessible from the Welcome Screen as a secondary CTA
-- **Chat Waiting Card** — Dismissible alert card appears above the chat input when an ACP agent reports it's waiting for user clarification, showing the agent's question with auto-reappear on new waiting events
-- **Chat Draft Persistence** — Typed chat messages are auto-saved per session and restored on view switch, preventing accidental loss of in-progress messages
-- **Reusable Agent Card Grid** — Extracted agent selection cards into a shared `AgentCardGrid` component used by both the Welcome Screen and Chat agent picker, with placeholder skeletons during detection, CLI/ACP status badges, and animated entrance
-- **ACP Session Persistence** — Resume past agent conversations across app restarts. New `session/list` and `session/load` ACP protocol support with automatic cursor-based pagination. ACP session IDs are persisted to the database (`acp_session_id` column on the sessions table) so sessions can be reconnected. Two new IPC commands: `list_agent_sessions` (spawns a temporary ACP client to query the agent) and `resume_acp_session` (loads an existing session and replays conversation history via `SessionUpdate` notifications)
-- **Chat Session History Sidebar** — Two-column empty state in Chat view: the left column retains the agent picker and "New Chat" button, while a new right-side sidebar lists previous sessions fetched from the agent. Each session row shows title, relative timestamp, and hover-reveal actions — "Resume" (opens in ChatView) and "Session" (opens as a session pane in Sessions view). Includes search filtering, loading/empty/not-supported states, refresh, and retry for agents that don't yet support session listing
-- **ACP Capability Detection for Sessions** — `get_acp_capabilities` now returns `load_session` and `list_sessions` booleans. The frontend persists "not supported" flags per agent in the settings store to avoid re-probing agents that lack session listing, with a manual retry mechanism
-- **Kanban Column Sorting** — Six sort modes for Kanban columns: Dependencies (topological), Priority, Newest First, Oldest First, Alphabetical, and Agent. Sort preference is persisted across sessions. A sort dropdown menu appears in each column header
-- **Kanban Column Collapsing** — Columns can be collapsed into narrow vertical strips showing only the column name (rotated) and task count. Collapsed state is persisted per column
-- **Task Card Context Menu** — Right-click any task card (or click the kebab menu) for quick actions: rename (inline editing), change status, set priority, assign agent, manage labels, and archive/delete. Inline title editing with Enter to save and Escape to cancel
-- **Task Card Labels** — Task cards now display up to 3 labels as compact badges, with a "+N" overflow indicator for additional labels
-- **Status Filter Toggles** — Filter bar now includes status toggles (Backlog, Ready, In Progress, In Review, Done) alongside the existing priority, label, and agent filters
-- **Per-Project Filter Persistence** — Dashboard filters (priorities, labels, agents, statuses, search query, archive toggle) are now persisted per project in the Zustand store, so switching projects preserves each project's filter state
-- **Archived Task List** — New archive view accessible from the Summary Header's archive toggle button. Shows archived tasks in a flat list with restore-to-backlog and permanent delete actions
-- **Summary Header Stats** — Added "ready" and "blocked" task counts to the dashboard summary bar. Blocked count only appears when > 0
-- **Create Task Advanced Fields** — The Create Task dialog now has a collapsible "Advanced" section for setting labels (comma-separated), task dependencies (multi-select from existing tasks), and agent assignment at creation time
+- **ACP (Agent Client Protocol)** — Structured agent communication via typed JSON-RPC as an alternative to PTY sessions. Real-time streaming of messages, tool calls, thinking blocks, and plans. New `SessionTransport` layer so every session type works in either PTY or ACP mode
+- **Project Chat** — Lightweight chat view for conversations with ACP agents — discuss architecture, explore ideas, or ask questions without task binding or worktree. Includes attachments, slash commands, edit-and-resend, reasoning display, and tool call visualization
+- **ACP Permissions** — Per-project permission rules with glob patterns, three actions (auto-approve, ask, deny), trust mode for continuous sessions, audit log, in-session approval dialogs, and a dedicated settings tab
+- **Agent Registry & Extensions** — Auto-discovery and version tracking of ACP adapters. Extensions tab (renamed from Skills & Rules) shows install status, updates, and install commands
+- **ACP Session Persistence** — Resume past conversations across app restarts via `session/list` and `session/load` protocol. Chat view includes a session history sidebar with search and resume
+- **Task Detail GitHub Tab** — View live GitHub issue body, labels, metadata, comment thread, and compose comments without leaving the task view
+- **GitHub Copilot CLI Agent** — Added Copilot CLI as the 6th supported agent
+- **Research → Implementation Flow** — Completed research sessions offer a prompt to continue to implementation, pre-filling the Launch Task dialog
+- **Create Project Dialog** — Scaffold new projects from the sidebar or Welcome Screen with git init and auto-registration
+- **Kanban Column Sorting** — Six sort modes (Dependencies, Priority, Newest, Oldest, Alphabetical, Agent) persisted per session
+- **Kanban Column Collapsing** — Collapse columns into narrow strips showing name and task count
+- **Task Card Context Menu** — Right-click for quick actions: rename, change status, set priority, assign agent, manage labels, archive/delete
+- **Dashboard Filters** — Status filter toggles, per-project filter persistence, task card label badges, archive view with restore/delete, and "ready"/"blocked" counts in the summary header
+- **Create Task Advanced Fields** — Labels, dependencies, and agent assignment available at task creation
+- **GitHub Improvements** — Dedicated settings tab, sync confirmation dialog with field selection, issue detail panel, and shared auth gate component
+- **Sidebar Branch Info** — Branch name and change count shown inline per project
+- Transport selector in launch dialogs, permission notifications, agent install hints, chat close confirmation, chat draft persistence, chat waiting card, narration mode toggle
 
 ### Changed
 
-- **Continuous Mode ACP Support** — Continuous mode can now launch task sessions using ACP transport, with trust mode policies controlling permission behavior during auto-launched runs
-- **Session Pane ACP Rendering** — Session panes detect ACP sessions and render the ChatPane instead of a terminal, with permission-request visual states (warning ring, pulsing header) alongside existing MCP waiting/error states
-- **Extensions View** — Renamed "Skills & Rules" to "Extensions" with a new Agents tab alongside Skills and Rules for managing ACP adapters
-- **Task Detail Actions** — Backlog/ready tasks now show "View Session" button when a session is already active, instead of always showing Start/Research actions
-- **Consolidated Diff Views** — Extracted shared `DiffView` and `DiffToolbar` components from the duplicated ReviewView and ChangesTab implementations. Both views now use the same adaptive component with context-specific actions (worktree: push/merge/PR/delete; main repo: compact inline toolbar)
-- **Smart Back Navigation** — Review view back button now returns to the previous view (Git, Sessions, etc.) instead of always going to Dashboard, via new `previousView` state tracking
-- **GitHub Tab Badges** — Issues and Pull Requests tabs in the Git view now show a subtle GitHub icon to visually distinguish GitHub-dependent features from local-only git tabs
-- **Settings Consolidation** — Merged Notifications into General settings with internal tabs (Appearance, Notifications, Updates, System), reducing sidebar settings icons from 5 to 4. Extracted GitHub sync settings from Projects tab into the new GitHub Settings tab
-- **Git Data Refresh** — Renamed the git data "Sync" button to "Refresh" to avoid confusion with GitHub issue sync
-- **Bundle Optimization** — Split vendor dependencies into cache-friendly manual chunks (xterm, diff, markdown, ui, react) and wrapped view switches in `startTransition` so React keeps the current view visible while lazy chunks load
-- **Welcome Screen Agents** — Redesigned supported agents section from inline badges to a 3-per-row card grid showing agent icon, description, and live detection status (checkmark/empty circle). Removed manual path input
-- **Persisted State Hooks** — `usePersistedBoolean`, `usePersistedString`, and `usePersistedNumber` now return a third `loaded` boolean, allowing components to avoid UI flashes when the default value differs from the saved one
-- **Launcher Dialog Consolidation** — All session launch dialogs (Task, Research, Session, Continuous) moved to `Launchers/` directory with consistent `Launch*Dialog` naming convention
-- **Task Detail Title** — Task title moved from the details tab content area to the metadata header bar for better visibility; new compact display mode
-- **ACP Chat Session Styling** — Chat-based ACP sessions in the session grid now use a translucent card background instead of the terminal's opaque background for visual distinction
-- **Chat Empty State Layout** — Redesigned from centered single-column to a two-column layout (agent picker left, session history right) when ACP agents are available
-- **Agent Card ACP Badge** — ACP status badge now shows on all agent cards unconditionally, not only for agents that declare `supports_acp`
+- **Continuous Mode** — Now supports ACP transport with trust mode policies
+- **Session Pane ACP Rendering** — ACP sessions render as chat with permission-request visual states
+- **Consolidated Diff Views** — Shared `DiffView` component replaces duplicated ReviewView and ChangesTab implementations
+- **Settings Consolidation** — Merged Notifications into General settings; GitHub sync settings moved to dedicated tab
+- **Bundle Optimization** — Vendor chunk splitting and `startTransition` for smoother view switches
+- **Welcome Screen** — Agent section redesigned as card grid with live detection status
+- Smart back navigation, launcher dialog consolidation, task detail title in header bar, ACP session styling, chat two-column layout, ACP badge on all agent cards
 
 ### Fixed
 
-- **Skill Install Shell** — Fixed skill install shell closing immediately by spawning an interactive shell
-- **GitHub Multi-Account Auth** — Fixed `gh auth status` parsing to handle per-account blocks for multi-source authentication
-- **Research Session Completion** — Research sessions no longer incorrectly advance task status beyond "ready". Completing a research session on an already-ready or in-progress task is now a no-op instead of moving it to in-review
-- **Chat Sessions Filtered from Grid** — Chat sessions are excluded from the Sessions grid view, appearing only in their dedicated Chat view
+- **Skill Install Shell** — Fixed shell closing immediately
+- **GitHub Multi-Account Auth** — Fixed parsing for multi-source authentication
+- **Research Session Completion** — No longer incorrectly advances task status beyond "ready"
+- **Chat Sessions Filtered from Grid** — Chat sessions only appear in the Chat view
 
 ## [0.8.1] - 2026-03-06
 
