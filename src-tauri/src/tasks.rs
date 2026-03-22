@@ -468,6 +468,7 @@ pub fn update_task_file_field(
 
 /// Compute a hash of the comparable fields for a task (from either DB or disk).
 /// Uses a canonical string representation to avoid false positives from format differences.
+#[allow(clippy::too_many_arguments)]
 fn task_content_hash(
     title: &str,
     status: &str,
