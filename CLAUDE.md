@@ -169,7 +169,7 @@ You have MCP tools provided by the Faber IDE for reporting your progress. You MU
 - `report_files_changed(files)` — Call after modifying files
 - `report_error(error, details?)` — Call if you encounter an error or blocker
 - `report_waiting(question)` — Call if you need user input
-- `report_complete(summary)` — Call when finished
+- `report_complete(summary)` — Call ONLY when the task is fully complete. In continuous mode, this advances to the next task. Do NOT call prematurely
 - `get_task(task_id?)` — Fetch task metadata and body. Omit task_id to get current session's task.
 - `update_task(task_id?, status?, priority?, title?, labels?, depends_on?, github_issue?, github_pr?)` — Update task metadata (status, priority, labels, etc.). Omit task_id to use current session's task.
 - `update_task_plan(plan, task_id?)` — Update the implementation plan in the task file.

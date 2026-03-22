@@ -247,6 +247,8 @@ pub fn run() {
             commands::tasks::get_task_file_content,
             commands::tasks::save_task_content,
             commands::tasks::delete_task,
+            commands::tasks::detect_task_conflicts,
+            commands::tasks::resolve_task_conflicts,
             commands::tasks::get_task_activity,
             commands::tasks::start_task_watcher,
             commands::tasks::stop_task_watcher,

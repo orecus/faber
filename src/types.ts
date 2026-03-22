@@ -156,6 +156,24 @@ export interface TaskFileContent {
   body: string;
 }
 
+// ── Task file conflict types ──
+
+export type ConflictType = "db_only" | "disk_only" | "content_differs";
+
+export type ResolutionChoice = "use_db" | "use_disk" | "import_to_db" | "delete_from_disk" | "export_to_disk" | "skip";
+
+export interface TaskConflict {
+  task_id: string;
+  title: string;
+  conflict_type: ConflictType;
+  diffs: string[];
+}
+
+export interface TaskResolution {
+  task_id: string;
+  choice: ResolutionChoice;
+}
+
 // ── Task Activity types ──
 
 export type TaskActivityEventType = "status" | "progress" | "files_changed" | "error" | "waiting" | "complete";

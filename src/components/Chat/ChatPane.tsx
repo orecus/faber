@@ -164,6 +164,7 @@ export default React.memo(function ChatPane({
     <div className="flex flex-col h-full min-h-0">
       <PermissionDialog sessionId={sessionId} />
 
+      <div className="flex-1 min-h-0 relative flex flex-col">
       <Conversation className="flex-1 min-h-0">
         <ConversationContent className="gap-3 px-3 py-3">
           {isEmpty && isStarting ? (
@@ -266,6 +267,7 @@ export default React.memo(function ChatPane({
       </Conversation>
 
       <ChatPlanQueue sessionId={sessionId} />
+      </div>
 
       <WaitingCard sessionId={sessionId} />
 

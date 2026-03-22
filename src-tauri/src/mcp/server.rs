@@ -859,22 +859,26 @@ async fn handle_get_task(
         Err(e) => return McpToolResult::error(format!("Failed to fetch task: {e}")),
     };
 
-    // 4. Read and parse task file if available
-    let body = task
-        .task_file_path
-        .as_ref()
-        .and_then(|p| {
-            let path = std::path::Path::new(p);
-            if path.is_file() {
-                let content = std::fs::read_to_string(path).ok()?;
-                crate::tasks::parse_task_file(&content, path)
-                    .ok()
-                    .map(|parsed| parsed.body)
-            } else {
-                None
-            }
-        })
-        .unwrap_or_default();
+    // 4. Read body: from disk file when disk enabled, otherwise DB only
+    let disk_enabled = crate::tasks::task_files_enabled(&conn, &project_id);
+    let body = if disk_enabled {
+        task.task_file_path
+            .as_ref()
+            .and_then(|p| {
+                let path = std::path::Path::new(p);
+                if path.is_file() {
+                    let content = std::fs::read_to_string(path).ok()?;
+                    crate::tasks::parse_task_file(&content, path)
+                        .ok()
+                        .map(|parsed| parsed.body)
+                } else {
+                    None
+                }
+            })
+            .unwrap_or_else(|| task.body.clone())
+    } else {
+        task.body.clone()
+    };
 
     // 5. Fetch recent activity history from DB (last 50 events)
     let activity_history: Vec<Value> = db::task_activity::list_by_task(&conn, &task_id, &project_id, 50)
@@ -947,56 +951,38 @@ async fn handle_update_task_plan(
         Err(e) => return McpToolResult::error(format!("Failed to fetch task: {e}")),
     };
 
-    // 4. Get task file path
-    let file_path_str = match &task.task_file_path {
-        Some(p) => p.clone(),
-        None => return McpToolResult::error(format!("Task {task_id} has no task file")),
-    };
-    let file_path = std::path::Path::new(&file_path_str);
+    let disk_enabled = crate::tasks::task_files_enabled(&conn, &project_id);
 
-    // 5. Read and parse
-    let content = match std::fs::read_to_string(file_path) {
-        Ok(c) => c,
-        Err(e) => return McpToolResult::error(format!("Failed to read task file: {e}")),
-    };
-
-    let parsed = match crate::tasks::parse_task_file(&content, file_path) {
-        Ok(p) => p,
-        Err(e) => return McpToolResult::error(format!("Failed to parse task file: {e}")),
-    };
-
-    // 6. Replace or insert ## Implementation Plan section
+    // Helper: replace or insert ## Implementation Plan in a body string
     let plan_heading = "## Implementation Plan";
     let new_plan_section = format!("{plan_heading}\n\n{plan}");
 
-    let new_body = if let Some(plan_start) = parsed.body.find(plan_heading) {
-        // Find the end of the plan section (next ## heading or ## Agent History or end)
-        let after_plan = &parsed.body[plan_start + plan_heading.len()..];
-        let plan_end = after_plan
-            .find("\n## ")
-            .map(|pos| plan_start + plan_heading.len() + pos)
-            .unwrap_or(parsed.body.len());
+    let update_body = |existing_body: &str| -> String {
+        if let Some(plan_start) = existing_body.find(plan_heading) {
+            let after_plan = &existing_body[plan_start + plan_heading.len()..];
+            let plan_end = after_plan
+                .find("\n## ")
+                .map(|pos| plan_start + plan_heading.len() + pos)
+                .unwrap_or(existing_body.len());
 
-        let mut body = String::new();
-        body.push_str(&parsed.body[..plan_start]);
-        body.push_str(&new_plan_section);
-        if plan_end < parsed.body.len() {
-            body.push_str(&parsed.body[plan_end..]);
-        } else {
-            body.push('\n');
-        }
-        body
-    } else {
-        // No plan section — insert before ## Agent History or append
-        if let Some(history_pos) = parsed.body.find("## Agent History") {
             let mut body = String::new();
-            body.push_str(&parsed.body[..history_pos]);
+            body.push_str(&existing_body[..plan_start]);
+            body.push_str(&new_plan_section);
+            if plan_end < existing_body.len() {
+                body.push_str(&existing_body[plan_end..]);
+            } else {
+                body.push('\n');
+            }
+            body
+        } else if let Some(history_pos) = existing_body.find("## Agent History") {
+            let mut body = String::new();
+            body.push_str(&existing_body[..history_pos]);
             body.push_str(&new_plan_section);
             body.push_str("\n\n");
-            body.push_str(&parsed.body[history_pos..]);
+            body.push_str(&existing_body[history_pos..]);
             body
         } else {
-            let mut body = parsed.body.clone();
+            let mut body = existing_body.to_string();
             if !body.is_empty() && !body.ends_with('\n') {
                 body.push('\n');
             }
@@ -1007,14 +993,57 @@ async fn handle_update_task_plan(
         }
     };
 
-    // 7. Write back
-    match crate::tasks::serialize_task_file(&parsed.frontmatter, &new_body) {
-        Ok(content) => {
-            if let Err(e) = std::fs::write(file_path, content) {
-                return McpToolResult::error(format!("Failed to write task file: {e}"));
+    if disk_enabled {
+        // Disk mode: read/write task file
+        let file_path_str = match &task.task_file_path {
+            Some(p) => p.clone(),
+            None => return McpToolResult::error(format!("Task {task_id} has no task file")),
+        };
+        let file_path = std::path::Path::new(&file_path_str);
+
+        let content = match std::fs::read_to_string(file_path) {
+            Ok(c) => c,
+            Err(e) => return McpToolResult::error(format!("Failed to read task file: {e}")),
+        };
+
+        let parsed = match crate::tasks::parse_task_file(&content, file_path) {
+            Ok(p) => p,
+            Err(e) => return McpToolResult::error(format!("Failed to parse task file: {e}")),
+        };
+
+        let new_body = update_body(&parsed.body);
+
+        match crate::tasks::serialize_task_file(&parsed.frontmatter, &new_body) {
+            Ok(content) => {
+                if let Err(e) = std::fs::write(file_path, content) {
+                    return McpToolResult::error(format!("Failed to write task file: {e}"));
+                }
             }
+            Err(e) => return McpToolResult::error(format!("Failed to serialize task file: {e}")),
         }
-        Err(e) => return McpToolResult::error(format!("Failed to serialize task file: {e}")),
+    } else {
+        // DB-only mode: update body in database
+        let new_body = update_body(&task.body);
+        let new_task = db::models::NewTask {
+            id: task.id.clone(),
+            project_id: project_id.clone(),
+            task_file_path: None,
+            title: task.title.clone(),
+            status: Some(task.status.clone()),
+            priority: Some(task.priority.clone()),
+            agent: task.agent.clone(),
+            model: task.model.clone(),
+            branch: task.branch.clone(),
+            worktree_path: task.worktree_path.clone(),
+            github_issue: task.github_issue.clone(),
+            github_pr: task.github_pr.clone(),
+            depends_on: task.depends_on.clone(),
+            labels: task.labels.clone(),
+            body: new_body,
+        };
+        if let Err(e) = db::tasks::upsert(&conn, &new_task) {
+            return McpToolResult::error(format!("Failed to update task: {e}"));
+        }
     }
 
     McpToolResult::text(format!("Updated implementation plan for task {task_id}"))
@@ -1335,48 +1364,76 @@ async fn handle_create_task(
         Err(e) => return McpToolResult::error(format!("Failed to fetch project: {e}")),
     };
 
-    let tasks_dir = std::path::Path::new(&project.path)
-        .join(".agents")
-        .join("tasks");
+    let disk_enabled = crate::tasks::task_files_enabled(&conn, &project_id);
 
-    // 3. Create the task file
-    let task = match crate::tasks::create_task_file(&conn, &project_id, &tasks_dir, title, priority, body) {
-        Ok(t) => t,
-        Err(e) => return McpToolResult::error(format!("Failed to create task: {e}")),
+    // 3. Create the task (file + DB when disk enabled, DB-only otherwise)
+    let task = if disk_enabled {
+        let tasks_dir = std::path::Path::new(&project.path)
+            .join(".agents")
+            .join("tasks");
+        match crate::tasks::create_task_file(&conn, &project_id, &tasks_dir, title, priority, body) {
+            Ok(t) => t,
+            Err(e) => return McpToolResult::error(format!("Failed to create task: {e}")),
+        }
+    } else {
+        // DB-only mode: generate ID from DB, insert directly
+        let task_id = match crate::tasks::next_task_id_from_db(&conn, &project_id) {
+            Ok(id) => id,
+            Err(e) => return McpToolResult::error(format!("Failed to generate task ID: {e}")),
+        };
+        let default_body =
+            "## Objective\n\n\n\n## Acceptance Criteria\n\n- [ ] \n\n## Implementation Plan\n\n1. \n";
+        let body_content = body.unwrap_or(default_body);
+        let priority_val = priority.unwrap_or("P2");
+        let new_task = db::models::NewTask {
+            id: task_id,
+            project_id: project_id.clone(),
+            task_file_path: None,
+            title: title.to_string(),
+            status: None,
+            priority: Some(priority_val.parse().unwrap_or(db::models::Priority::P2)),
+            agent: None,
+            model: None,
+            branch: None,
+            worktree_path: None,
+            github_issue: None,
+            github_pr: None,
+            depends_on: vec![],
+            labels: vec![],
+            body: body_content.to_string(),
+        };
+        match db::tasks::upsert(&conn, &new_task) {
+            Ok(t) => t,
+            Err(e) => return McpToolResult::error(format!("Failed to create task: {e}")),
+        }
     };
 
     // 4. Update labels/depends_on if provided
-    if let Some(file_path) = &task.task_file_path {
-        let file_path = std::path::Path::new(file_path);
-        if file_path.is_file() {
-            // Update labels
-            if let Some(labels) = args.get("labels").and_then(|v| v.as_array()) {
-                let label_strs: Vec<String> = labels
-                    .iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect();
-                if !label_strs.is_empty() {
-                    if let Ok(content) = std::fs::read_to_string(file_path) {
-                        if let Ok(mut parsed) = crate::tasks::parse_task_file(&content, file_path) {
-                            parsed.frontmatter.labels = label_strs;
-                            if let Ok(new_content) = crate::tasks::serialize_task_file(&parsed.frontmatter, &parsed.body) {
-                                let _ = std::fs::write(file_path, new_content);
-                            }
-                        }
-                    }
-                }
-            }
+    let label_strs: Vec<String> = args
+        .get("labels")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
+    let dep_strs: Vec<String> = args
+        .get("depends_on")
+        .and_then(|v| v.as_array())
+        .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
+        .unwrap_or_default();
 
-            // Update depends_on
-            if let Some(deps) = args.get("depends_on").and_then(|v| v.as_array()) {
-                let dep_strs: Vec<String> = deps
-                    .iter()
-                    .filter_map(|v| v.as_str().map(String::from))
-                    .collect();
-                if !dep_strs.is_empty() {
+    if !label_strs.is_empty() || !dep_strs.is_empty() {
+        if disk_enabled {
+            // Update via file for disk mode
+            if let Some(file_path) = &task.task_file_path {
+                let file_path = std::path::Path::new(file_path);
+                if file_path.is_file() {
                     if let Ok(content) = std::fs::read_to_string(file_path) {
                         if let Ok(mut parsed) = crate::tasks::parse_task_file(&content, file_path) {
-                            parsed.frontmatter.depends_on = dep_strs;
+                            if !label_strs.is_empty() {
+                                parsed.frontmatter.labels = label_strs.clone();
+                            }
+                            if !dep_strs.is_empty() {
+                                parsed.frontmatter.depends_on = dep_strs.clone();
+                            }
                             if let Ok(new_content) = crate::tasks::serialize_task_file(&parsed.frontmatter, &parsed.body) {
                                 let _ = std::fs::write(file_path, new_content);
                             }
@@ -1384,6 +1441,26 @@ async fn handle_create_task(
                     }
                 }
             }
+        } else {
+            // Update via DB for DB-only mode
+            let new_task = db::models::NewTask {
+                id: task.id.clone(),
+                project_id: project_id.clone(),
+                task_file_path: None,
+                title: task.title.clone(),
+                status: Some(task.status.clone()),
+                priority: Some(task.priority.clone()),
+                agent: task.agent.clone(),
+                model: task.model.clone(),
+                branch: task.branch.clone(),
+                worktree_path: task.worktree_path.clone(),
+                github_issue: task.github_issue.clone(),
+                github_pr: task.github_pr.clone(),
+                depends_on: if !dep_strs.is_empty() { dep_strs } else { task.depends_on.clone() },
+                labels: if !label_strs.is_empty() { label_strs } else { task.labels.clone() },
+                body: task.body.clone(),
+            };
+            let _ = db::tasks::upsert(&conn, &new_task);
         }
     }
 

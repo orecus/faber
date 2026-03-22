@@ -122,6 +122,7 @@ export default React.memo(function ChatInput({
   const addAcpUserMessage = useAppStore((s) => s.addAcpUserMessage);
   const setAcpPromptPending = useAppStore((s) => s.setAcpPromptPending);
   const setAcpDraftText = useAppStore((s) => s.setAcpDraftText);
+  const setMcpStatus = useAppStore((s) => s.setMcpStatus);
   const draftText = useAppStore((s) => s.acpDraftText[sessionId] ?? "");
   const promptPending = useAppStore(
     (s) => s.acpPromptPending[sessionId] ?? false,
@@ -423,6 +424,12 @@ export default React.memo(function ChatInput({
       addAcpUserMessage(sessionId, text || (hasFiles ? `[${message.files.length} attachment(s)]` : ""), messageAttachments);
       setAcpPromptPending(sessionId, true);
 
+      // Clear waiting state immediately when user submits a response
+      setMcpStatus(sessionId, {
+        waiting: false,
+        waiting_question: undefined,
+      });
+
       try {
         // Convert FileUIPart[] to AttachmentPayload[] for the backend
         let attachments: { data: string; mime_type: string; filename: string; kind: string }[] | undefined;
@@ -446,7 +453,7 @@ export default React.memo(function ChatInput({
         setAcpPromptPending(sessionId, false);
       }
     },
-    [sessionId, addAcpUserMessage, setAcpPromptPending, setAcpDraftText, closeSuggestions],
+    [sessionId, addAcpUserMessage, setAcpPromptPending, setMcpStatus, setAcpDraftText, closeSuggestions],
   );
 
   const handleSubmit = useCallback(

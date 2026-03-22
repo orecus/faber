@@ -43,7 +43,9 @@ import {
   DialogTitle,
 } from "../ui/dialog";
 
-import type { AgentInfo, Project, SessionTransport } from "../../types";
+import { TaskFileConflictDialog } from "./TaskFileConflictDialog";
+
+import type { AgentInfo, Project, SessionTransport, TaskConflict } from "../../types";
 import type { ThemeColor } from "../ui/orecus.io/lib/color-utils";
 
 const TAB_COLORS: { value: ThemeColor; label: string }[] = [
@@ -173,6 +175,8 @@ export function ProjectSettingsDialog({
     useState<SessionTransport>("pty");
   const [worktreeAutoCleanup, setWorktreeAutoCleanup] = useState(false);
   const [taskFilesToDisk, setTaskFilesToDisk] = useState(true);
+  const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
+  const [taskConflicts, setTaskConflicts] = useState<TaskConflict[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
 
   // Load per-project settings
@@ -253,7 +257,24 @@ export function ProjectSettingsDialog({
   );
 
   const handleTaskFilesToDiskChange = useCallback(
-    (value: boolean) => {
+    async (value: boolean) => {
+      if (value) {
+        // Re-enabling: check for conflicts first
+        try {
+          const detected = await invoke<TaskConflict[]>(
+            "detect_task_conflicts",
+            { projectId },
+          );
+          if (detected.length > 0) {
+            setTaskConflicts(detected);
+            setConflictDialogOpen(true);
+            return; // Don't toggle yet — wait for resolution
+          }
+        } catch (e) {
+          console.error("Failed to detect conflicts:", e);
+        }
+      }
+      // Disabling or no conflicts: proceed normally
       setTaskFilesToDisk(value);
       invoke("set_project_setting", {
         projectId,
@@ -645,6 +666,22 @@ export function ProjectSettingsDialog({
           </div>
         </div>
       </DialogContent>
+
+      <TaskFileConflictDialog
+        open={conflictDialogOpen}
+        onClose={() => setConflictDialogOpen(false)}
+        onResolved={() => {
+          setTaskFilesToDisk(true);
+          invoke("set_project_setting", {
+            projectId,
+            key: "task_files_to_disk",
+            value: "true",
+          }).catch(() => {});
+          setConflictDialogOpen(false);
+        }}
+        projectId={projectId}
+        conflicts={taskConflicts}
+      />
     </Dialog>
   );
 }

@@ -112,7 +112,7 @@ pub fn all_tools() -> Vec<ToolDefinition> {
         },
         ToolDefinition {
             name: "report_complete".into(),
-            description: "Report that you have finished the task.".into(),
+            description: "Report that you have fully completed the task. Only call once per session when all work is done.".into(),
             input_schema: json!({
                 "type": "object",
                 "properties": {

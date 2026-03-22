@@ -1,4 +1,5 @@
 use std::collections::HashMap;
+use std::hash::{Hash, Hasher};
 use std::path::{Path, PathBuf};
 
 use rusqlite::Connection;
@@ -7,6 +8,42 @@ use serde::{Deserialize, Serialize};
 use crate::db;
 use crate::db::models::{NewTask, Priority, Task, TaskStatus};
 use crate::error::AppError;
+
+// ── Conflict detection types ──
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ConflictType {
+    DbOnly,
+    DiskOnly,
+    ContentDiffers,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct TaskConflict {
+    pub task_id: String,
+    pub title: String,
+    pub conflict_type: ConflictType,
+    /// Human-readable diffs for ContentDiffers (e.g., "status: done → in-progress")
+    pub diffs: Vec<String>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum ResolutionChoice {
+    UseDb,
+    UseDisk,
+    ImportToDb,
+    DeleteFromDisk,
+    ExportToDisk,
+    Skip,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct TaskResolution {
+    pub task_id: String,
+    pub choice: ResolutionChoice,
+}
 
 // ── Per-project setting helper ──
 
@@ -425,6 +462,305 @@ pub fn update_task_file_field(
     let new_content = serialize_task_file(&parsed.frontmatter, &parsed.body)?;
     std::fs::write(file_path, new_content)?;
     Ok(())
+}
+
+// ── Conflict detection ──
+
+/// Compute a hash of the comparable fields for a task (from either DB or disk).
+/// Uses a canonical string representation to avoid false positives from format differences.
+fn task_content_hash(
+    title: &str,
+    status: &str,
+    priority: &str,
+    agent: Option<&str>,
+    model: Option<&str>,
+    branch: Option<&str>,
+    depends_on: &[String],
+    labels: &[String],
+    body: &str,
+) -> u64 {
+    let mut hasher = std::hash::DefaultHasher::new();
+    title.hash(&mut hasher);
+    status.hash(&mut hasher);
+    priority.hash(&mut hasher);
+    agent.unwrap_or("").hash(&mut hasher);
+    model.unwrap_or("").hash(&mut hasher);
+    branch.unwrap_or("").hash(&mut hasher);
+    depends_on.hash(&mut hasher);
+    labels.hash(&mut hasher);
+    body.trim().hash(&mut hasher);
+    hasher.finish()
+}
+
+fn db_task_hash(task: &Task) -> u64 {
+    task_content_hash(
+        &task.title,
+        task.status.as_str(),
+        task.priority.as_str(),
+        task.agent.as_deref(),
+        task.model.as_deref(),
+        task.branch.as_deref(),
+        &task.depends_on,
+        &task.labels,
+        &task.body,
+    )
+}
+
+fn disk_task_hash(parsed: &ParsedTaskFile) -> u64 {
+    let fm = &parsed.frontmatter;
+    task_content_hash(
+        &fm.title,
+        &fm.status,
+        &fm.priority,
+        fm.agent.as_deref(),
+        fm.model.as_deref(),
+        fm.branch.as_deref(),
+        &fm.depends_on,
+        &fm.labels,
+        &parsed.body,
+    )
+}
+
+/// Compare a DB task and a parsed disk file, returning human-readable diffs.
+fn compute_diffs(task: &Task, parsed: &ParsedTaskFile) -> Vec<String> {
+    let fm = &parsed.frontmatter;
+    let mut diffs = Vec::new();
+
+    if task.title != fm.title {
+        diffs.push(format!("title: \"{}\" → \"{}\"", task.title, fm.title));
+    }
+    if task.status.as_str() != fm.status {
+        diffs.push(format!("status: {} → {}", task.status.as_str(), fm.status));
+    }
+    if task.priority.as_str() != fm.priority {
+        diffs.push(format!("priority: {} → {}", task.priority.as_str(), fm.priority));
+    }
+    if task.agent.as_deref() != fm.agent.as_deref() {
+        diffs.push(format!(
+            "agent: {} → {}",
+            task.agent.as_deref().unwrap_or("none"),
+            fm.agent.as_deref().unwrap_or("none")
+        ));
+    }
+    if task.model.as_deref() != fm.model.as_deref() {
+        diffs.push(format!(
+            "model: {} → {}",
+            task.model.as_deref().unwrap_or("none"),
+            fm.model.as_deref().unwrap_or("none")
+        ));
+    }
+    if task.body.trim() != parsed.body.trim() {
+        let db_lines = task.body.lines().count();
+        let disk_lines = parsed.body.lines().count();
+        diffs.push(format!("body: {db_lines} lines (DB) vs {disk_lines} lines (file)"));
+    }
+
+    diffs
+}
+
+/// Detect conflicts between DB tasks and disk files for a project.
+/// Returns a list of conflicts (empty if no conflicts).
+pub fn detect_task_conflicts(
+    conn: &Connection,
+    project_id: &str,
+    tasks_dir: &Path,
+) -> Result<Vec<TaskConflict>, AppError> {
+    let mut conflicts = Vec::new();
+
+    // Load all DB tasks for this project
+    let db_tasks = db::tasks::list_by_project(conn, project_id)?;
+    let db_map: HashMap<String, &Task> = db_tasks.iter().map(|t| (t.id.clone(), t)).collect();
+
+    // Scan disk files
+    let mut disk_map: HashMap<String, ParsedTaskFile> = HashMap::new();
+    if tasks_dir.is_dir() {
+        for entry in std::fs::read_dir(tasks_dir)?.flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("md") {
+                continue;
+            }
+            let content = match std::fs::read_to_string(&path) {
+                Ok(c) => c,
+                Err(_) => continue,
+            };
+            match parse_task_file(&content, &path) {
+                Ok(parsed) => {
+                    disk_map.insert(parsed.frontmatter.id.clone(), parsed);
+                }
+                Err(e) => {
+                    tracing::warn!(path = %path.display(), error = %e, "Skipping unparseable task file");
+                    continue;
+                }
+            }
+        }
+    }
+    tracing::debug!(project_id, db_count = db_map.len(), disk_count = disk_map.len(), "Conflict detection scan complete");
+
+    // Check DB tasks against disk
+    for (id, db_task) in &db_map {
+        match disk_map.get(id) {
+            None => {
+                // DB-only: no file on disk
+                conflicts.push(TaskConflict {
+                    task_id: id.clone(),
+                    title: db_task.title.clone(),
+                    conflict_type: ConflictType::DbOnly,
+                    diffs: vec![],
+                });
+            }
+            Some(parsed) => {
+                // Both exist: compare hashes
+                let db_h = db_task_hash(db_task);
+                let disk_h = disk_task_hash(parsed);
+                if db_h != disk_h {
+                    let diffs = compute_diffs(db_task, parsed);
+                    conflicts.push(TaskConflict {
+                        task_id: id.clone(),
+                        title: db_task.title.clone(),
+                        conflict_type: ConflictType::ContentDiffers,
+                        diffs,
+                    });
+                }
+                // If hashes match: no conflict, skip
+            }
+        }
+    }
+
+    // Check for disk-only files (not in DB)
+    for (id, parsed) in &disk_map {
+        if !db_map.contains_key(id) {
+            conflicts.push(TaskConflict {
+                task_id: id.clone(),
+                title: parsed.frontmatter.title.clone(),
+                conflict_type: ConflictType::DiskOnly,
+                diffs: vec![],
+            });
+        }
+    }
+
+    // Sort by task ID for consistent ordering
+    conflicts.sort_by(|a, b| a.task_id.cmp(&b.task_id));
+
+    Ok(conflicts)
+}
+
+/// Resolve task file conflicts based on user choices.
+/// Returns the number of tasks resolved.
+pub fn resolve_task_conflicts(
+    conn: &Connection,
+    project_id: &str,
+    tasks_dir: &Path,
+    resolutions: Vec<TaskResolution>,
+) -> Result<usize, AppError> {
+    std::fs::create_dir_all(tasks_dir)?;
+    let mut resolved = 0;
+
+    for res in &resolutions {
+        match res.choice {
+            ResolutionChoice::UseDb | ResolutionChoice::ExportToDisk => {
+                // Write DB task to disk
+                let task = match db::tasks::get(conn, &res.task_id, project_id)? {
+                    Some(t) => t,
+                    None => continue,
+                };
+                let slug = slugify(&task.title);
+                let filename = format!("{}-{slug}.md", task.id);
+                let file_path = tasks_dir.join(&filename);
+
+                let created = task.created_at.chars().take(10).collect::<String>();
+                let frontmatter = TaskFrontmatter {
+                    id: task.id.clone(),
+                    title: task.title.clone(),
+                    status: task.status.as_str().to_string(),
+                    priority: task.priority.as_str().to_string(),
+                    created,
+                    depends_on: task.depends_on.clone(),
+                    labels: task.labels.clone(),
+                    agent: task.agent.clone(),
+                    model: task.model.clone(),
+                    branch: task.branch.clone(),
+                    github_issue: task.github_issue.clone(),
+                    github_pr: task.github_pr.clone(),
+                };
+
+                let content = serialize_task_file(&frontmatter, &task.body)?;
+                std::fs::write(&file_path, &content)?;
+
+                // Update task_file_path in DB
+                let file_path_str = file_path.to_string_lossy().into_owned();
+                let new_task = db::models::NewTask {
+                    id: task.id.clone(),
+                    project_id: project_id.to_string(),
+                    task_file_path: Some(file_path_str),
+                    title: task.title.clone(),
+                    status: Some(task.status),
+                    priority: Some(task.priority),
+                    agent: task.agent.clone(),
+                    model: task.model.clone(),
+                    branch: task.branch.clone(),
+                    worktree_path: task.worktree_path.clone(),
+                    github_issue: task.github_issue.clone(),
+                    github_pr: task.github_pr.clone(),
+                    depends_on: task.depends_on.clone(),
+                    labels: task.labels.clone(),
+                    body: task.body.clone(),
+                };
+                db::tasks::upsert(conn, &new_task)?;
+
+                resolved += 1;
+            }
+            ResolutionChoice::UseDisk | ResolutionChoice::ImportToDb => {
+                // Read disk file and upsert to DB
+                // Find the file on disk for this task ID
+                let disk_file = find_task_file(tasks_dir, &res.task_id);
+                if let Some(path) = disk_file {
+                    let content = std::fs::read_to_string(&path)?;
+                    let parsed = parse_task_file(&content, &path)?;
+                    let mut new_task = to_new_task(&parsed, project_id);
+                    // Preserve DB-only fields from existing record
+                    if let Ok(Some(existing)) = db::tasks::get(conn, &new_task.id, project_id) {
+                        new_task.worktree_path = existing.worktree_path;
+                    }
+                    db::tasks::upsert(conn, &new_task)?;
+                    resolved += 1;
+                }
+            }
+            ResolutionChoice::DeleteFromDisk => {
+                // Delete orphan file from disk
+                let disk_file = find_task_file(tasks_dir, &res.task_id);
+                if let Some(path) = disk_file {
+                    std::fs::remove_file(&path)?;
+                    resolved += 1;
+                }
+            }
+            ResolutionChoice::Skip => {
+                // No action
+            }
+        }
+    }
+
+    Ok(resolved)
+}
+
+/// Find a task file on disk by task ID (scans directory for matching T-NNN prefix).
+fn find_task_file(tasks_dir: &Path, task_id: &str) -> Option<PathBuf> {
+    if !tasks_dir.is_dir() {
+        return None;
+    }
+    let prefix = format!("{task_id}-");
+    for entry in std::fs::read_dir(tasks_dir).ok()?.flatten() {
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+        if name_str.starts_with(&prefix) && name_str.ends_with(".md") {
+            return Some(entry.path());
+        }
+    }
+    // Also check for exact match (e.g., T-001.md without slug)
+    let exact = tasks_dir.join(format!("{task_id}.md"));
+    if exact.exists() {
+        return Some(exact);
+    }
+    None
 }
 
 // ── Tests ──

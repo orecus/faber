@@ -31,55 +31,67 @@ export default React.memo(function ChatPlanQueue({
 
   if (!planEntries || planEntries.length === 0) return null;
 
+  const progressPercent = (completedCount / planEntries.length) * 100;
+
   return (
-    <Queue className="mx-auto mb-0 w-3/4 rounded-b-none border-b-0 shadow-none bg-card/70 backdrop-blur-sm">
-      <QueueSection defaultOpen>
-        <QueueSectionTrigger>
-          <QueueSectionLabel
-            count={planEntries.length}
-            label="Tasks"
-            icon={<ListChecks className="size-3.5" />}
-          />
-          <span className="text-xs text-muted-foreground/60 tabular-nums">
-            {completedCount}/{planEntries.length}
-          </span>
-        </QueueSectionTrigger>
-        <QueueSectionContent>
-          <QueueList>
-            {planEntries.map((entry) => (
-              <QueueItem
-                key={entry.id}
-                className={
-                  entry.status === "in_progress"
-                    ? "bg-primary/5"
-                    : undefined
-                }
-              >
-                <div className="flex items-center gap-2">
-                  <QueueItemIndicator
-                    completed={entry.status === "completed"}
-                    className={
-                      entry.status === "in_progress"
-                        ? "border-primary bg-primary/20 animate-pulse"
-                        : undefined
-                    }
-                  />
-                  <QueueItemContent
-                    completed={entry.status === "completed"}
-                    className={
-                      entry.status === "in_progress"
-                        ? "text-foreground font-medium"
-                        : undefined
-                    }
-                  >
-                    {entry.title}
-                  </QueueItemContent>
-                </div>
-              </QueueItem>
-            ))}
-          </QueueList>
-        </QueueSectionContent>
-      </QueueSection>
-    </Queue>
+    <div className="absolute bottom-0 left-0 right-0 z-10 flex justify-center pointer-events-none">
+      <Queue className="w-3/4 rounded-b-none border-b-0 shadow-lg bg-card/80 backdrop-blur-md pointer-events-auto">
+        <QueueSection defaultOpen>
+          <QueueSectionTrigger>
+            <QueueSectionLabel
+              count={planEntries.length}
+              label="Tasks"
+              icon={<ListChecks className="size-3.5" />}
+            />
+            <div className="flex items-center gap-2.5 flex-1 justify-end">
+              <div className="h-1.5 flex-1 max-w-24 rounded-full bg-muted/50 overflow-hidden">
+                <div
+                  className="h-full rounded-full bg-primary transition-all duration-500 ease-out"
+                  style={{ width: `${progressPercent}%` }}
+                />
+              </div>
+              <span className="text-xs text-muted-foreground/60 tabular-nums">
+                {completedCount}/{planEntries.length}
+              </span>
+            </div>
+          </QueueSectionTrigger>
+          <QueueSectionContent>
+            <QueueList>
+              {planEntries.map((entry) => (
+                <QueueItem
+                  key={entry.id}
+                  className={
+                    entry.status === "in_progress"
+                      ? "bg-primary/5"
+                      : undefined
+                  }
+                >
+                  <div className="flex items-center gap-2">
+                    <QueueItemIndicator
+                      completed={entry.status === "completed"}
+                      className={
+                        entry.status === "in_progress"
+                          ? "border-primary bg-primary/20 animate-pulse"
+                          : undefined
+                      }
+                    />
+                    <QueueItemContent
+                      completed={entry.status === "completed"}
+                      className={
+                        entry.status === "in_progress"
+                          ? "text-foreground font-medium"
+                          : undefined
+                      }
+                    >
+                      {entry.title}
+                    </QueueItemContent>
+                  </div>
+                </QueueItem>
+              ))}
+            </QueueList>
+          </QueueSectionContent>
+        </QueueSection>
+      </Queue>
+    </div>
   );
 });

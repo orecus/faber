@@ -5,6 +5,26 @@ All notable changes to Faber will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.1] - 2026-03-xx WIP
+
+### Added
+
+- **Research Complete Bar** — Shows the agent's last message in a card above the action bar, with a Close Session button alongside Continue to Implementation and Dismiss
+- **Chat Waiting State Clear** — Submitting a response in ACP chat now immediately clears the waiting indicator
+- **Task File Conflict Resolution** — Re-enabling "Save tasks to disk" now detects conflicts between existing files and database tasks, and shows a dialog to resolve them before proceeding
+
+### Changed
+
+- **ACP Narration Grouping** — Faber MCP tool calls (report_status, report_progress, etc.) no longer split the agent's message into separate narration bubbles in the chat timeline
+- **ACP Tool Call Visibility** — Hidden tool list now applies consistently; removed obsolete `promote_session` tool references
+- **ACP Waiting Detection** — `report_waiting` tool now works in ACP mode by also parsing tool content (not just title JSON)
+- **CLAUDE.md** — Clarified `report_complete` instructions to prevent premature calls in continuous mode
+
+### Fixed
+
+- **MCP get_task Empty Body** — Fixed `get_task` MCP tool returning an empty body when tasks are not persisted to disk (DB-only mode). Now falls back to the database body instead of an empty string
+- **Save Tasks to Disk Toggle** — MCP tools (create task, update plan) now work correctly when "Save tasks to disk" is turned off, instead of silently failing
+
 ## [0.9.0] - 2026-03-21
 
 ### Added

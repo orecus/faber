@@ -1433,6 +1433,15 @@ export const useAppStore = create<AppState>()(
       // All session/worktree refreshes happen here. Components read from the store.
       const eventCleanups: Promise<() => void>[] = [];
 
+      // Debounce timers for research-complete overlay — wait until ACP message
+      // streaming stops before showing the overlay so the user sees the full message.
+      const researchCompleteTimers = new Map<string, ReturnType<typeof setTimeout>>();
+      const RESEARCH_COMPLETE_DEBOUNCE_MS = 1500;
+      cleanups.push(() => {
+        for (const timer of researchCompleteTimers.values()) clearTimeout(timer);
+        researchCompleteTimers.clear();
+      });
+
       // Guard flag to prevent duplicate event processing during React StrictMode
       // double-mount or HMR reloads. The Tauri `listen()` cleanup is async (returns
       // Promise<UnlistenFn>), so old listeners can briefly coexist with new ones.
@@ -1698,10 +1707,19 @@ export const useAppStore = create<AppState>()(
           get().refreshProjectBranches();
 
           // If this is a research session with a linked task, show the
-          // "Continue to Implementation" bar
+          // "Continue to Implementation" bar — but wait for streaming to stop
+          // so the user sees the complete final message.
           const session = get().sessions.find((s) => s.id === session_id);
           if (session?.mode === "research" && session.task_id) {
-            get().addResearchComplete(session_id);
+            const existing = researchCompleteTimers.get(session_id);
+            if (existing) clearTimeout(existing);
+            researchCompleteTimers.set(
+              session_id,
+              setTimeout(() => {
+                researchCompleteTimers.delete(session_id);
+                get().addResearchComplete(session_id);
+              }, RESEARCH_COMPLETE_DEBOUNCE_MS),
+            );
           }
         }),
       );
@@ -1731,14 +1749,28 @@ export const useAppStore = create<AppState>()(
               acpHadToolCallSinceChunk: { ...state.acpHadToolCallSinceChunk, [session_id]: false },
             }));
           }
+          // If a research-complete overlay is pending for this session,
+          // reset the debounce so we wait until streaming fully stops.
+          const pendingTimer = researchCompleteTimers.get(session_id);
+          if (pendingTimer) {
+            clearTimeout(pendingTimer);
+            researchCompleteTimers.set(
+              session_id,
+              setTimeout(() => {
+                researchCompleteTimers.delete(session_id);
+                get().addResearchComplete(session_id);
+              }, RESEARCH_COMPLETE_DEBOUNCE_MS),
+            );
+          }
         }),
       );
 
       eventCleanups.push(
         listen<AcpToolCall>("acp-tool-call", (event) => {
           if (disposed) return;
-          console.log("[ACP] tool-call", event.payload.session_id, event.payload.tool_call_id, event.payload.title, event.payload.kind, event.payload.status);
-          const { session_id, ...rest } = event.payload;
+          const { session_id, tool_call_id, title } = event.payload;
+          console.log("[ACP] tool-call", session_id, tool_call_id, title, event.payload.kind, event.payload.status);
+          const { session_id: _sid, ...rest } = event.payload;
           // Flush any pending thinking into a standalone block before the tool call
           get().flushAcpThinking(session_id);
           const msgs = get().acpMessages[session_id] ?? [];
@@ -1747,10 +1779,17 @@ export const useAppStore = create<AppState>()(
             messageIndex: msgs.length - 1,
             timestamp: Date.now(),
           });
-          // Mark that a tool call has occurred since the last message chunk
-          set((state) => ({
-            acpHadToolCallSinceChunk: { ...state.acpHadToolCallSinceChunk, [session_id]: true },
-          }));
+          // Only mark narration boundary for non-faber tool calls.
+          // Faber MCP tools (report_status, report_progress, etc.) are internal
+          // and shouldn't split the agent's message into separate narration bubbles.
+          const isFaber = /^mcp_faber_/.test(tool_call_id)
+            || /^mcp__faber__/.test(tool_call_id)
+            || /mcp__faber__/.test(title ?? "");
+          if (!isFaber) {
+            set((state) => ({
+              acpHadToolCallSinceChunk: { ...state.acpHadToolCallSinceChunk, [session_id]: true },
+            }));
+          }
         }),
       );
 

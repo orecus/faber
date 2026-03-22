@@ -381,6 +381,7 @@ export default React.memo(function SessionPane({
           <ResearchCompleteBar
             sessionId={session.id}
             taskId={session.task_id}
+            onCloseSession={onDismiss}
           />
         )}
 

@@ -53,32 +53,19 @@ import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
 import ContextCrease from "./ContextCrease";
 import ChatMessage from "./ChatMessage";
-import { parseToolMeta } from "./ToolCallCard";
+import { parseToolMeta, getFaberToolName } from "./ToolCallCard";
 
 import type { AcpChatMessage, AcpThinkingBlock, AcpToolCallState } from "../../types";
 
 // ── Faber MCP tool classification ──
+// getFaberToolName is imported from ToolCallCard.tsx (shared between both files)
 
 /** Tools that are purely internal — never shown in UI */
 const HIDDEN_TOOLS = new Set([
   "report_status", // ambient state, redundant with progress
   "get_task", "update_task_plan",
-  "list_tasks", "promote_session",
+  "list_tasks",
 ]);
-
-/** Extract the faber MCP tool name from a tool call, or null if not a faber tool. */
-function getFaberToolName(tc: AcpToolCallState): string | null {
-  const id = tc.tool_call_id;
-  const ptyMatch = id.match(/^mcp_faber_(.+)-\d+$/);
-  if (ptyMatch) return ptyMatch[1];
-  const acpMatch = id.match(/^mcp__faber__(.+)-\d+$/);
-  if (acpMatch) return acpMatch[1];
-  if (tc.title) {
-    const titleMatch = tc.title.match(/mcp__faber__(\w+)/);
-    if (titleMatch) return titleMatch[1];
-  }
-  return null;
-}
 
 /** Parse params/result from a tool call.
  * In ACP mode, the title is the tool name (e.g. "mcp__faber__create_task")

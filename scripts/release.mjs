@@ -24,7 +24,8 @@ const tauriDir = join(rootDir, "src-tauri");
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
 function run(cmd, opts = {}) {
-  return execSync(cmd, { encoding: "utf-8", cwd: rootDir, ...opts }).trim();
+  const result = execSync(cmd, { encoding: "utf-8", cwd: rootDir, ...opts });
+  return result == null ? "" : result.trim();
 }
 
 function fatal(msg) {

@@ -17,7 +17,6 @@ import {
   XCircle,
   Brain,
   Activity,
-  GitBranch,
   ListChecks,
   FileCheck,
   ExternalLink,
@@ -363,8 +362,6 @@ export function formatMcpTool(toolName: string, titleJson: string): ToolDisplay 
     case "list_tasks":
       return { icon: ClipboardList, label: "Listing tasks", informational: true };
 
-    case "promote_session":
-      return { icon: GitBranch, label: "Promoting to implementation", informational: true };
 
     default:
       return { icon: Wrench, label: titleJson || toolName };
@@ -927,38 +924,82 @@ function FallbackMeta({
 
 // ── Exported helpers ──
 
+// ── Faber MCP tool helpers ──
+
+/** Extract the faber MCP tool name from a tool call, or null if not a faber tool.
+ *  Handles both PTY-mode IDs (mcp_faber_<name>-<n>) and ACP-mode IDs
+ *  (mcp__faber__<name>-<n>), plus a title-based fallback for ACP agents.
+ */
+export function getFaberToolName(tc: AcpToolCallState): string | null {
+  const id = tc.tool_call_id;
+  const ptyMatch = id.match(/^mcp_faber_(.+)-\d+$/);
+  if (ptyMatch) return ptyMatch[1];
+  const acpMatch = id.match(/^mcp__faber__(.+)-\d+$/);
+  if (acpMatch) return acpMatch[1];
+  if (tc.title) {
+    const titleMatch = tc.title.match(/mcp__faber__(\w+)/);
+    if (titleMatch) return titleMatch[1];
+  }
+  return null;
+}
+
+/** Tools that are purely internal — never shown in the chat timeline. */
+const HIDDEN_FABER_TOOLS = new Set([
+  "report_status",     // ambient state, redundant with progress
+  "get_task",          // internal data fetch
+  "update_task_plan",  // plan update (shown via plan UI)
+  "list_tasks",        // internal data fetch
+]);
+
 /** Check if a tool call renders as an informational inline pill (for grouping in timeline). */
 export function isInformationalToolCall(toolCall: AcpToolCallState): boolean {
-  const match = toolCall.tool_call_id.match(/^mcp_faber_(.+)-\d+$/);
-  if (!match) return false;
-  const toolName = match[1];
+  const toolName = getFaberToolName(toolCall);
+  if (!toolName) return false;
   const INFORMATIONAL_TOOLS = new Set([
     "get_task", "report_progress", "update_task_plan", "update_task",
     "report_files_changed", "report_complete", "create_task", "list_tasks",
-    "promote_session",
   ]);
   return INFORMATIONAL_TOOLS.has(toolName);
 }
 
 /** Check if a tool call should be hidden from the timeline. */
 export function isHiddenToolCall(toolCall: AcpToolCallState): boolean {
-  const match = toolCall.tool_call_id.match(/^mcp_faber_(.+)-\d+$/);
-  if (!match) return false;
-  const toolName = match[1];
-  return toolName === "report_status";
+  const toolName = getFaberToolName(toolCall);
+  if (!toolName) return false;
+  return HIDDEN_FABER_TOOLS.has(toolName);
+}
+
+/** Check if a tool call is a faber MCP tool (hidden or visible).
+ *  Used to avoid narration splits on internal tool calls.
+ */
+export function isFaberToolCall(toolCall: AcpToolCallState): boolean {
+  return getFaberToolName(toolCall) !== null;
 }
 
 /** Check if a tool call is a report_waiting that should be shown as an agent message. */
 export function isWaitingToolCall(toolCall: AcpToolCallState): { question: string } | null {
-  const match = toolCall.tool_call_id.match(/^mcp_faber_(.+)-\d+$/);
-  if (!match || match[1] !== "report_waiting") return null;
+  const toolName = getFaberToolName(toolCall);
+  if (toolName !== "report_waiting") return null;
+  // In PTY mode, params are in the title; in ACP mode, they're in content
   try {
     const params = JSON.parse(toolCall.title);
     if (typeof params.question === "string") {
       return { question: params.question };
     }
   } catch {
-    // not valid JSON
+    // not valid JSON in title — try content (ACP mode)
+  }
+  if (toolCall.content?.length) {
+    for (const item of toolCall.content) {
+      if (item.type === "text") {
+        try {
+          const params = JSON.parse(item.text) as Record<string, unknown>;
+          if (typeof params.question === "string") {
+            return { question: params.question };
+          }
+        } catch { /* not JSON */ }
+      }
+    }
   }
   return null;
 }

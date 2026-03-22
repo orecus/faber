@@ -631,6 +631,64 @@ pub fn delete_task(
     Ok(())
 }
 
+// ── Task File Conflict Commands ──
+
+fn do_detect_task_conflicts(
+    conn: &rusqlite::Connection,
+    project_id: &str,
+) -> Result<Vec<tasks::TaskConflict>, AppError> {
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+    let tasks_dir = tasks_dir_for_project(&project.path);
+    tasks::detect_task_conflicts(conn, project_id, &tasks_dir)
+}
+
+fn do_resolve_task_conflicts(
+    conn: &rusqlite::Connection,
+    project_id: &str,
+    resolutions: Vec<tasks::TaskResolution>,
+) -> Result<(usize, Option<TodosUpdate>), AppError> {
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+    let tasks_dir = tasks_dir_for_project(&project.path);
+    let count = tasks::resolve_task_conflicts(conn, project_id, &tasks_dir, resolutions)?;
+    let todos = TodosUpdate::prepare(conn, project_id, Path::new(&project.path));
+    Ok((count, todos))
+}
+
+#[tauri::command]
+pub fn detect_task_conflicts(
+    state: State<'_, DbState>,
+    project_id: String,
+) -> Result<Vec<tasks::TaskConflict>, AppError> {
+    let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let conflicts = do_detect_task_conflicts(&conn, &project_id)?;
+    tracing::info!(
+        project_id = %project_id,
+        total = conflicts.len(),
+        db_only = conflicts.iter().filter(|c| matches!(c.conflict_type, tasks::ConflictType::DbOnly)).count(),
+        disk_only = conflicts.iter().filter(|c| matches!(c.conflict_type, tasks::ConflictType::DiskOnly)).count(),
+        content_differs = conflicts.iter().filter(|c| matches!(c.conflict_type, tasks::ConflictType::ContentDiffers)).count(),
+        "Task file conflict detection complete"
+    );
+    Ok(conflicts)
+}
+
+#[tauri::command]
+pub fn resolve_task_conflicts(
+    state: State<'_, DbState>,
+    project_id: String,
+    resolutions: Vec<tasks::TaskResolution>,
+) -> Result<usize, AppError> {
+    let (count, todos) = {
+        let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+        do_resolve_task_conflicts(&conn, &project_id, resolutions)?
+    };
+    tracing::info!(project_id = %project_id, resolved = count, "Task file conflicts resolved");
+    if let Some(t) = todos { t.write(); }
+    Ok(count)
+}
+
 // ── Task Activity Commands ──
 
 #[tauri::command]

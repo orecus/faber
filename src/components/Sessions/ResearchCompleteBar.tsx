@@ -1,23 +1,43 @@
-import { ArrowRight, FlaskConical, X } from "lucide-react";
-import React, { useCallback, useEffect, useState } from "react";
+import { ArrowRight, FlaskConical, Power, X } from "lucide-react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { useAppStore } from "../../store/appStore";
+import { MessageResponse } from "../ai-elements/message";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
 interface ResearchCompleteBarProps {
   sessionId: string;
   taskId: string;
+  onCloseSession: (sessionId: string) => void;
 }
 
 export default React.memo(function ResearchCompleteBar({
   sessionId,
   taskId,
+  onCloseSession,
 }: ResearchCompleteBarProps) {
   const accentColor = useProjectAccentColor();
   const dismissResearchComplete = useAppStore((s) => s.dismissResearchComplete);
   const setLaunchTaskForSession = useAppStore((s) => s.setLaunchTaskForSession);
   const mcpSummary = useAppStore((s) => s.mcpStatus[sessionId]?.summary);
+
+  // Get the last agent message from ACP chat state
+  const lastAgentMessage = useAppStore((s) => {
+    const msgs = s.acpMessages[sessionId];
+    if (!msgs) return null;
+    for (let i = msgs.length - 1; i >= 0; i--) {
+      if (msgs[i].role === "agent" && msgs[i].text) return msgs[i].text;
+    }
+    return null;
+  });
+
+  const messageEndRef = useRef<HTMLDivElement>(null);
+
+  // Auto-scroll to bottom when message updates
+  useEffect(() => {
+    messageEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [lastAgentMessage]);
 
   // Animate in after mount
   const [visible, setVisible] = useState(false);
@@ -35,6 +55,14 @@ export default React.memo(function ResearchCompleteBar({
     setTimeout(() => dismissResearchComplete(sessionId), 300);
   }, [sessionId, dismissResearchComplete]);
 
+  const handleCloseSession = useCallback(() => {
+    setVisible(false);
+    setTimeout(() => {
+      dismissResearchComplete(sessionId);
+      onCloseSession(sessionId);
+    }, 300);
+  }, [sessionId, dismissResearchComplete, onCloseSession]);
+
   const task = useAppStore((s) => s.tasks.find((t) => t.id === taskId));
 
   return (
@@ -48,14 +76,27 @@ export default React.memo(function ResearchCompleteBar({
         }`}
       />
 
-      {/* Centered card */}
+      {/* Centered card stack */}
       <div
-        className={`relative transition-all duration-300 ease-out w-[75%] ${
+        className={`relative transition-all duration-300 ease-out w-[85%] max-w-2xl flex flex-col gap-2 ${
           visible
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-95 translate-y-4"
         }`}
       >
+        {/* Agent's last message card */}
+        {lastAgentMessage && (
+          <div className="rounded-xl bg-card/95 backdrop-blur-md ring-1 ring-border/50 shadow-2xl overflow-hidden">
+            <div className="px-4 py-3 max-h-[40vh] overflow-y-auto text-sm">
+              <MessageResponse mode="static">
+                {lastAgentMessage}
+              </MessageResponse>
+              <div ref={messageEndRef} />
+            </div>
+          </div>
+        )}
+
+        {/* Action card */}
         <div className="rounded-xl bg-card/95 backdrop-blur-md ring-1 ring-border/50 shadow-2xl overflow-hidden">
           {/* Accent top border */}
           <div
@@ -96,6 +137,16 @@ export default React.memo(function ResearchCompleteBar({
                 className="h-7 text-[12px]"
               >
                 Continue to Implementation
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={handleCloseSession}
+                leftIcon={<Power className="size-3" />}
+                className="h-7 text-[12px] text-muted-foreground"
+                title="Close session"
+              >
+                Close
               </Button>
               <Button
                 variant="ghost"
