@@ -151,6 +151,8 @@ interface AppState {
   agentLoadSessionSupported: Record<string, boolean>;
   /** Loading state per "agent:project_id" key */
   agentSessionListLoading: Record<string, boolean>;
+  /** Timestamp of last successful fetch per "agent:project_id" key */
+  agentSessionListFetchedAt: Record<string, number>;
 
   backgroundTasks: string[];
   errorFlash: string | null;
@@ -339,6 +341,7 @@ export const useAppStore = create<AppState>()(
     agentSessionListSupported: {},
     agentLoadSessionSupported: {},
     agentSessionListLoading: {},
+    agentSessionListFetchedAt: {},
     backgroundTasks: [],
     errorFlash: null,
     sidebarCollapsed: false,
@@ -865,6 +868,7 @@ export const useAppStore = create<AppState>()(
           agentSessionListSupported: { ...s.agentSessionListSupported, [agentName]: result.supported },
           agentLoadSessionSupported: { ...s.agentLoadSessionSupported, [agentName]: result.load_session_supported },
           agentSessionListLoading: { ...s.agentSessionListLoading, [key]: false },
+          agentSessionListFetchedAt: { ...s.agentSessionListFetchedAt, [key]: Date.now() },
         }));
         // Persist "not supported" so we don't re-probe on next launch
         // Only persist negative results — positive results may change if agent downgrades

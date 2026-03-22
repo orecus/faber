@@ -27,7 +27,7 @@ import ChatPane from "./ChatPane";
 import ThreadStatusBadge from "./ThreadStatusBadge";
 
 import type { NarrationMode } from "./ChatPane";
-import type { AgentSessionInfo, Session } from "../../types";
+import type { AgentSessionInfo, Session, SessionMode } from "../../types";
 
 /** Format an ISO timestamp to a relative time string. */
 function formatRelativeTime(isoString: string | null): string {
@@ -45,6 +45,33 @@ function formatRelativeTime(isoString: string | null): string {
   if (diffDays < 7) return `${diffDays}d ago`;
   return date.toLocaleDateString();
 }
+
+/** Assign a date group label for grouping session items. */
+function getDateGroup(isoString: string | null): string {
+  if (!isoString) return "Older";
+  const date = new Date(isoString);
+  const now = new Date();
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
+  if (date >= startOfToday) return "Today";
+  if (date >= startOfYesterday) return "Yesterday";
+  return "Older";
+}
+
+/** Faber metadata matched from active sessions by acp_session_id. */
+interface FaberSessionMeta {
+  mode: SessionMode;
+  taskId: string | null;
+  isActive: boolean;
+}
+
+const MODE_CONFIG: Record<string, { label: string; className: string }> = {
+  chat: { label: "Chat", className: "bg-primary/15 text-primary" },
+  vibe: { label: "Vibe", className: "bg-violet-500/15 text-violet-400" },
+  task: { label: "Task", className: "bg-success/15 text-success" },
+  research: { label: "Research", className: "bg-warning/15 text-warning" },
+  shell: { label: "Shell", className: "bg-muted text-muted-foreground" },
+};
 
 /**
  * ChatView — project-scoped chat view.
@@ -72,6 +99,9 @@ const ChatView = memo(function ChatView() {
   );
   const agentSessionListLoading = useAppStore(
     (s) => s.agentSessionListLoading,
+  );
+  const agentSessionListFetchedAt = useAppStore(
+    (s) => s.agentSessionListFetchedAt,
   );
 
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
@@ -131,22 +161,26 @@ const ChatView = memo(function ChatView() {
     ? (agentLoadSessionSupported[selectedAgentName] ?? true)
     : true;
 
-  // Auto-fetch session list when empty state is shown
+  // Auto-fetch session list when empty state is shown or cache is stale (>60s)
+  const SESSION_LIST_TTL_MS = 60_000;
   useEffect(() => {
-    if (
-      !chatSession &&
-      selectedAgentName &&
-      activeProjectId &&
-      sessionHistory === null &&
-      !isListLoading
-    ) {
-      fetchAgentSessionList(selectedAgentName, activeProjectId);
+    if (!chatSession && selectedAgentName && activeProjectId && !isListLoading) {
+      const fetchedAt = sessionListKey
+        ? (agentSessionListFetchedAt[sessionListKey] ?? 0)
+        : 0;
+      const isStale =
+        sessionHistory === null || Date.now() - fetchedAt > SESSION_LIST_TTL_MS;
+      if (isStale) {
+        fetchAgentSessionList(selectedAgentName, activeProjectId);
+      }
     }
   }, [
     chatSession,
     selectedAgentName,
     activeProjectId,
     sessionHistory,
+    sessionListKey,
+    agentSessionListFetchedAt,
     isListLoading,
     fetchAgentSessionList,
   ]);
@@ -296,6 +330,23 @@ const ChatView = memo(function ChatView() {
       retryAgentSessionList(selectedAgentName, activeProjectId);
     }
   }, [selectedAgentName, activeProjectId, retryAgentSessionList]);
+
+  // Cross-reference: map agent session IDs to Faber session metadata for enrichment.
+  // Only active sessions are in the store (DB deletes on close), so this enriches
+  // currently-running sessions. Historical enrichment requires T-102 (history table).
+  const acpSessionMap = useMemo(() => {
+    const map = new Map<string, FaberSessionMeta>();
+    for (const s of sessions) {
+      if (s.acp_session_id && s.project_id === activeProjectId) {
+        map.set(s.acp_session_id, {
+          mode: s.mode,
+          taskId: s.task_id,
+          isActive: s.status === "running" || s.status === "starting",
+        });
+      }
+    }
+    return map;
+  }, [sessions, activeProjectId]);
 
   // Whether to show the session history sidebar
   const showHistory =
@@ -492,6 +543,7 @@ const ChatView = memo(function ChatView() {
       {showHistory && (
         <SessionHistorySidebar
           sessions={filteredSessions}
+          acpSessionMap={acpSessionMap}
           isLoading={isListLoading}
           isSupported={isListSupported}
           isLoadSupported={isLoadSupported}
@@ -509,9 +561,47 @@ const ChatView = memo(function ChatView() {
   );
 });
 
-/** Right-side session history panel with search and scrollable list. */
+/** Skeleton placeholder row matching SessionHistoryItem shape. */
+const SessionItemSkeleton = memo(function SessionItemSkeleton({
+  widthClass,
+}: {
+  widthClass: string;
+}) {
+  return (
+    <div className="px-3 py-2.5 border-b border-border/10">
+      <div className="flex items-center gap-2 mb-1.5">
+        <div
+          className={cn(
+            "h-3.5 rounded bg-muted-foreground/10 animate-pulse",
+            widthClass,
+          )}
+        />
+      </div>
+      <div className="h-3 w-16 rounded bg-muted-foreground/[0.06] animate-pulse" />
+    </div>
+  );
+});
+
+/** Date group header between session items. */
+const DateGroupHeader = memo(function DateGroupHeader({
+  label,
+}: {
+  label: string;
+}) {
+  return (
+    <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
+      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+        {label}
+      </span>
+      <div className="flex-1 h-px bg-border/20" />
+    </div>
+  );
+});
+
+/** Right-side session history panel with search, skeletons, and date-grouped list. */
 const SessionHistorySidebar = memo(function SessionHistorySidebar({
   sessions,
+  acpSessionMap,
   isLoading,
   isSupported,
   isLoadSupported,
@@ -525,6 +615,7 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
   hasData,
 }: {
   sessions: AgentSessionInfo[];
+  acpSessionMap: Map<string, FaberSessionMeta>;
   isLoading: boolean;
   isSupported: boolean;
   isLoadSupported: boolean;
@@ -538,6 +629,23 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
   hasData: boolean;
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
+
+  // Group sessions by date (skip grouping when search is active)
+  const groupedSessions = useMemo(() => {
+    if (!sessions.length || searchFilter) return null;
+    const groups: { label: string; items: AgentSessionInfo[] }[] = [];
+    let currentLabel = "";
+    for (const s of sessions) {
+      const label = getDateGroup(s.updated_at);
+      if (label !== currentLabel) {
+        currentLabel = label;
+        groups.push({ label, items: [s] });
+      } else {
+        groups[groups.length - 1].items.push(s);
+      }
+    }
+    return groups;
+  }, [sessions, searchFilter]);
 
   return (
     <div className="flex flex-col w-72 shrink-0 border-l border-border/40 min-h-0">
@@ -563,8 +671,8 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
         </button>
       </div>
 
-      {/* Search bar — always visible when there's data */}
-      {hasData && isSupported && (
+      {/* Search bar — always visible when supported (shown during loading for layout stability) */}
+      {(hasData || isLoading) && isSupported && (
         <div className="flex items-center gap-2 px-3 py-2 border-b border-border/20 shrink-0">
           <Search size={12} className="text-muted-foreground/50 shrink-0" />
           <input
@@ -588,16 +696,14 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
 
       {/* Content area — scrollable */}
       <div className="flex-1 min-h-0 overflow-y-auto">
-        {/* Loading state */}
+        {/* Skeleton loading state */}
         {isLoading && !hasData && (
-          <div className="flex items-center justify-center gap-2 py-10">
-            <Loader2
-              size={14}
-              className="animate-spin text-muted-foreground"
-            />
-            <span className="text-xs text-muted-foreground">
-              Loading sessions...
-            </span>
+          <div className="pt-1">
+            <SessionItemSkeleton widthClass="w-3/4" />
+            <SessionItemSkeleton widthClass="w-1/2" />
+            <SessionItemSkeleton widthClass="w-5/6" />
+            <SessionItemSkeleton widthClass="w-2/3" />
+            <SessionItemSkeleton widthClass="w-3/5" />
           </div>
         )}
 
@@ -622,10 +728,19 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
           hasData &&
           sessions.length === 0 &&
           !searchFilter && (
-            <div className="flex flex-col items-center gap-1.5 py-10">
-              <MessageCircle size={16} className="text-muted-foreground/40" />
-              <p className="text-xs text-muted-foreground">
-                No previous sessions
+            <div className="flex flex-col items-center gap-2 py-10 px-4">
+              <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-muted/50">
+                <MessageCircle
+                  size={16}
+                  className="text-muted-foreground/40"
+                />
+              </div>
+              <p className="text-xs text-muted-foreground text-center">
+                No previous sessions yet.
+                <br />
+                <span className="text-muted-foreground/60">
+                  Start a new chat to get going.
+                </span>
               </p>
             </div>
           )}
@@ -640,34 +755,54 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
                 No sessions matching
               </p>
               <p className="text-xs text-foreground font-medium truncate max-w-full">
-                "{searchFilter}"
+                &ldquo;{searchFilter}&rdquo;
               </p>
             </div>
           )}
 
-        {/* Session list */}
-        {hasData &&
-          isSupported &&
-          sessions.length > 0 &&
-          sessions.map((session) => (
-            <SessionHistoryItem
-              key={session.session_id}
-              session={session}
-              onResumeInChat={onResumeInChat}
-              onLaunchAsSession={onLaunchAsSession}
-              isResuming={resumingId === session.session_id}
-              isDisabled={resumingId !== null}
-              isLoadSupported={isLoadSupported}
-            />
-          ))}
+        {/* Date-grouped session list */}
+        {hasData && isSupported && sessions.length > 0 && groupedSessions
+          ? groupedSessions.map((group) => (
+              <div key={group.label}>
+                <DateGroupHeader label={group.label} />
+                {group.items.map((session) => (
+                  <SessionHistoryItem
+                    key={session.session_id}
+                    session={session}
+                    faberMeta={acpSessionMap.get(session.session_id)}
+                    onResumeInChat={onResumeInChat}
+                    onLaunchAsSession={onLaunchAsSession}
+                    isResuming={resumingId === session.session_id}
+                    isDisabled={resumingId !== null}
+                    isLoadSupported={isLoadSupported}
+                  />
+                ))}
+              </div>
+            ))
+          : hasData &&
+            isSupported &&
+            sessions.length > 0 &&
+            sessions.map((session) => (
+              <SessionHistoryItem
+                key={session.session_id}
+                session={session}
+                faberMeta={acpSessionMap.get(session.session_id)}
+                onResumeInChat={onResumeInChat}
+                onLaunchAsSession={onLaunchAsSession}
+                isResuming={resumingId === session.session_id}
+                isDisabled={resumingId !== null}
+                isLoadSupported={isLoadSupported}
+              />
+            ))}
       </div>
     </div>
   );
 });
 
-/** Individual session row in the history list with dual actions. */
+/** Individual session row with mode badge, task link, active indicator, and actions. */
 const SessionHistoryItem = memo(function SessionHistoryItem({
   session,
+  faberMeta,
   onResumeInChat,
   onLaunchAsSession,
   isResuming,
@@ -675,6 +810,7 @@ const SessionHistoryItem = memo(function SessionHistoryItem({
   isLoadSupported,
 }: {
   session: AgentSessionInfo;
+  faberMeta: FaberSessionMeta | undefined;
   onResumeInChat: (sessionId: string) => void;
   onLaunchAsSession: (sessionId: string) => void;
   isResuming: boolean;
@@ -682,69 +818,89 @@ const SessionHistoryItem = memo(function SessionHistoryItem({
   isLoadSupported: boolean;
 }) {
   const actionsDisabled = isDisabled || !isLoadSupported;
+  const modeConfig = faberMeta ? MODE_CONFIG[faberMeta.mode] : null;
 
   return (
     <div
       className={cn(
-        "group px-3 py-2.5 border-b border-border/10 last:border-b-0",
+        "group flex items-start gap-2 px-3 py-2.5 border-b border-border/10 last:border-b-0",
         "hover:bg-accent/30 transition-colors",
         isDisabled && !isResuming && "opacity-50 pointer-events-none",
       )}
     >
-      {/* Session info */}
-      <div className="min-w-0 mb-1.5">
-        <p className="text-xs font-medium text-foreground truncate">
-          {session.title || "Untitled session"}
-        </p>
-        {session.updated_at && (
-          <p className="flex items-center gap-1 text-[11px] text-muted-foreground mt-0.5">
-            <Clock size={10} className="shrink-0" />
-            {formatRelativeTime(session.updated_at)}
+      {/* Content */}
+      <div className="flex-1 min-w-0">
+        {/* Title row with badges */}
+        <div className="flex items-center gap-1.5 min-w-0">
+          {/* Active indicator */}
+          {faberMeta?.isActive && (
+            <span
+              className="shrink-0 w-1.5 h-1.5 rounded-full bg-success"
+              title="Active in Faber"
+            />
+          )}
+          <p className="text-xs font-medium text-foreground truncate">
+            {session.title || "Untitled session"}
           </p>
-        )}
+        </div>
+
+        {/* Meta row: time, mode badge, task ID */}
+        <div className="flex items-center gap-1.5 mt-0.5">
+          {session.updated_at && (
+            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+              <Clock size={9} className="shrink-0" />
+              {formatRelativeTime(session.updated_at)}
+            </span>
+          )}
+          {modeConfig && (
+            <span
+              className={cn(
+                "inline-flex items-center px-1.5 py-px rounded text-[9px] font-medium leading-tight",
+                modeConfig.className,
+              )}
+            >
+              {modeConfig.label}
+            </span>
+          )}
+          {faberMeta?.taskId && (
+            <span className="inline-flex items-center px-1 py-px rounded bg-accent/60 text-[9px] font-mono text-dim-foreground leading-tight">
+              {faberMeta.taskId}
+            </span>
+          )}
+        </div>
       </div>
 
-      {/* Action buttons — appear on hover */}
-      <div
-        className={cn(
-          "flex items-center gap-1.5 transition-all",
-          "opacity-0 max-h-0 group-hover:opacity-100 group-hover:max-h-8 overflow-hidden",
-          isResuming && "opacity-100 max-h-8",
-        )}
-      >
+      {/* Action buttons — always visible, compact icon buttons */}
+      <div className="flex items-center gap-0.5 shrink-0 pt-0.5">
         {isResuming ? (
-          <span className="flex items-center gap-1.5 text-[11px] text-muted-foreground">
-            <Loader2 size={11} className="animate-spin" />
-            Resuming...
-          </span>
+          <Loader2 size={12} className="animate-spin text-muted-foreground" />
         ) : (
           <>
             <button
               onClick={() => onResumeInChat(session.session_id)}
               disabled={actionsDisabled}
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors",
+                "p-1 rounded transition-colors",
                 isLoadSupported
-                  ? "text-muted-foreground hover:text-primary hover:bg-primary/10"
-                  : "text-muted-foreground/40 cursor-not-allowed",
+                  ? "text-muted-foreground/50 hover:text-primary hover:bg-primary/10"
+                  : "text-muted-foreground/20 cursor-not-allowed",
               )}
               title={
                 isLoadSupported
-                  ? "Resume in chat view"
+                  ? "Resume in chat"
                   : "This agent doesn't support resuming sessions"
               }
             >
-              <MessageCircle size={11} />
-              Resume
+              <MessageCircle size={12} />
             </button>
             <button
               onClick={() => onLaunchAsSession(session.session_id)}
               disabled={actionsDisabled}
               className={cn(
-                "flex items-center gap-1 px-2 py-1 rounded text-[11px] font-medium transition-colors",
+                "p-1 rounded transition-colors",
                 isLoadSupported
-                  ? "text-muted-foreground hover:text-foreground hover:bg-accent/50"
-                  : "text-muted-foreground/40 cursor-not-allowed",
+                  ? "text-muted-foreground/50 hover:text-foreground hover:bg-accent/50"
+                  : "text-muted-foreground/20 cursor-not-allowed",
               )}
               title={
                 isLoadSupported
@@ -752,8 +908,7 @@ const SessionHistoryItem = memo(function SessionHistoryItem({
                   : "This agent doesn't support resuming sessions"
               }
             >
-              <ExternalLink size={11} />
-              Session
+              <ExternalLink size={12} />
             </button>
           </>
         )}
