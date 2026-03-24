@@ -1,6 +1,6 @@
 [package]
 name = "faber"
-version = "0.9.0"
+version = "0.9.1"
 description = "Faber - The AI Architect for your codebase"
 authors = ["you"]
 edition = "2021"
