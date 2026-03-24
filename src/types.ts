@@ -2,8 +2,16 @@
 // Fields are snake_case (Tauri 2 / serde does NOT convert to camelCase).
 
 export type TaskStatus = "backlog" | "ready" | "in-progress" | "in-review" | "done" | "archived";
-export type Priority = "P0" | "P1" | "P2";
-export type SessionMode = "task" | "vibe" | "shell" | "research" | "chat";
+export type TaskType = "task" | "epic";
+export type Priority = string;
+
+export interface PriorityLevel {
+  id: string;
+  label: string;
+  color: string;
+  order: number;
+}
+export type SessionMode = "task" | "vibe" | "shell" | "research" | "chat" | "breakdown";
 export type SessionTransport = "pty" | "acp";
 export type SessionStatus = "starting" | "running" | "paused" | "stopped" | "finished" | "error";
 export type ViewId = "dashboard" | "sessions" | "chat" | "task-detail" | "review" | "github" | "skills-rules" | "help";
@@ -36,6 +44,8 @@ export interface Task {
   title: string;
   status: TaskStatus;
   priority: Priority;
+  task_type: TaskType;
+  epic_id: string | null;
   agent: string | null;
   model: string | null;
   branch: string | null;
@@ -420,43 +430,66 @@ export interface AcpMessageAttachment {
   url: string;
 }
 
+// ── Flat typed-entry model ──
+// Every ACP event is stored as a single entry in a flat array per session.
+// Grouping/display modes are pure view-layer transforms.
+
+interface AcpEntryBase {
+  id: string;
+  timestamp: number;
+  /** Increments on each user message — used for cycle grouping. */
+  turnIndex: number;
+}
+
+export interface AcpUserMessage extends AcpEntryBase {
+  type: "user-message";
+  text: string;
+  attachments?: AcpMessageAttachment[];
+}
+
+export interface AcpAgentText extends AcpEntryBase {
+  type: "agent-text";
+  text: string;
+  streaming: boolean;
+  /** Whether this message represents an error (e.g. ACP prompt failure). */
+  isError?: boolean;
+}
+
+export interface AcpToolCallEntry extends AcpEntryBase {
+  type: "tool-call";
+  tool_call_id: string;
+  title: string;
+  kind: string;
+  status: string; // "pending" | "in_progress" | "completed" | "failed"
+  content?: ToolCallContentItem[];
+}
+
+export interface AcpThinkingEntry extends AcpEntryBase {
+  type: "thinking";
+  text: string;
+  streaming: boolean;
+  /** Duration in seconds of the thinking phase. */
+  duration?: number;
+}
+
+export type AcpEntry = AcpUserMessage | AcpAgentText | AcpToolCallEntry | AcpThinkingEntry;
+
+// ── Legacy type aliases (for components that still reference them) ──
+
+/** @deprecated Use AcpToolCallEntry instead */
+export type AcpToolCallState = AcpToolCallEntry;
+
+/** @deprecated Use AcpThinkingEntry instead */
+export type AcpThinkingBlock = AcpThinkingEntry;
+
+/** @deprecated Use AcpAgentText or AcpUserMessage instead */
 export interface AcpChatMessage {
   id: string;
   role: "user" | "agent";
   text: string;
   timestamp: number;
-  /** Attachments sent with this user message. */
   attachments?: AcpMessageAttachment[];
-  /** Thinking/reasoning text that preceded this agent message (populated when thinking stream completes). */
-  thinkingText?: string;
-  /** Duration in seconds of the thinking phase, if any. */
-  thinkingDuration?: number;
-  /** Whether this message represents an error (e.g. ACP prompt failure). */
   isError?: boolean;
-  /** Whether this message is inter-tool narration (agent text between tool calls, not the final response). */
-  isNarration?: boolean;
-}
-
-export interface AcpToolCallState {
-  tool_call_id: string;
-  title: string;
-  kind: string;
-  status: string; // "pending" | "in_progress" | "completed" | "failed"
-  /** Index of the agent message this tool call is associated with. */
-  messageIndex: number;
-  /** Arrival timestamp for chronological ordering in the timeline. */
-  timestamp: number;
-  /** Content produced by the tool call (code, diffs, terminal output). */
-  content?: ToolCallContentItem[];
-}
-
-/** A standalone thinking/reasoning block, positioned chronologically in the timeline. */
-export interface AcpThinkingBlock {
-  id: string;
-  text: string;
-  timestamp: number;
-  /** Duration in seconds of the thinking phase. */
-  duration?: number;
 }
 
 // ── ACP Capabilities ──

@@ -29,42 +29,124 @@ use crate::tasks;
 
 // ── MCP tool descriptions (shared between system prompt and instruction files) ──
 
-/// Core MCP tool description shared by both the system prompt and instruction file section.
-/// This is the single source of truth — both constants below are derived from it.
-const MCP_TOOLS_DESCRIPTION: &str = "\
+/// Universal status tools description — available in all session modes.
+const MCP_TOOLS_UNIVERSAL: &str = "\
 You have MCP tools provided by the Faber IDE for reporting your progress. \
-You MUST use them throughout your workflow:
+You MUST use them throughout your workflow.
 
-- `report_status(status, message, activity?)` — Call when you start working (status: \"working\"). Optional activity: \"researching\", \"exploring\", \"planning\", \"coding\", \"testing\", \"debugging\", \"reviewing\".
-- `report_progress(current_step, total_steps, description)` — Call before each step
-- `report_files_changed(files)` — Call after modifying files
-- `report_error(error, details?)` — Call if you encounter an error or blocker
-- `report_waiting(question)` — Call if you need user input
-- `report_complete(summary)` — Call ONLY once when the task is fully complete. Do NOT call prematurely
-- `get_task(task_id?)` — Fetch task metadata and body. Omit task_id to get current session's task.
-- `update_task(task_id?, status?, priority?, title?, labels?, depends_on?, github_issue?, github_pr?)` — Update task metadata (status, priority, labels, etc.). Omit task_id to use current session's task.
+## Status Reporting (required)
+
+- `report_status(status, message, activity?)` — Call FIRST when you start working (status: \"working\"). Call again when your activity changes. Activity options: \"researching\", \"exploring\", \"planning\", \"coding\", \"testing\", \"debugging\", \"reviewing\".
+- `report_progress(current_step, total_steps, description)` — Call before each major step so the IDE shows a progress bar.
+- `report_files_changed(files)` — Call after modifying files so the IDE can track changes.
+- `report_error(error, details?)` — Call if you hit a hard blocker (build failure, missing dependency, etc.). After calling this, STOP and wait for the user.
+- `report_waiting(question)` — Call if you need user input or a decision. After calling this, STOP and wait — the session pauses until the user responds.";
+
+/// Task management tools description — only for task-linked sessions.
+const MCP_TOOLS_TASK: &str = "
+
+## Task Management
+
+- `get_task(task_id?)` — Fetch task metadata and body. Omit task_id to get the current session's task. Call this first to understand what you need to work on.
+- `update_task(task_id?, status?, priority?, title?, labels?, depends_on?, github_issue?, github_pr?)` — Update task metadata (status, priority, labels, etc.).
 - `update_task_plan(plan, task_id?)` — Update the implementation plan in the task file.
-- `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task in the current project (always created as backlog).
-- `list_tasks(status?, label?)` — List all tasks in the current project with optional filters. Returns compact metadata (no body).
+- `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task (always created as backlog).
+- `list_tasks(status?, label?)` — List all tasks in the current project with optional filters.";
 
-Always call `report_status` first, then `report_progress` as you work, \
-and `report_complete` when done.";
+/// Task completion tool description — only for task/continuous sessions.
+const MCP_TOOLS_COMPLETION: &str = "
+
+## Completing Work
+
+- `report_complete(summary)` — Call ONLY ONCE when ALL work is done (code written, tested, verified). \
+This is a terminal action: the task moves to 'in-review' and in continuous mode the next task auto-launches. \
+Do NOT call prematurely. If you need input, use `report_waiting`. If blocked, use `report_error`.";
+
+/// Research session completion guidance — uses report_researched instead of report_complete.
+const MCP_TOOLS_RESEARCH_LIFECYCLE: &str = "
+
+## Completing Research
+
+- `report_researched(summary)` — Call when your research and analysis is complete. \
+Make sure to save your findings using `update_task_plan` before calling this. \
+The user will be prompted to decide whether to continue to implementation.";
+
+/// Breakdown session guidance — used instead of MCP_TOOLS_COMPLETION for breakdown mode.
+const MCP_TOOLS_BREAKDOWN_LIFECYCLE: &str = "
+
+## Completing Breakdown
+
+Break the epic into concrete child tasks using `create_task` with the `epic_id` parameter. \
+Present the breakdown plan to the user before creating tasks. \
+There is no `report_complete` tool in breakdown mode — the user will review the created tasks.";
+
+/// Build the lifecycle instructions section for a given session mode.
+const MCP_TOOLS_LIFECYCLE_TASK: &str = "
+
+## Workflow
+
+1. Call `report_status(\"working\", ...)` immediately when you begin
+2. Call `get_task()` to fetch the task details
+3. Call `report_progress(...)` before each step
+4. Do the work — call `report_files_changed(...)` after modifying files
+5. When ALL work is done and verified, call `report_complete(summary)`
+6. If you need user input at any point, call `report_waiting(question)` and STOP";
+
+const MCP_TOOLS_LIFECYCLE_RESEARCH: &str = "
+
+## Workflow
+
+1. Call `report_status(\"working\", ...)` immediately when you begin
+2. Call `get_task()` to fetch the task details
+3. Research the codebase, explore approaches, and discuss with the user
+4. Save your findings using `update_task_plan(plan)`
+5. Call `report_researched(summary)` when research is complete
+6. If you need user input at any point, call `report_waiting(question)` and STOP";
 
 // ── Agent instruction file management ──
 
 const MCP_INSTRUCTION_MARKER_START: &str = "<!-- Faber:MCP -->";
 const MCP_INSTRUCTION_MARKER_END: &str = "<!-- /Faber:MCP -->";
 
+/// Build the MCP tools description for a given session mode.
+fn mcp_tools_text(session_mode: Option<&str>) -> String {
+    let mut text = MCP_TOOLS_UNIVERSAL.to_string();
+
+    let is_task_linked = matches!(
+        session_mode,
+        Some("task" | "continuous" | "research" | "breakdown")
+    );
+    let is_task_completion = matches!(session_mode, Some("task" | "continuous"));
+
+    if is_task_linked {
+        text.push_str(MCP_TOOLS_TASK);
+    }
+
+    if is_task_completion {
+        text.push_str(MCP_TOOLS_COMPLETION);
+        text.push_str(MCP_TOOLS_LIFECYCLE_TASK);
+    } else if session_mode == Some("research") {
+        text.push_str(MCP_TOOLS_RESEARCH_LIFECYCLE);
+        text.push_str(MCP_TOOLS_LIFECYCLE_RESEARCH);
+    } else if session_mode == Some("breakdown") {
+        text.push_str(MCP_TOOLS_BREAKDOWN_LIFECYCLE);
+    }
+
+    text
+}
+
 /// Build the MCP system prompt string (for agents that support --system-prompt).
-fn mcp_system_prompt_text() -> String {
-    MCP_TOOLS_DESCRIPTION.to_string()
+fn mcp_system_prompt_text(session_mode: Option<&str>) -> String {
+    mcp_tools_text(session_mode)
 }
 
 /// Build the MCP instruction section for agent instruction files (CLAUDE.md, etc.).
-fn mcp_instruction_section() -> String {
+fn mcp_instruction_section(session_mode: Option<&str>) -> String {
     format!(
         "{}\n## Faber Integration\n\n{}\n{}",
-        MCP_INSTRUCTION_MARKER_START, MCP_TOOLS_DESCRIPTION, MCP_INSTRUCTION_MARKER_END
+        MCP_INSTRUCTION_MARKER_START,
+        mcp_tools_text(session_mode),
+        MCP_INSTRUCTION_MARKER_END
     )
 }
 
@@ -110,10 +192,10 @@ pub fn upsert_mcp_section(content: &str, section: &str) -> String {
 }
 
 /// Write or update the MCP section in a single instruction file.
-pub fn write_instruction_file(dir: &Path, filename: &str) {
+pub fn write_instruction_file(dir: &Path, filename: &str, session_mode: Option<&str>) {
     let path = dir.join(filename);
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    let section = mcp_instruction_section();
+    let section = mcp_instruction_section(session_mode);
     let updated = upsert_mcp_section(&existing, &section);
     if updated != existing {
         let _ = std::fs::write(&path, &updated);
@@ -143,9 +225,9 @@ pub(crate) struct SessionStatusChanged {
 }
 
 /// Returns the MCP system prompt if the agent supports the system prompt flag.
-fn mcp_system_prompt(adapter: &dyn agent::AgentAdapter, mcp_connected: bool) -> Option<String> {
+fn mcp_system_prompt(adapter: &dyn agent::AgentAdapter, mcp_connected: bool, session_mode: Option<&str>) -> Option<String> {
     if mcp_connected && adapter.supports_system_prompt_flag() {
-        Some(mcp_system_prompt_text())
+        Some(mcp_system_prompt_text(session_mode))
     } else {
         None
     }
@@ -171,6 +253,7 @@ struct McpConnection {
 ///
 /// IMPORTANT: `mcp_port` should be obtained via `get_mcp_port()` BEFORE any std::sync::Mutex
 /// is held, to avoid blocking_lock contention with the Tokio mutex.
+#[allow(clippy::too_many_arguments)]
 fn inject_mcp(
     mcp_state: &Arc<TokioMutex<McpState>>,
     mcp_port: u16,
@@ -179,18 +262,20 @@ fn inject_mcp(
     agent_name: &str,
     project_id: Option<&str>,
     task_id: Option<&str>,
+    session_mode: Option<&str>,
 ) -> Option<McpConnection> {
     if mcp_port == 0 {
         tracing::warn!("MCP server not running, skipping MCP injection");
         return None;
     }
 
-    match mcp::server::write_mcp_config(cwd, agent_name) {
+    match mcp::server::write_mcp_config(cwd, agent_name, session_mode) {
         Ok(Some(_)) => {
             let mut guard = mcp_state.blocking_lock();
             guard.sessions.insert(session_id.to_string(), McpSessionData {
                 project_id: project_id.map(String::from),
                 task_id: task_id.map(String::from),
+                session_mode: session_mode.map(String::from),
                 ..Default::default()
             });
             let secret = guard.secret.clone();
@@ -232,26 +317,6 @@ pub fn start_task_session(
     let task = db::tasks::get(conn, task_id, project_id)?
         .ok_or_else(|| AppError::NotFound(format!("Task {task_id}")))?;
 
-    // Read task file content if available
-    let task_file_content = task
-        .task_file_path
-        .as_ref()
-        .and_then(|p| {
-            let path = Path::new(p);
-            if path.is_file() {
-                std::fs::read_to_string(path).ok()
-            } else {
-                None
-            }
-        });
-
-    // Parse frontmatter for agent/model/branch hints
-    let parsed = task_file_content.as_ref().and_then(|content| {
-        task.task_file_path
-            .as_ref()
-            .and_then(|p| tasks::parse_task_file(content, Path::new(p)).ok())
-    });
-
     // 3. Resolve agent: override → task.agent → project.default_agent → "claude-code"
     let agent_name = agent_override
         .or(task.agent.as_deref())
@@ -275,11 +340,7 @@ pub fn start_task_session(
 
     // 6. Optionally create worktree
     let (worktree_path, _branch_name) = if create_worktree {
-        let branch = if let Some(branch) = task.branch.as_deref().or(
-            parsed
-                .as_ref()
-                .and_then(|p| p.frontmatter.branch.as_deref()),
-        ) {
+        let branch = if let Some(branch) = task.branch.as_deref() {
             branch.to_string()
         } else {
             let pattern = project
@@ -313,18 +374,9 @@ pub fn start_task_session(
     let session_id = db::generate_id("sess");
 
     // 8. Inject MCP config (session-agnostic file + session-specific URL)
-    let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), Some(task_id));
+    let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), Some(task_id), Some("task"));
 
-    // 9. Validate task file exists
-    let task_file_path_str = task.task_file_path.as_deref()
-        .ok_or_else(|| AppError::Validation(format!("Task {task_id} has no task file path")))?;
-    if !Path::new(task_file_path_str).is_file() {
-        return Err(AppError::Validation(format!(
-            "Task file does not exist: {task_file_path_str}"
-        )));
-    }
-
-    // 10. Generate user prompt from template (use provided or auto-generate)
+    // 9. Generate user prompt from template (use provided or auto-generate)
     let worktree_hint = worktree_path.as_deref().map(|wt| {
         format!(
             "You are working in worktree {wt}, read the task by using the provided MCP tools \
@@ -361,7 +413,7 @@ pub fn start_task_session(
     }
 
     let launch_config = AgentLaunchConfig {
-        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("task")),
         prompt: user_prompt_str,
         model: model.clone(),
         extra_flags,
@@ -501,7 +553,7 @@ pub fn start_vibe_session(
     let session_id = db::generate_id("sess");
 
     // 6. Inject MCP config (session-agnostic file + session-specific URL)
-    let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), None);
+    let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), None, Some("vibe"));
 
     // 7. No system prompt — MCP instructions injected via instruction file
     let user_prompt_str = opts.user_prompt.map(|s| s.to_string());
@@ -520,7 +572,7 @@ pub fn start_vibe_session(
     }
 
     let launch_config = AgentLaunchConfig {
-        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("vibe")),
         prompt: user_prompt_str,
         model: model.clone(),
         extra_flags,
@@ -625,7 +677,7 @@ pub fn start_research_session(
     let session_id = db::generate_id("sess");
 
     // 8. Inject MCP config
-    let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), Some(opts.task_id));
+    let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), Some(opts.task_id), Some("research"));
 
     // 9. Generate user prompt from template (research-focused)
     let user_prompt_str = if opts.user_prompt.is_none_or(|s| s.trim().is_empty()) {
@@ -650,7 +702,7 @@ pub fn start_research_session(
     }
 
     let launch_config = AgentLaunchConfig {
-        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("research")),
         prompt: user_prompt_str,
         model: model.clone(),
         extra_flags,
@@ -883,6 +935,7 @@ fn validate_acp_agent(adapter: &dyn agent::AgentAdapter, agent_name: &str) -> Re
 
 /// Register an MCP session for ACP (no config file writing, just session data + instruction file).
 /// Returns the MCP connection info if the MCP server is running.
+#[allow(clippy::too_many_arguments)]
 fn register_acp_mcp_session(
     mcp_state: &Arc<TokioMutex<McpState>>,
     mcp_port: u16,
@@ -891,6 +944,7 @@ fn register_acp_mcp_session(
     agent_name: &str,
     project_id: Option<&str>,
     task_id: Option<&str>,
+    session_mode: Option<&str>,
 ) -> Option<McpConnection> {
     if mcp_port == 0 {
         return None;
@@ -898,13 +952,14 @@ fn register_acp_mcp_session(
 
     // Write instruction file for agent context (not MCP config)
     if let Some(filename) = agent_instruction_filename(agent_name) {
-        write_instruction_file(cwd, filename);
+        write_instruction_file(cwd, filename, session_mode);
     }
 
     let mut guard = mcp_state.blocking_lock();
     guard.sessions.insert(session_id.to_string(), McpSessionData {
         project_id: project_id.map(String::from),
         task_id: task_id.map(String::from),
+        session_mode: session_mode.map(String::from),
         ..Default::default()
     });
     let secret = guard.secret.clone();
@@ -982,6 +1037,7 @@ fn spawn_acp_session(
 
     // Spawn ACP client in a dedicated thread with LocalSet (ACP uses !Send futures)
     let session_id_clone = setup.session_id.clone();
+    let agent_name_clone = setup.agent_name.clone();
     let acp_state_clone = acp_state.clone();
     let app_for_task = app.clone();
     let _mcp_state_for_task = mcp_state.clone();
@@ -1094,11 +1150,13 @@ fn spawn_acp_session(
             // Emit initial config_options from the NewSessionResponse (if present).
             // This is how agents like Claude Code advertise available models/modes
             // at session creation time, before any ConfigOptionUpdate push events.
+            let has_model_option;
             if let Some(ref config_opts) = acp_session.config_options {
                 let converted: Vec<_> = config_opts
                     .iter()
                     .map(handler::convert_config_option_public)
                     .collect();
+                has_model_option = converted.iter().any(|o| o.category.as_deref() == Some("model"));
                 if !converted.is_empty() {
                     tracing::info!(
                         session_id = %session_id_clone,
@@ -1112,6 +1170,34 @@ fn spawn_acp_session(
                             config_options: converted,
                         },
                     );
+                }
+            } else {
+                has_model_option = false;
+            }
+
+            // If the agent didn't advertise config options (model, thought_level, etc.),
+            // try to detect them from the adapter's CLI (e.g. `opencode models --verbose`).
+            if !has_model_option {
+                if let Some(adapter) = agent::get_adapter(&agent_name_clone) {
+                    let detected = adapter.detect_config_options();
+                    if !detected.is_empty() {
+                        let categories: Vec<&str> = detected.iter()
+                            .filter_map(|o| o.category.as_deref())
+                            .collect();
+                        tracing::info!(
+                            session_id = %session_id_clone,
+                            option_count = detected.len(),
+                            categories = ?categories,
+                            "Synthesized config options from adapter CLI"
+                        );
+                        let _ = app_for_task.emit(
+                            EVENT_ACP_CONFIG_OPTION_UPDATE,
+                            AcpConfigOptionUpdatePayload {
+                                session_id: session_id_clone.clone(),
+                                config_options: detected,
+                            },
+                        );
+                    }
                 }
             }
 
@@ -1277,26 +1363,6 @@ pub fn start_acp_task_session(
     let task = db::tasks::get(conn, opts.task_id, project_id)?
         .ok_or_else(|| AppError::NotFound(format!("Task {}", opts.task_id)))?;
 
-    // Read task file content if available
-    let task_file_content = task
-        .task_file_path
-        .as_ref()
-        .and_then(|p| {
-            let path = Path::new(p);
-            if path.is_file() {
-                std::fs::read_to_string(path).ok()
-            } else {
-                None
-            }
-        });
-
-    // Parse frontmatter for agent/model/branch hints
-    let parsed = task_file_content.as_ref().and_then(|content| {
-        task.task_file_path
-            .as_ref()
-            .and_then(|p| tasks::parse_task_file(content, Path::new(p)).ok())
-    });
-
     // 3. Resolve agent
     let agent_name = opts.agent_name
         .or(task.agent.as_deref())
@@ -1321,9 +1387,7 @@ pub fn start_acp_task_session(
 
     // 6. Optionally create worktree
     let (worktree_path, _branch_name) = if opts.create_worktree {
-        let branch = if let Some(branch) = task.branch.as_deref().or(
-            parsed.as_ref().and_then(|p| p.frontmatter.branch.as_deref()),
-        ) {
+        let branch = if let Some(branch) = task.branch.as_deref() {
             branch.to_string()
         } else {
             let pattern = project
@@ -1356,19 +1420,10 @@ pub fn start_acp_task_session(
     // 8. Register MCP session data (no config file writing for ACP)
     let mcp_conn = register_acp_mcp_session(
         mcp_state, mcp_port, &session_id, Path::new(cwd),
-        agent_name, Some(project_id), Some(opts.task_id),
+        agent_name, Some(project_id), Some(opts.task_id), Some("task"),
     );
 
-    // 9. Validate task file exists
-    let task_file_path_str = task.task_file_path.as_deref()
-        .ok_or_else(|| AppError::Validation(format!("Task {} has no task file path", opts.task_id)))?;
-    if !Path::new(task_file_path_str).is_file() {
-        return Err(AppError::Validation(format!(
-            "Task file does not exist: {task_file_path_str}"
-        )));
-    }
-
-    // 10. Generate user prompt
+    // 9. Generate user prompt
     let worktree_hint = worktree_path.as_deref().map(|wt| {
         format!(
             "You are working in worktree {wt}, read the task by using the provided MCP tools \
@@ -1494,7 +1549,7 @@ pub fn start_acp_vibe_session(
     // 7. Register MCP session data
     let mcp_conn = register_acp_mcp_session(
         mcp_state, mcp_port, &session_id, Path::new(cwd),
-        agent_name, Some(project_id), None,
+        agent_name, Some(project_id), None, Some("vibe"),
     );
 
     // 8. User prompt (pass through as-is for vibe sessions).
@@ -1595,7 +1650,7 @@ pub fn start_acp_chat_session(
     // 7. Register MCP session data
     let mcp_conn = register_acp_mcp_session(
         mcp_state, mcp_port, &session_id, Path::new(cwd),
-        agent_name, Some(project_id), None,
+        agent_name, Some(project_id), None, Some("chat"),
     );
     tracing::debug!(mcp_port = mcp_port, has_mcp = mcp_conn.is_some(), "MCP session registered for chat");
 
@@ -1670,7 +1725,7 @@ pub fn resume_acp_chat_session(
     // 4. Register MCP session
     let mcp_conn = register_acp_mcp_session(
         mcp_state, mcp_port, &session_id, &cwd,
-        agent_name, Some(project_id), None,
+        agent_name, Some(project_id), None, Some("chat"),
     );
 
     // 5. Build MCP servers for ACP passthrough
@@ -1955,7 +2010,7 @@ pub fn start_acp_research_session(
     // 8. Register MCP session data
     let mcp_conn = register_acp_mcp_session(
         mcp_state, mcp_port, &session_id, Path::new(cwd),
-        agent_name, Some(project_id), Some(opts.task_id),
+        agent_name, Some(project_id), Some(opts.task_id), Some("research"),
     );
 
     // 9. Generate user prompt from template (research-focused)
@@ -1976,6 +2031,232 @@ pub fn start_acp_research_session(
         agent_name: agent_name.to_string(),
         model,
         mode: SessionMode::Research,
+        task_id: Some(opts.task_id.to_string()),
+        name: Some(task.id.clone()),
+        worktree_path: None,
+        prompt_content,
+        is_trust_mode: false,
+    };
+
+    spawn_acp_session(conn, app, mcp_state, acp_state, setup, acp_command, acp_args, mcp_conn)
+}
+
+// ── Breakdown session (epic decomposition) ──
+
+/// Options for starting a breakdown session (PTY).
+pub struct BreakdownSessionOpts<'a> {
+    pub task_id: &'a str,
+    pub agent_name: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub user_prompt: Option<&'a str>,
+}
+
+/// Start a breakdown session for an epic task (PTY transport).
+///
+/// Breakdown sessions run in the project root (no worktree) and use a specialized
+/// prompt to decompose an epic into child tasks via the `create_task` MCP tool.
+#[allow(clippy::too_many_arguments)]
+pub fn start_breakdown_session(
+    conn: &Connection,
+    pty_state: &PtyState,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    mcp_port: u16,
+    project_id: &str,
+    opts: &BreakdownSessionOpts<'_>,
+) -> Result<Session, AppError> {
+    // 1. Fetch project
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+
+    // 2. Fetch task (must be an epic)
+    let task = db::tasks::get(conn, opts.task_id, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Task {}", opts.task_id)))?;
+
+    // 3. Resolve agent
+    let agent_name = opts
+        .agent_name
+        .or(task.agent.as_deref())
+        .or(project.default_agent.as_deref())
+        .unwrap_or("claude-code");
+
+    let adapter = agent::get_adapter(agent_name)
+        .ok_or_else(|| AppError::NotFound(format!("Agent adapter: {agent_name}")))?;
+
+    // 4. Resolve agent config
+    let agent_config = db::agent_configs::resolve(conn, Some(opts.task_id), project_id, agent_name)?;
+
+    // 5. Determine model
+    let model = opts
+        .model
+        .map(String::from)
+        .or_else(|| agent_config.as_ref().and_then(|c| c.model.clone()))
+        .or_else(|| task.model.clone())
+        .or_else(|| project.default_model.clone());
+
+    // 6. Always run in project root — no worktree creation
+    let cwd = &project.path;
+
+    // 7. Pre-generate session ID for MCP URL
+    let session_id = db::generate_id("sess");
+
+    // 8. Inject MCP config
+    let mcp_conn = inject_mcp(mcp_state, mcp_port, &session_id, Path::new(cwd), agent_name, Some(project_id), Some(opts.task_id), Some("breakdown"));
+
+    // 9. Generate user prompt from template (breakdown-focused)
+    let user_prompt_str = if opts.user_prompt.is_none_or(|s| s.trim().is_empty()) {
+        let template = crate::commands::prompts::get_session_prompt(conn, "breakdown");
+        let mut vars = HashMap::new();
+        vars.insert("task_id", opts.task_id);
+        Some(interpolate_vars(&template.prompt, &vars))
+    } else {
+        opts.user_prompt.map(|s| s.to_string())
+    };
+
+    // 10. Build launch spec
+    let extra_flags = agent_config
+        .as_ref()
+        .map(|c| c.flags.clone())
+        .unwrap_or_default();
+    let mut extra_env: HashMap<String, String> = HashMap::new();
+
+    if let Some(conn_info) = &mcp_conn {
+        extra_env.insert("FABER_MCP_URL".to_string(), conn_info.url.clone());
+        extra_env.insert("FABER_MCP_SECRET".to_string(), conn_info.secret.clone());
+    }
+
+    let launch_config = AgentLaunchConfig {
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("breakdown")),
+        prompt: user_prompt_str,
+        model: model.clone(),
+        extra_flags,
+        extra_env,
+    };
+    let spec = adapter.build_launch_spec(&launch_config);
+
+    // 11. Create session record — NOTE: no task status change
+    let new_session = NewSession {
+        project_id: project_id.to_string(),
+        task_id: Some(opts.task_id.to_string()),
+        name: Some(task.id.clone()),
+        mode: SessionMode::Breakdown,
+        transport: SessionTransport::Pty,
+        agent: agent_name.to_string(),
+        model,
+        worktree_path: None,
+    };
+    let session = db::sessions::create_with_id(conn, &session_id, &new_session)?;
+
+    if mcp_conn.is_some() {
+        let _ = db::sessions::update_mcp_connected(conn, &session.id, true);
+    }
+
+    // 12. Spawn PTY
+    pty::spawn(
+        pty_state,
+        app,
+        session.id.clone(),
+        &spec.command,
+        &spec.args,
+        Some(cwd),
+        Some(&spec.env),
+        80,
+        24,
+        cfg!(unix),
+    )?;
+
+    // 13. Update session status to Running
+    db::sessions::update_status(conn, &session.id, SessionStatus::Running)?;
+
+    // 14. Emit event — NO task status update (breakdown mode)
+    let session = db::sessions::get(conn, &session.id)?
+        .ok_or_else(|| AppError::Database("Session disappeared after creation".into()))?;
+    let _ = app.emit("session-started", &session);
+
+    Ok(session)
+}
+
+/// Options for starting an ACP breakdown session.
+pub struct AcpBreakdownSessionOpts<'a> {
+    pub task_id: &'a str,
+    pub agent_name: Option<&'a str>,
+    pub model: Option<&'a str>,
+    pub user_prompt: Option<&'a str>,
+}
+
+/// Start a breakdown session using ACP transport.
+#[allow(clippy::too_many_arguments)]
+pub fn start_acp_breakdown_session(
+    conn: &Connection,
+    app: &AppHandle,
+    mcp_state: &Arc<TokioMutex<McpState>>,
+    acp_state: &AcpState,
+    mcp_port: u16,
+    project_id: &str,
+    opts: &AcpBreakdownSessionOpts<'_>,
+) -> Result<Session, AppError> {
+    // 1. Fetch project
+    let project = db::projects::get(conn, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+
+    // 2. Fetch task
+    let task = db::tasks::get(conn, opts.task_id, project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Task {}", opts.task_id)))?;
+
+    // 3. Resolve agent
+    let agent_name = opts
+        .agent_name
+        .or(task.agent.as_deref())
+        .or(project.default_agent.as_deref())
+        .unwrap_or("claude-code");
+
+    let adapter = agent::get_adapter(agent_name)
+        .ok_or_else(|| AppError::NotFound(format!("Agent adapter: {agent_name}")))?;
+
+    // Validate agent supports ACP
+    let (acp_command, acp_args) = validate_acp_agent(adapter.as_ref(), agent_name)?;
+
+    // 4. Resolve agent config
+    let agent_config = db::agent_configs::resolve(conn, Some(opts.task_id), project_id, agent_name)?;
+
+    // 5. Determine model
+    let model = opts
+        .model
+        .map(String::from)
+        .or_else(|| agent_config.as_ref().and_then(|c| c.model.clone()))
+        .or_else(|| task.model.clone())
+        .or_else(|| project.default_model.clone());
+
+    // 6. Always run in project root — no worktree creation
+    let cwd = &project.path;
+
+    // 7. Pre-generate session ID for MCP URL
+    let session_id = db::generate_id("sess");
+
+    // 8. Register MCP session data
+    let mcp_conn = register_acp_mcp_session(
+        mcp_state, mcp_port, &session_id, Path::new(cwd),
+        agent_name, Some(project_id), Some(opts.task_id), Some("breakdown"),
+    );
+
+    // 9. Generate user prompt from template (breakdown-focused)
+    let prompt_content = if opts.user_prompt.is_none_or(|s| s.trim().is_empty()) {
+        let template = crate::commands::prompts::get_session_prompt(conn, "breakdown");
+        let mut vars = HashMap::new();
+        vars.insert("task_id", opts.task_id);
+        interpolate_vars(&template.prompt, &vars)
+    } else {
+        opts.user_prompt.unwrap().to_string()
+    };
+
+    // 10. Spawn ACP session
+    let setup = AcpSessionSetup {
+        session_id,
+        project_id: project_id.to_string(),
+        cwd: PathBuf::from(cwd),
+        agent_name: agent_name.to_string(),
+        model,
+        mode: SessionMode::Breakdown,
         task_id: Some(opts.task_id.to_string()),
         name: Some(task.id.clone()),
         worktree_path: None,
@@ -2045,7 +2326,7 @@ pub fn relaunch_session(
             let new_session_id = db::generate_id("sess");
 
             // Inject MCP config
-            let mcp_conn = inject_mcp(mcp_state, mcp_port, &new_session_id, Path::new(cwd), agent_name, Some(&old.project_id), old.task_id.as_deref());
+            let mcp_conn = inject_mcp(mcp_state, mcp_port, &new_session_id, Path::new(cwd), agent_name, Some(&old.project_id), old.task_id.as_deref(), Some(old.mode.as_str()));
 
             // Build launch spec
             let extra_flags = agent_config
@@ -2076,7 +2357,7 @@ pub fn relaunch_session(
             let relaunch_prompt = Some(interpolate_vars(&template.prompt, &vars));
 
             let launch_config = AgentLaunchConfig {
-                system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
+                system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some(old.mode.as_str())),
                 prompt: relaunch_prompt,
                 model: model.clone(),
                 extra_flags,
@@ -2192,6 +2473,33 @@ pub fn relaunch_session(
                 user_prompt: None,
             };
             let new_session = start_acp_chat_session(conn, app, mcp_state, acp, mcp_port, &old.project_id, &opts)?;
+            let _ = db::sessions::delete(conn, session_id);
+            Ok(new_session)
+        }
+
+        SessionMode::Breakdown => {
+            let task_id = old.task_id.as_deref()
+                .ok_or_else(|| AppError::Validation("Breakdown session has no task_id".into()))?;
+            let new_session = if old.transport == SessionTransport::Acp {
+                let acp = acp_state.ok_or_else(|| AppError::Validation(
+                    "ACP state required for relaunching ACP breakdown session".into(),
+                ))?;
+                let opts = AcpBreakdownSessionOpts {
+                    task_id,
+                    agent_name: Some(&old.agent),
+                    model: old.model.as_deref(),
+                    user_prompt: None,
+                };
+                start_acp_breakdown_session(conn, app, mcp_state, acp, mcp_port, &old.project_id, &opts)?
+            } else {
+                let opts = BreakdownSessionOpts {
+                    task_id,
+                    agent_name: Some(&old.agent),
+                    model: old.model.as_deref(),
+                    user_prompt: None,
+                };
+                start_breakdown_session(conn, pty_state, app, mcp_state, mcp_port, &old.project_id, &opts)?
+            };
             let _ = db::sessions::delete(conn, session_id);
             Ok(new_session)
         }
@@ -2492,7 +2800,7 @@ mod tests {
 
     #[test]
     fn upsert_mcp_section_appends_to_empty() {
-        let section = mcp_instruction_section();
+        let section = mcp_instruction_section(Some("task"));
         let result = upsert_mcp_section("", &section);
         assert!(result.contains(MCP_INSTRUCTION_MARKER_START));
         assert!(result.contains(MCP_INSTRUCTION_MARKER_END));
@@ -2501,7 +2809,7 @@ mod tests {
     #[test]
     fn upsert_mcp_section_appends_to_existing() {
         let existing = "# My Project\n\nSome content here.\n";
-        let section = mcp_instruction_section();
+        let section = mcp_instruction_section(Some("task"));
         let result = upsert_mcp_section(existing, &section);
         assert!(result.starts_with("# My Project"));
         assert!(result.contains(MCP_INSTRUCTION_MARKER_START));
@@ -2513,7 +2821,7 @@ mod tests {
             "# Header\n\n{}\nold content\n{}\n\n# Footer\n",
             MCP_INSTRUCTION_MARKER_START, MCP_INSTRUCTION_MARKER_END
         );
-        let section = mcp_instruction_section();
+        let section = mcp_instruction_section(Some("task"));
         let result = upsert_mcp_section(&existing, &section);
         assert!(result.contains("# Header"));
         assert!(result.contains("# Footer"));
@@ -2525,7 +2833,7 @@ mod tests {
     #[test]
     fn write_instruction_file_creates_new() {
         let tmp = tempfile::tempdir().unwrap();
-        write_instruction_file(tmp.path(), "CLAUDE.md");
+        write_instruction_file(tmp.path(), "CLAUDE.md", Some("task"));
         let path = tmp.path().join("CLAUDE.md");
         assert!(path.exists());
         let content = std::fs::read_to_string(&path).unwrap();
@@ -2537,7 +2845,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("CLAUDE.md");
         std::fs::write(&path, "# My Project Instructions\n").unwrap();
-        write_instruction_file(tmp.path(), "CLAUDE.md");
+        write_instruction_file(tmp.path(), "CLAUDE.md", Some("task"));
         let content = std::fs::read_to_string(&path).unwrap();
         assert!(content.contains("# My Project Instructions"));
         assert!(content.contains(MCP_INSTRUCTION_MARKER_START));

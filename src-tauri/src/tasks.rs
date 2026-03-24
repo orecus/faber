@@ -6,7 +6,7 @@ use rusqlite::Connection;
 use serde::{Deserialize, Serialize};
 
 use crate::db;
-use crate::db::models::{NewTask, Priority, Task, TaskStatus};
+use crate::db::models::{NewTask, Task, TaskStatus, TaskType};
 use crate::error::AppError;
 
 // ── Conflict detection types ──
@@ -71,6 +71,10 @@ pub struct TaskFrontmatter {
     pub depends_on: Vec<String>,
     #[serde(default)]
     pub labels: Vec<String>,
+    #[serde(default)]
+    pub task_type: Option<String>,
+    #[serde(default)]
+    pub epic_id: Option<String>,
     #[serde(default)]
     pub agent: Option<String>,
     #[serde(default)]
@@ -157,8 +161,12 @@ fn parse_status(s: &str) -> TaskStatus {
     s.parse().unwrap_or(TaskStatus::Backlog)
 }
 
-fn parse_priority(s: &str) -> Priority {
-    s.parse().unwrap_or(Priority::P2)
+fn parse_priority(s: &str) -> String {
+    s.to_string()
+}
+
+fn parse_task_type(s: Option<&str>) -> TaskType {
+    s.and_then(|v| v.parse().ok()).unwrap_or(TaskType::Task)
 }
 
 /// Convert a parsed task file into a NewTask for DB upsert.
@@ -171,6 +179,8 @@ pub fn to_new_task(parsed: &ParsedTaskFile, project_id: &str) -> NewTask {
         title: fm.title.clone(),
         status: Some(parse_status(&fm.status)),
         priority: Some(parse_priority(&fm.priority)),
+        task_type: Some(parse_task_type(fm.task_type.as_deref())),
+        epic_id: fm.epic_id.clone(),
         agent: fm.agent.clone(),
         model: fm.model.clone(),
         branch: fm.branch.clone(),
@@ -382,6 +392,8 @@ pub fn create_task_file(
         created: today,
         depends_on: vec![],
         labels: vec![],
+        task_type: None,
+        epic_id: None,
         agent: None,
         model: None,
         branch: None,
@@ -448,6 +460,8 @@ pub fn update_task_file_field(
         "status" => parsed.frontmatter.status = value.to_string(),
         "priority" => parsed.frontmatter.priority = value.to_string(),
         "title" => parsed.frontmatter.title = value.to_string(),
+        "task_type" => parsed.frontmatter.task_type = if value == "task" { None } else { Some(value.to_string()) },
+        "epic_id" => parsed.frontmatter.epic_id = if value.is_empty() { None } else { Some(value.to_string()) },
         "agent" => parsed.frontmatter.agent = Some(value.to_string()),
         "model" => parsed.frontmatter.model = Some(value.to_string()),
         "branch" => parsed.frontmatter.branch = Some(value.to_string()),
@@ -497,7 +511,7 @@ fn db_task_hash(task: &Task) -> u64 {
     task_content_hash(
         &task.title,
         task.status.as_str(),
-        task.priority.as_str(),
+        &task.priority,
         task.agent.as_deref(),
         task.model.as_deref(),
         task.branch.as_deref(),
@@ -533,8 +547,8 @@ fn compute_diffs(task: &Task, parsed: &ParsedTaskFile) -> Vec<String> {
     if task.status.as_str() != fm.status {
         diffs.push(format!("status: {} → {}", task.status.as_str(), fm.status));
     }
-    if task.priority.as_str() != fm.priority {
-        diffs.push(format!("priority: {} → {}", task.priority.as_str(), fm.priority));
+    if task.priority != fm.priority {
+        diffs.push(format!("priority: {} → {}", task.priority, fm.priority));
     }
     if task.agent.as_deref() != fm.agent.as_deref() {
         diffs.push(format!(
@@ -673,10 +687,12 @@ pub fn resolve_task_conflicts(
                     id: task.id.clone(),
                     title: task.title.clone(),
                     status: task.status.as_str().to_string(),
-                    priority: task.priority.as_str().to_string(),
+                    priority: task.priority.clone(),
                     created,
                     depends_on: task.depends_on.clone(),
                     labels: task.labels.clone(),
+                    task_type: if task.task_type == TaskType::Epic { Some("epic".to_string()) } else { None },
+                    epic_id: task.epic_id.clone(),
                     agent: task.agent.clone(),
                     model: task.model.clone(),
                     branch: task.branch.clone(),
@@ -695,7 +711,9 @@ pub fn resolve_task_conflicts(
                     task_file_path: Some(file_path_str),
                     title: task.title.clone(),
                     status: Some(task.status),
-                    priority: Some(task.priority),
+                    priority: Some(task.priority.clone()),
+                    task_type: Some(task.task_type),
+                    epic_id: task.epic_id.clone(),
                     agent: task.agent.clone(),
                     model: task.model.clone(),
                     branch: task.branch.clone(),
@@ -928,7 +946,9 @@ mod tests {
                 task_file_path: Some(".agents/tasks/T-001-foo.md".into()),
                 title: "Do foo".into(),
                 status: Some(TaskStatus::Ready),
-                priority: Some(Priority::P0),
+                priority: Some("P0".to_string()),
+                task_type: None,
+                epic_id: None,
                 agent: None,
                 model: None,
                 branch: None,
@@ -949,7 +969,9 @@ mod tests {
                 task_file_path: Some(".agents/tasks/T-002-bar.md".into()),
                 title: "Do bar".into(),
                 status: Some(TaskStatus::Done),
-                priority: Some(Priority::P1),
+                priority: Some("P1".to_string()),
+                task_type: None,
+                epic_id: None,
                 agent: None,
                 model: None,
                 branch: None,
@@ -1014,7 +1036,7 @@ mod tests {
 
         assert_eq!(task.id, "T-001");
         assert_eq!(task.title, "My new task");
-        assert_eq!(task.priority, Priority::P1);
+        assert_eq!(task.priority, "P1");
         assert_eq!(task.status, TaskStatus::Backlog);
 
         // Verify file on disk

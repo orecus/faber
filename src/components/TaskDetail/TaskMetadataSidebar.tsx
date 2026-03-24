@@ -1,3 +1,4 @@
+import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-shell";
 import {
   AlertTriangle,
@@ -6,6 +7,7 @@ import {
   ExternalLink,
   GitBranch,
   Github,
+  Layers,
   Loader2,
   Plus,
   Tag,
@@ -23,7 +25,9 @@ import {
 } from "../ui/select";
 import type { TaskFormData } from "./TaskMetadataForm";
 
-import type { AgentInfo, Priority, Task, TaskStatus } from "../../types";
+import { useAppStore } from "../../store/appStore";
+import type { AgentInfo, Task, TaskStatus, TaskType } from "../../types";
+import { DEFAULT_PRIORITIES, getPriorityLabel, getPriorityCssVar } from "../../lib/priorities";
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -32,12 +36,6 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: "in-review", label: "In Review" },
   { value: "done", label: "Done" },
   { value: "archived", label: "Archived" },
-];
-
-const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
-  { value: "P0", label: "P0 — Critical" },
-  { value: "P1", label: "P1 — High" },
-  { value: "P2", label: "P2 — Normal" },
 ];
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -49,18 +47,14 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   archived: "var(--muted-foreground)",
 };
 
-const PRIORITY_COLORS: Record<Priority, string> = {
-  P0: "var(--destructive)",
-  P1: "var(--warning)",
-  P2: "var(--muted-foreground)",
-};
-
 interface TaskMetadataSidebarProps {
   data: TaskFormData;
   onChange: (data: TaskFormData) => void;
   agents: AgentInfo[];
   taskId: string;
   tasks: Task[];
+  taskType: TaskType;
+  epicId: string | null;
   onNavigateToTask: (taskId: string) => void;
   onCreateGitHubIssue?: () => void;
   creatingIssue?: boolean;
@@ -92,10 +86,18 @@ export default function TaskMetadataSidebar({
   agents,
   taskId,
   tasks,
+  taskType,
+  epicId,
   onNavigateToTask,
   onCreateGitHubIssue,
   creatingIssue,
 }: TaskMetadataSidebarProps) {
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
+  const setTasks = useAppStore((s) => s.setTasks);
+
   const update = <K extends keyof TaskFormData>(
     field: K,
     value: TaskFormData[K],
@@ -104,6 +106,33 @@ export default function TaskMetadataSidebar({
   };
 
   const installedAgents = agents.filter((a) => a.installed);
+
+  // Available epics for the selector (exclude self)
+  const epicList = useMemo(
+    () => tasks.filter((t) => t.task_type === "epic" && t.id !== taskId),
+    [tasks, taskId],
+  );
+
+  const handleEpicChange = useCallback(
+    async (newEpicId: string | null) => {
+      if (!activeProjectId) return;
+      try {
+        await invoke("set_task_type", {
+          projectId: activeProjectId,
+          taskId,
+          taskType: taskType || "task",
+          epicId: newEpicId,
+        });
+        const freshTasks = await invoke<Task[]>("list_tasks", {
+          projectId: activeProjectId,
+        });
+        setTasks(freshTasks);
+      } catch (err) {
+        console.warn("Failed to set epic:", err);
+      }
+    },
+    [activeProjectId, taskId, taskType, setTasks],
+  );
 
   const handleOpenIssue = useCallback(() => {
     if (!data.github_issue) return;
@@ -172,6 +201,11 @@ export default function TaskMetadataSidebar({
             ))}
           </SelectContent>
         </Select>
+        {taskType === "epic" && (
+          <p className="text-[10px] text-muted-foreground mt-0.5">
+            Auto-derived from children
+          </p>
+        )}
       </SidebarSection>
 
       {/* Priority */}
@@ -182,28 +216,28 @@ export default function TaskMetadataSidebar({
         <Select
           value={data.priority}
           onValueChange={(v) => {
-            if (v) update("priority", v as Priority);
+            if (v) update("priority", v);
           }}
-          items={PRIORITY_OPTIONS}
+          items={priorities.map((p) => ({ value: p.id, label: getPriorityLabel(p.id, priorities) }))}
         >
           <SelectTrigger className="w-full">
             <span className="flex items-center gap-2">
               <span
                 className="inline-block size-2 rounded-full shrink-0"
-                style={{ background: PRIORITY_COLORS[data.priority] }}
+                style={{ background: getPriorityCssVar(data.priority, priorities) }}
               />
               <SelectValue />
             </span>
           </SelectTrigger>
           <SelectContent>
-            {PRIORITY_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
+            {priorities.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
                 <span className="flex items-center gap-2">
                   <span
                     className="inline-block size-2 rounded-full"
-                    style={{ background: PRIORITY_COLORS[opt.value] }}
+                    style={{ background: getPriorityCssVar(p.id, priorities) }}
                   />
-                  {opt.label}
+                  {getPriorityLabel(p.id, priorities)}
                 </span>
               </SelectItem>
             ))}
@@ -211,79 +245,123 @@ export default function TaskMetadataSidebar({
         </Select>
       </SidebarSection>
 
-      {/* Agent */}
-      <SidebarSection label="Agent">
-        <Select
-          value={data.agent || "__none__"}
-          onValueChange={(v) => {
-            const newAgent = v === "__none__" || v === null ? "" : v;
-            onChange({ ...data, agent: newAgent, model: "" });
-          }}
-          items={[
-            { value: "__none__", label: "None" },
-            ...installedAgents.map((a) => ({
-              value: a.name,
-              label: a.display_name,
-            })),
-          ]}
+      {/* Epic — only for non-epic tasks when epics exist */}
+      {taskType !== "epic" && epicList.length > 0 && (
+        <SidebarSection
+          label="Epic"
+          icon={<Layers size={10} className="opacity-60" />}
         >
-          <SelectTrigger className="w-full">
-            <SelectValue placeholder="None" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="__none__">None</SelectItem>
-            {installedAgents.map((a) => (
-              <SelectItem key={a.name} value={a.name}>
-                {a.display_name}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
-      </SidebarSection>
+          <Select
+            value={epicId || "__none__"}
+            onValueChange={(v) => {
+              handleEpicChange(!v || v === "__none__" ? null : v);
+            }}
+            items={[
+              { value: "__none__", label: "None" },
+              ...epicList.map((e) => ({
+                value: e.id,
+                label: `${e.id} — ${e.title}`,
+              })),
+            ]}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">None</SelectItem>
+              {epicList.map((e) => (
+                <SelectItem key={e.id} value={e.id}>
+                  <span className="flex items-center gap-1.5">
+                    <Layers size={10} className="shrink-0 text-muted-foreground" />
+                    <span className="font-mono text-[10px] text-muted-foreground">
+                      {e.id}
+                    </span>
+                    <span className="truncate">{e.title}</span>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SidebarSection>
+      )}
 
-      {/* Model */}
-      <SidebarSection label="Model">
-        {(() => {
-          const currentAgent = installedAgents.find(
-            (a) => a.name === data.agent,
-          );
-          const models = currentAgent?.supported_models ?? [];
-          if (models.length > 0) {
-            return (
-              <Select
-                value={data.model || "__none__"}
-                onValueChange={(v) =>
-                  update("model", !v || v === "__none__" ? "" : v)
-                }
-                items={[
-                  { value: "__none__", label: "Default" },
-                  ...models.map((m) => ({ value: m, label: m })),
-                ]}
-              >
-                <SelectTrigger className="w-full">
-                  <SelectValue placeholder="Default" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__none__">Default</SelectItem>
-                  {models.map((m) => (
-                    <SelectItem key={m} value={m}>
-                      {m}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+      {/* Agent — hidden for epics */}
+      {taskType !== "epic" && (
+        <SidebarSection label="Agent">
+          <Select
+            value={data.agent || "__none__"}
+            onValueChange={(v) => {
+              const newAgent = v === "__none__" || v === null ? "" : v;
+              onChange({ ...data, agent: newAgent, model: "" });
+            }}
+            items={[
+              { value: "__none__", label: "None" },
+              ...installedAgents.map((a) => ({
+                value: a.name,
+                label: a.display_name,
+              })),
+            ]}
+          >
+            <SelectTrigger className="w-full">
+              <SelectValue placeholder="None" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__none__">None</SelectItem>
+              {installedAgents.map((a) => (
+                <SelectItem key={a.name} value={a.name}>
+                  {a.display_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </SidebarSection>
+      )}
+
+      {/* Model — hidden for epics */}
+      {taskType !== "epic" && (
+        <SidebarSection label="Model">
+          {(() => {
+            const currentAgent = installedAgents.find(
+              (a) => a.name === data.agent,
             );
-          }
-          return (
-            <Input
-              value={data.model}
-              onChange={(e) => update("model", e.target.value)}
-              placeholder="e.g. provider/model"
-              className="text-xs"
-            />
-          );
-        })()}
-      </SidebarSection>
+            const models = currentAgent?.supported_models ?? [];
+            if (models.length > 0) {
+              return (
+                <Select
+                  value={data.model || "__none__"}
+                  onValueChange={(v) =>
+                    update("model", !v || v === "__none__" ? "" : v)
+                  }
+                  items={[
+                    { value: "__none__", label: "Default" },
+                    ...models.map((m) => ({ value: m, label: m })),
+                  ]}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Default" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">Default</SelectItem>
+                    {models.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              );
+            }
+            return (
+              <Input
+                value={data.model}
+                onChange={(e) => update("model", e.target.value)}
+                placeholder="e.g. provider/model"
+                className="text-xs"
+              />
+            );
+          })()}
+        </SidebarSection>
+      )}
 
       {/* Divider */}
       <div className="border-t border-border/60" />

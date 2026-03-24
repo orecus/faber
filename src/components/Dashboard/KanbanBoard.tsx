@@ -10,6 +10,8 @@ import {
 } from "@dnd-kit/core";
 import type { Task, Session, TaskStatus } from "../../types";
 import { topoSortTasks, buildDependentsMap, sortTasksByMode, type ColumnSortMode } from "../../lib/taskSort";
+import { useAppStore } from "../../store/appStore";
+import { DEFAULT_PRIORITIES } from "../../lib/priorities";
 import { usePersistedString, usePersistedBoolean } from "../../hooks/usePersistedState";
 import KanbanColumn from "./KanbanColumn";
 import TaskCard from "./TaskCard";
@@ -24,7 +26,9 @@ interface KanbanBoardProps {
   onStatusChange: (taskId: string, newStatus: TaskStatus) => void;
   onStartSession: (taskId: string) => void;
   onResearchSession: (taskId: string) => void;
+  onBreakdownEpic?: (taskId: string) => void;
   onViewSession: (sessionId: string) => void;
+  onEpicClick?: (epicId: string) => void;
 }
 
 export default function KanbanBoard({
@@ -35,8 +39,14 @@ export default function KanbanBoard({
   onStatusChange,
   onStartSession,
   onResearchSession,
+  onBreakdownEpic,
   onViewSession,
+  onEpicClick,
 }: KanbanBoardProps) {
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
   const [activeTask, setActiveTask] = useState<Task | null>(null);
 
   // Persisted sort mode (shared across all columns)
@@ -116,14 +126,14 @@ export default function KanbanBoard({
       const colTasks = map.get(col);
       if (colTasks && colTasks.length > 1) {
         if (sortMode === "topological") {
-          map.set(col, topoSortTasks(colTasks, tasks));
+          map.set(col, topoSortTasks(colTasks, tasks, priorities));
         } else {
-          map.set(col, sortTasksByMode(colTasks, sortMode));
+          map.set(col, sortTasksByMode(colTasks, sortMode, priorities));
         }
       }
     }
     return map;
-  }, [tasks, sortMode]);
+  }, [tasks, sortMode, priorities]);
 
   return (
     <DndContext
@@ -146,7 +156,9 @@ export default function KanbanBoard({
             onTaskClick={onTaskClick}
             onStartSession={onStartSession}
             onResearchSession={onResearchSession}
+            onBreakdownEpic={onBreakdownEpic}
             onViewSession={onViewSession}
+            onEpicClick={onEpicClick}
             sortMode={sortMode}
             onSortChange={setSortMode}
             collapsed={collapsedMap[status]}

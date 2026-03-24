@@ -63,9 +63,26 @@ pub struct ProjectConfig {
     #[serde(default)]
     pub acp: AcpConfig,
 
+        #[serde(default = "default_priorities")]
+    pub priorities: Vec<PriorityLevel>,
+
     /// Catch-all for unknown keys (forward compatibility).
     #[serde(flatten)]
     pub extra: serde_json::Map<String, serde_json::Value>,
+}
+
+/// A user-configurable priority level.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct PriorityLevel {
+    /// Unique ID stored in task frontmatter/DB (e.g. "P0", "P1").
+    pub id: String,
+    /// Human-readable display name (e.g. "Critical", "High").
+    pub label: String,
+    /// Theme color name (e.g. "red", "amber", "blue", "gray"). Matches the project accent color palette.
+    pub color: String,
+    /// Sort order (lower = higher priority).
+    pub order: u32,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
@@ -187,6 +204,7 @@ impl Default for ProjectConfig {
             task_files_to_disk: true,
             github: GitHubConfig::default(),
             acp: AcpConfig::default(),
+            priorities: default_priorities(),
             extra: serde_json::Map::new(),
         }
     }
@@ -212,6 +230,13 @@ fn default_transport() -> String {
 }
 fn default_branch_pattern() -> String {
     crate::git::DEFAULT_BRANCH_PATTERN.to_string()
+}
+fn default_priorities() -> Vec<PriorityLevel> {
+    vec![
+        PriorityLevel { id: "P0".into(), label: "Critical".into(), color: "red".into(), order: 0 },
+        PriorityLevel { id: "P1".into(), label: "High".into(), color: "amber".into(), order: 1 },
+        PriorityLevel { id: "P2".into(), label: "Normal".into(), color: "gray".into(), order: 2 },
+    ]
 }
 
 // ── File helpers ──
@@ -576,6 +601,13 @@ pub fn update_setting(
             }
         }
 
+        // Priorities
+        "priorities" => {
+            if let Ok(priorities) = serde_json::from_str::<Vec<PriorityLevel>>(value) {
+                cfg.priorities = priorities;
+            }
+        }
+
         // GitHub sync defaults
         "github_sync_default_title" => cfg.github.sync_defaults.title = value != "false",
         "github_sync_default_body" => cfg.github.sync_defaults.body = value != "false",
@@ -688,6 +720,7 @@ mod tests {
         assert!(obj.contains_key("taskFilesToDisk"), "missing taskFilesToDisk");
         assert!(obj.contains_key("github"), "missing github");
         assert!(obj.contains_key("acp"), "missing acp");
+        assert!(obj.contains_key("priorities"), "missing priorities");
 
         // GitHub nested keys
         let gh = obj["github"].as_object().unwrap();

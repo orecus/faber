@@ -10,7 +10,7 @@ use crate::db::DbState;
 use crate::error::AppError;
 use crate::mcp::McpState;
 use crate::pty::PtyState;
-use crate::session::{self, AcpChatSessionOpts, AcpResearchSessionOpts, AcpTaskSessionOpts, AcpVibeSessionOpts, ResearchSessionOpts, VibeSessionOpts};
+use crate::session::{self, AcpBreakdownSessionOpts, AcpChatSessionOpts, AcpResearchSessionOpts, AcpTaskSessionOpts, AcpVibeSessionOpts, BreakdownSessionOpts, ResearchSessionOpts, VibeSessionOpts};
 
 /// Parse transport string from frontend. Defaults to PTY.
 fn parse_transport(transport: Option<&str>) -> SessionTransport {
@@ -251,6 +251,59 @@ pub fn start_research_session(
         transport = %session.transport,
         mode = "research",
         "Session launched"
+    );
+    Ok(session)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+pub fn start_breakdown_session(
+    db: State<'_, DbState>,
+    pty: State<'_, PtyState>,
+    mcp: State<'_, Arc<TokioMutex<McpState>>>,
+    acp: State<'_, AcpState>,
+    app: AppHandle,
+    project_id: String,
+    task_id: String,
+    agent_name: Option<String>,
+    model: Option<String>,
+    user_prompt: Option<String>,
+    transport: Option<String>,
+) -> Result<Session, AppError> {
+    let mcp_port = session::get_mcp_port(&mcp);
+    let conn = db.lock().map_err(|e| AppError::Database(e.to_string()))?;
+
+    let transport = parse_transport(transport.as_deref());
+    let session = match transport {
+        SessionTransport::Acp => {
+            let opts = AcpBreakdownSessionOpts {
+                task_id: &task_id,
+                agent_name: agent_name.as_deref(),
+                model: model.as_deref(),
+                user_prompt: user_prompt.as_deref(),
+            };
+            session::start_acp_breakdown_session(&conn, &app, &mcp, &acp, mcp_port, &project_id, &opts)?
+        }
+        SessionTransport::Pty => {
+            let opts = BreakdownSessionOpts {
+                task_id: &task_id,
+                agent_name: agent_name.as_deref(),
+                model: model.as_deref(),
+                user_prompt: user_prompt.as_deref(),
+            };
+            session::start_breakdown_session(&conn, &pty, &app, &mcp, mcp_port, &project_id, &opts)?
+        }
+    };
+
+    tracing::info!(
+        session_id = %session.id,
+        project_id = %project_id,
+        task_id = %task_id,
+        agent = %session.agent,
+        model = ?session.model,
+        transport = %session.transport,
+        mode = "breakdown",
+        "Breakdown session launched"
     );
     Ok(session)
 }

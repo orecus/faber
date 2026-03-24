@@ -11,6 +11,8 @@ import { ringColors } from "../ui/orecus.io/lib/color-utils";
 import { isTaskBlocked, buildColumnItems, SORT_MODE_LABELS, type ColumnSortMode } from "../../lib/taskSort";
 
 import type { Session, Task, TaskStatus } from "../../types";
+import { useAppStore } from "../../store/appStore";
+import { DEFAULT_PRIORITIES } from "../../lib/priorities";
 
 const COLUMN_LABELS: Record<TaskStatus, string> = {
   backlog: "Backlog",
@@ -46,7 +48,9 @@ interface KanbanColumnProps {
   onTaskClick: (taskId: string) => void;
   onStartSession: (taskId: string) => void;
   onResearchSession: (taskId: string) => void;
+  onBreakdownEpic?: (taskId: string) => void;
   onViewSession: (sessionId: string) => void;
+  onEpicClick?: (epicId: string) => void;
   sortMode: ColumnSortMode;
   onSortChange: (mode: ColumnSortMode) => void;
   collapsed: boolean;
@@ -65,13 +69,19 @@ const KanbanColumn = memo(function KanbanColumn({
   onTaskClick,
   onStartSession,
   onResearchSession,
+  onBreakdownEpic,
   onViewSession,
+  onEpicClick,
   sortMode,
   onSortChange,
   collapsed,
   onToggleCollapsed,
 }: KanbanColumnProps) {
   const accentColor = useProjectAccentColor();
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
   const { isOver, setNodeRef } = useDroppable({ id: status });
   const [showSortMenu, setShowSortMenu] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
@@ -95,13 +105,36 @@ const KanbanColumn = memo(function KanbanColumn({
     setShowSortMenu(false);
   }, [onSortChange]);
 
-  // Build column items — use tree structure only for topological sort,
-  // flat list for all other sort modes to preserve the requested order
+  // Build column items — topological mode uses full tree structure,
+  // other modes use flat list but still nest epic children under their epic
   const columnItems = useMemo(
-    () =>
-      sortMode === "topological"
-        ? buildColumnItems(tasks, taskMap)
-        : tasks.map((task): import("../../lib/taskSort").ColumnItem => ({ type: "task", task, depth: 0 })),
+    () => {
+      if (sortMode === "topological") {
+        return buildColumnItems(tasks, taskMap, priorities);
+      }
+      // For non-topological modes, still group epic children under their epic
+      const columnIds = new Set(tasks.map((t) => t.id));
+      const epicChildIds = new Set<string>();
+      const epicChildren = new Map<string, Task[]>();
+      for (const t of tasks) {
+        if (t.epic_id && columnIds.has(t.epic_id) && t.task_type !== "epic") {
+          epicChildIds.add(t.id);
+          if (!epicChildren.has(t.epic_id)) epicChildren.set(t.epic_id, []);
+          epicChildren.get(t.epic_id)!.push(t);
+        }
+      }
+      const items: import("../../lib/taskSort").ColumnItem[] = [];
+      for (const task of tasks) {
+        if (epicChildIds.has(task.id)) continue; // rendered under epic
+        items.push({ type: "task", task, depth: 0 });
+        if (task.task_type === "epic" && epicChildren.has(task.id)) {
+          for (const child of epicChildren.get(task.id)!) {
+            items.push({ type: "task", task: child, depth: 1 });
+          }
+        }
+      }
+      return items;
+    },
     [tasks, taskMap, sortMode],
   );
 
@@ -235,6 +268,7 @@ const KanbanColumn = memo(function KanbanColumn({
               onTaskClick={onTaskClick}
               onStartSession={onStartSession}
               onResearchSession={onResearchSession}
+              onBreakdownEpic={onBreakdownEpic}
               onViewSession={onViewSession}
             >
               {(menuProps) => (
@@ -244,9 +278,12 @@ const KanbanColumn = memo(function KanbanColumn({
                   onClick={onTaskClick}
                   onStartSession={onStartSession}
                   onResearchSession={onResearchSession}
+                  onBreakdownEpic={onBreakdownEpic}
                   onViewSession={onViewSession}
+                  onEpicClick={onEpicClick}
                   variant={variant}
                   taskMap={taskMap}
+                  allTasks={tasks}
                   dependents={deps}
                   isBlocked={blocked}
                   treeDepth={depth}

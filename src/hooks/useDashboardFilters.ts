@@ -7,6 +7,7 @@ export interface FilterState {
   labels: Set<string>;
   agents: Set<string>;
   statuses: Set<TaskStatus>;
+  epics: Set<string>;
   searchQuery: string;
   showArchived: boolean;
 }
@@ -16,6 +17,7 @@ export type FilterAction =
   | { type: "TOGGLE_LABEL"; label: string }
   | { type: "TOGGLE_AGENT"; agent: string }
   | { type: "TOGGLE_STATUS"; status: TaskStatus }
+  | { type: "TOGGLE_EPIC"; epicId: string }
   | { type: "SET_SEARCH"; text: string }
   | { type: "TOGGLE_ARCHIVED" }
   | { type: "CLEAR_ALL" };
@@ -25,6 +27,7 @@ export const initialFilterState: FilterState = {
   labels: new Set(),
   agents: new Set(),
   statuses: new Set(),
+  epics: new Set(),
   searchQuery: "",
   showArchived: false,
 };
@@ -54,6 +57,12 @@ export function filterReducer(state: FilterState, action: FilterAction): FilterS
       if (next.has(action.status)) next.delete(action.status);
       else next.add(action.status);
       return { ...state, statuses: next };
+    }
+    case "TOGGLE_EPIC": {
+      const next = new Set(state.epics);
+      if (next.has(action.epicId)) next.delete(action.epicId);
+      else next.add(action.epicId);
+      return { ...state, epics: next };
     }
     case "SET_SEARCH":
       return { ...state, searchQuery: action.text };
@@ -88,14 +97,21 @@ export function useDashboardFilters() {
     filters.labels.size > 0 ||
     filters.agents.size > 0 ||
     filters.statuses.size > 0 ||
+    filters.epics.size > 0 ||
     filters.searchQuery.length > 0;
 
   const matchesFilters = useCallback(
-    (task: { id: string; title: string; status: TaskStatus; priority: Priority; labels: string[]; agent: string | null }) => {
+    (task: { id: string; title: string; status: TaskStatus; priority: Priority; labels: string[]; agent: string | null; epic_id?: string | null; task_type?: string }) => {
       if (filters.priorities.size > 0 && !filters.priorities.has(task.priority)) return false;
       if (filters.labels.size > 0 && !task.labels.some((l) => filters.labels.has(l))) return false;
       if (filters.agents.size > 0 && (!task.agent || !filters.agents.has(task.agent))) return false;
       if (filters.statuses.size > 0 && !filters.statuses.has(task.status)) return false;
+      // Epic filter: show the epic itself + tasks belonging to selected epics
+      if (filters.epics.size > 0) {
+        const isSelectedEpic = task.task_type === "epic" && filters.epics.has(task.id);
+        const belongsToSelectedEpic = task.epic_id != null && filters.epics.has(task.epic_id);
+        if (!isSelectedEpic && !belongsToSelectedEpic) return false;
+      }
       if (filters.searchQuery.length > 0) {
         const q = filters.searchQuery.toLowerCase();
         const inTitle = task.title.toLowerCase().includes(q);

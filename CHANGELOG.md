@@ -9,21 +9,34 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- **Epics** — Group related tasks under an epic. Create epics from the dashboard or task detail, assign child tasks, and track progress with a completion bar. Epic status updates automatically as children advance. Kanban columns nest children under their epic with visual indentation
+- **Breakdown Sessions** — Let an AI agent decompose an epic into concrete child tasks. A dedicated session mode guides the agent through analyzing the epic and creating subtasks
+- **Chat Git Controls** — A git context bar in chat sessions with branch switching, worktree creation, push, create PR, and merge — all without leaving the conversation
+- **Research Completion** — Research sessions now have their own completion signal that moves tasks from Backlog to Ready without triggering the full task lifecycle
+- **Thinking Level Selector** — Agents that support reasoning levels (e.g., OpenCode) show a thinking level picker in the chat toolbar
+- **OpenCode Model Discovery** — Available models and thinking levels are now detected automatically from OpenCode, with grouped provider selectors in the config popover
+- **Custom Priority Levels** — Define your own priority scheme per project instead of the default P0/P1/P2. Configure priority IDs, labels, colors (from the full ThemeColor palette), and sort order in project settings. Existing projects get P0/P1/P2 defaults for backward compatibility
+- **Epic Filters** — Filter the Kanban board by epic; summary header shows an epic count alongside existing metrics
 - **Research Complete Bar** — Shows the agent's last message in a card above the action bar, with a Close Session button alongside Continue to Implementation and Dismiss
-- **Chat Waiting State Clear** — Submitting a response in ACP chat now immediately clears the waiting indicator
-- **Task File Conflict Resolution** — Re-enabling "Save tasks to disk" now detects conflicts between existing files and database tasks, and shows a dialog to resolve them before proceeding
+- **Task File Conflict Resolution** — Re-enabling "Save tasks to disk" detects conflicts between files on disk and database tasks, and shows a dialog to resolve them
 
 ### Changed
 
-- **ACP Narration Grouping** — Faber MCP tool calls (report_status, report_progress, etc.) no longer split the agent's message into separate narration bubbles in the chat timeline
-- **ACP Tool Call Visibility** — Hidden tool list now applies consistently; removed obsolete `promote_session` tool references
-- **ACP Waiting Detection** — `report_waiting` tool now works in ACP mode by also parsing tool content (not just title JSON)
-- **CLAUDE.md** — Clarified `report_complete` instructions to prevent premature calls in continuous mode
+- **Chat Timeline** — Messages, tool calls, and thinking blocks now appear as a single unified timeline with better streaming, turn tracking, and thinking duration display
+- **Agent Instructions** — MCP tool descriptions rewritten with clearer guidance, and agents now only see tools relevant to their session type (task, research, breakdown, etc.)
+- **Tool Call Cards** — Richer detail in collapsed tool cards: edit operations show line counts, and more tool types (search, web fetch, etc.) display useful parameters at a glance
+- **Continuous Mode** — Completed sessions now stay open so you can review the agent's output before moving on
+- **Chat Narration** — Faber's own MCP tool calls (status updates, progress reports) no longer break the agent's message into separate bubbles
+- **Chat Message Filtering** — System-injected content (instructions, tool definitions) is filtered from the timeline so you only see genuine messages
 
 ### Fixed
 
-- **MCP get_task Empty Body** — Fixed `get_task` MCP tool returning an empty body when tasks are not persisted to disk (DB-only mode). Now falls back to the database body instead of an empty string
-- **Save Tasks to Disk Toggle** — MCP tools (create task, update plan) now work correctly when "Save tasks to disk" is turned off, instead of silently failing
+- **Chat Authentication** — Sessions no longer fail to start when an agent advertises an auth method it doesn't fully support
+- **Windows Agent Launch** — Fixed npm-installed CLI agents not launching correctly on Windows
+- **New Task Visibility** — Tasks created by agents (e.g., during epic breakdown) now appear on the board immediately
+- **Chat Waiting Detection** — The "waiting for input" indicator now triggers reliably in chat sessions
+- **MCP get_task Empty Body** — Fixed task body returning empty when tasks are only stored in the database
+- **Save Tasks to Disk Toggle** — MCP tools now work correctly when file-based task storage is turned off
 
 ## [0.9.0] - 2026-03-21
 

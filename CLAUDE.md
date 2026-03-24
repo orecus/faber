@@ -8,6 +8,16 @@ Faber is a cross-platform desktop app (Tauri 2 + React + TypeScript + Rust) for 
 
 **ALWAYS** use the frontend skill when designing, developing or updating frontend components or pages.
 
+## Development Priorities & Principles
+
+1. **Sweeping changes are encouraged** when they improve maintainability and reusability. Don't shy away from broad refactors if the result is cleaner, more consistent code.
+2. **Performance** — minimize unnecessary re-renders, avoid redundant IPC calls, keep bundle size lean.
+3. **Reliability** — handle edge cases, fail gracefully, test assumptions.
+4. **Great UI/UX** — every interaction should feel polished and intentional. Prioritize user flow over implementation convenience.
+5. **Long-term maintainability** — extract shared logic into dedicated modules, use consistent naming conventions, keep a solid structure. Prefer reusable abstractions over copy-paste.
+6. **Clean up while you're there** — when touching code, note and address dead-code blocks, unused imports, and performance bottlenecks or bugs. Leave code better than you found it.
+7. **Think holistically** — avoid local-only fixes that ignore the bigger picture. Consider the full user flow and how a change affects the rest of the system before implementing.
+
 ## Commands
 
 ```bash
@@ -16,6 +26,7 @@ pnpm tauri dev        # Start full app (Vite + Tauri/Rust backend with hot-reloa
 pnpm build            # Build frontend (tsc + vite build)
 pnpm tauri build      # Package full desktop app
 pnpm prepare-sidecar  # Build the faber-mcp sidecar binary (debug)
+pnpm test             # Run tests
 
 # Rust-only (from src-tauri/)
 cargo build           # Build Rust backend
@@ -133,15 +144,15 @@ error!(session_id = %id, error = %e, "PTY spawn failed");
 **All new and updated components must use Tailwind CSS classes.** Do not use inline `style={{}}` for new code. Existing components with inline styles should be migrated to Tailwind when touched.
 
 - **Tailwind v4** with ShadCN CSS variables, OKLch color space
-- **ShadCN vars are the source of truth.** Use standard Tailwind utilities: `bg-background`, `bg-card`, `bg-popover`, `bg-accent`, `text-foreground`, `text-muted-foreground`, `border-border`, `text-primary`, `text-destructive`, etc.
+- **ShadCN vars are the source of truth.** Use standard Tailwind utilities
 - **Custom semantic tokens:** `text-dim-foreground` (between foreground and muted), `text-success` / `bg-success`, `text-warning` / `bg-warning`
-- **Glass/solid switching:** Use `useTheme()` → `isGlass` boolean. For panels: `<Card type={isGlass ? "normal" : "solid"}>` (Orecus.io Card). For shell containers (sidebar, status bar, tab bar): `glassStyles[isGlass ? "subtle" : "solid"]` from `color-utils.ts`
+- **Glass/solid switching:** Use `useTheme()` → `isGlass` boolean. For panels: `<Card type={isGlass ? "normal" : "solid"}>` (orecus.io Card). For shell containers (sidebar, status bar, tab bar): `glassStyles[isGlass ? "subtle" : "solid"]` from `color-utils.ts`
 - **Panel borders:** Use `ring-1 ring-border/40` for subtle panel containers, `border-border` for structural dividers (border-b, border-l, etc.)
-- **Inline style vars:** When CSS vars are needed in inline styles, use bare ShadCN names: `var(--primary)`, `var(--success)`, `var(--destructive)`, `var(--foreground)`, `var(--muted-foreground)`, `var(--border)`, `var(--card)`, `var(--background)`, `var(--warning)`, `var(--dim-foreground)`
 - Tailwind `animate-spin` for spinners; use `<Loader2>` from lucide-react
 - Theme selectors: `[data-theme^="dark"]`, `[data-theme^="light"]`
 - Main CSS file: `src/styles/main.css`
-- ShadCN UI components in `src/components/ui/`, Orecus.io components in `src/components/ui/orecus.io/`
+- ShadCN UI components in `src/components/ui/`
+- orecus.io components in `src/components/ui/orecus.io/`
 
 ### Error handling (Rust)
 Custom `AppError` enum with `From` conversions. All commands return `Result<T, AppError>`.
@@ -162,19 +173,13 @@ Strict mode enabled (`noUnusedLocals`, `noUnusedParameters`). Functional compone
 <!-- Faber:MCP -->
 ## Faber Integration
 
-You have MCP tools provided by the Faber IDE for reporting your progress. You MUST use them throughout your workflow:
+You have MCP tools provided by the Faber IDE for reporting your progress. You MUST use them throughout your workflow.
 
-- `report_status(status, message, activity?)` — Call when you start working (status: "working"). Optional activity: "researching", "exploring", "planning", "coding", "testing", "debugging", "reviewing".
-- `report_progress(current_step, total_steps, description)` — Call before each step
-- `report_files_changed(files)` — Call after modifying files
-- `report_error(error, details?)` — Call if you encounter an error or blocker
-- `report_waiting(question)` — Call if you need user input
-- `report_complete(summary)` — Call ONLY when the task is fully complete. In continuous mode, this advances to the next task. Do NOT call prematurely
-- `get_task(task_id?)` — Fetch task metadata and body. Omit task_id to get current session's task.
-- `update_task(task_id?, status?, priority?, title?, labels?, depends_on?, github_issue?, github_pr?)` — Update task metadata (status, priority, labels, etc.). Omit task_id to use current session's task.
-- `update_task_plan(plan, task_id?)` — Update the implementation plan in the task file.
-- `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task in the current project (always created as backlog).
-- `list_tasks(status?, label?)` — List all tasks in the current project with optional filters. Returns compact metadata (no body).
+## Status Reporting (required)
 
-Always call `report_status` first, then `report_progress` as you work, and `report_complete` when done.
+- `report_status(status, message, activity?)` — Call FIRST when you start working (status: "working"). Call again when your activity changes. Activity options: "researching", "exploring", "planning", "coding", "testing", "debugging", "reviewing".
+- `report_progress(current_step, total_steps, description)` — Call before each major step so the IDE shows a progress bar.
+- `report_files_changed(files)` — Call after modifying files so the IDE can track changes.
+- `report_error(error, details?)` — Call if you hit a hard blocker (build failure, missing dependency, etc.). After calling this, STOP and wait for the user.
+- `report_waiting(question)` — Call if you need user input or a decision. After calling this, STOP and wait — the session pauses until the user responds.
 <!-- /Faber:MCP -->

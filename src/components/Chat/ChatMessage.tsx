@@ -15,19 +15,22 @@ import {
   MessageResponse,
 } from "@/components/ai-elements/message";
 
-import {
-  Reasoning,
-  ReasoningContent,
-  ReasoningTrigger,
-} from "@/components/ai-elements/reasoning";
 
-import type { AcpChatMessage } from "../../types";
+import type { AcpMessageAttachment } from "../../types";
+
+/** Minimal message shape accepted by ChatMessage (works with both legacy and new entry types). */
+export interface ChatMessageData {
+  id: string;
+  role: "user" | "agent";
+  text: string;
+  timestamp: number;
+  attachments?: AcpMessageAttachment[];
+  isError?: boolean;
+}
 
 interface ChatMessageProps {
-  message: AcpChatMessage;
+  message: ChatMessageData;
   isStreaming?: boolean;
-  /** Whether thinking text is currently streaming for this message's thinking block. */
-  isThinkingStreaming?: boolean;
   /** Callback when user clicks "Edit & resend" on their own message. */
   onEditResend?: (text: string) => void;
 }
@@ -35,7 +38,6 @@ interface ChatMessageProps {
 export default React.memo(function ChatMessage({
   message,
   isStreaming = false,
-  isThinkingStreaming = false,
   onEditResend,
 }: ChatMessageProps) {
   const [copied, setCopied] = useState(false);
@@ -119,19 +121,6 @@ export default React.memo(function ChatMessage({
   return (
     <Message from="assistant">
       <MessageContent className="w-full">
-        {/* Thinking/reasoning block — shown above agent messages that have thinking text */}
-        {message.thinkingText && (
-          <Reasoning
-            isStreaming={isThinkingStreaming}
-            duration={message.thinkingDuration}
-            defaultOpen={isThinkingStreaming ? undefined : false}
-            className="mb-2"
-          >
-            <ReasoningTrigger />
-            <ReasoningContent>{message.thinkingText}</ReasoningContent>
-          </Reasoning>
-        )}
-
         <div className="min-w-0 rounded-lg bg-card px-4 py-3 ml-6">
           <MessageResponse mode={isStreaming ? "streaming" : "static"}>
             {message.text}

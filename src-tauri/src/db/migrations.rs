@@ -314,7 +314,55 @@ DELETE FROM settings WHERE scope = 'global' AND key LIKE 'acp_default_policy_%';
 DELETE FROM settings WHERE scope = 'global' AND key LIKE 'acp_permission_timeout_%';
 "#;
 
-const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012, MIGRATION_013, MIGRATION_014, MIGRATION_015, MIGRATION_016, MIGRATION_017];
+const MIGRATION_018: &str = r#"
+ALTER TABLE tasks ADD COLUMN task_type TEXT NOT NULL DEFAULT 'task' CHECK(task_type IN ('task', 'epic'));
+ALTER TABLE tasks ADD COLUMN epic_id TEXT;
+CREATE INDEX idx_tasks_epic ON tasks(project_id, epic_id);
+"#;
+
+// Remove the CHECK constraint on tasks.priority so custom priority IDs are allowed.
+const MIGRATION_019: &str = r#"
+-- Recreate tasks table without priority CHECK constraint
+DROP TABLE IF EXISTS tasks_new;
+CREATE TABLE tasks_new (
+    id              TEXT NOT NULL,
+    project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    task_file_path  TEXT,
+    title           TEXT NOT NULL,
+    status          TEXT NOT NULL DEFAULT 'backlog'
+                    CHECK(status IN ('backlog','ready','in-progress','in-review','done','archived')),
+    priority        TEXT NOT NULL DEFAULT 'P2',
+    task_type       TEXT NOT NULL DEFAULT 'task' CHECK(task_type IN ('task', 'epic')),
+    epic_id         TEXT,
+    agent           TEXT,
+    model           TEXT,
+    branch          TEXT,
+    worktree_path   TEXT,
+    github_issue    TEXT,
+    depends_on      TEXT,
+    labels          TEXT,
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    github_pr       TEXT,
+    body            TEXT DEFAULT '',
+    PRIMARY KEY (id, project_id)
+);
+
+INSERT INTO tasks_new (id, project_id, task_file_path, title, status, priority, task_type, epic_id,
+    agent, model, branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, body)
+SELECT id, project_id, task_file_path, title, status, priority, task_type, epic_id,
+    agent, model, branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, COALESCE(body, '')
+FROM tasks;
+
+DROP TABLE tasks;
+ALTER TABLE tasks_new RENAME TO tasks;
+
+CREATE INDEX idx_tasks_project ON tasks(project_id);
+CREATE INDEX idx_tasks_status ON tasks(project_id, status);
+CREATE INDEX idx_tasks_epic ON tasks(project_id, epic_id);
+"#;
+
+const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012, MIGRATION_013, MIGRATION_014, MIGRATION_015, MIGRATION_016, MIGRATION_017, MIGRATION_018, MIGRATION_019];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
@@ -365,13 +413,13 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 17);
+        assert_eq!(version, 19);
 
         // Running again is a no-op
         run(&conn).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 17);
+        assert_eq!(count, 19);
     }
 }

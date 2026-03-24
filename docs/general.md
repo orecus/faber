@@ -37,14 +37,24 @@ Tasks live on the **Dashboard** (the Kanban board). Each task has a status that 
 
 Tasks are stored as Markdown files with YAML frontmatter in your project's `.agents/tasks/` directory, so they travel with your repo.
 
-You can set a **priority** (P0 / P1 / P2), add **labels** (comma-separated tags), assign an **agent**, and add **dependencies** between tasks. When creating a task, expand the **Advanced** section to set labels, dependencies, and agent up front. Dependencies are visible directly on task cards — a link icon shows the count, and clicking it reveals a popover listing all linked tasks with their statuses. Blocked tasks (with unmet dependencies) are dimmed and show a lock icon.
+You can set a **priority**, add **labels** (comma-separated tags), assign an **agent**, and add **dependencies** between tasks. Priorities are configurable per project — the default scheme is P0 (Critical), P1 (High), P2 (Normal), but you can define your own levels with custom IDs, labels, and colors in **Settings > Projects > Priorities**. When creating a task, expand the **Advanced** section to set labels, dependencies, and agent up front. Dependencies are visible directly on task cards — a link icon shows the count, and clicking it reveals a popover listing all linked tasks with their statuses. Blocked tasks (with unmet dependencies) are dimmed and show a lock icon.
+
+#### Epics
+
+An **epic** is a special task type that groups related work. Create an epic from the create task dialog by toggling the type to "Epic", or convert an existing task via the task detail sidebar. Assign child tasks to an epic to track them as a unit.
+
+- **Auto-derived status** — An epic's status is automatically computed from its children (e.g., if all children are done, the epic is done)
+- **Progress bar** — Epic cards and the task detail toolbar show a completion progress bar
+- **Kanban nesting** — Child tasks appear indented under their epic in board columns
+- **Breakdown sessions** — Launch an AI agent to decompose an epic into child tasks using the Breakdown button on the epic card or the epic detail view
 
 ### Sessions
 
-A **session** is an AI agent (or plain terminal) running in either a PTY (terminal) or ACP (structured chat) transport. There are four ways to start one:
+A **session** is an AI agent (or plain terminal) running in either a PTY (terminal) or ACP (structured chat) transport. There are five ways to start one:
 
 - **Launch a task** — Click the play button on a task card in the Dashboard. Faber creates an isolated git worktree and branch, injects the task context into the agent's system prompt, and connects MCP progress reporting. The task moves to "In Progress". If the selected agent supports ACP, you can choose between Terminal (PTY) and Chat (ACP) transport in the launch dialog.
-- **Research a task** — Click the lightbulb icon on a "Backlog" task card. This launches a lightweight agent session to analyze and plan the task without changing its status or creating a worktree. The agent reads the task file and collaborates with you to explore the problem space before committing to implementation. When the research completes, a prompt appears offering to continue directly to implementation — launching a full task session with worktree isolation while the research findings are preserved in the task file.
+- **Research a task** — Click the lightbulb icon on a "Backlog" task card. This launches a lightweight agent session to analyze and plan the task without changing its status or creating a worktree. The agent reads the task file and collaborates with you to explore the problem space before committing to implementation. When the agent calls `report_researched`, the task advances from Backlog to Ready and a prompt appears offering to continue directly to implementation — launching a full task session with worktree isolation while the research findings are preserved in the task file.
+- **Break down an epic** — Click the Breakdown button on an epic card. This launches a session in `breakdown` mode where the agent decomposes the epic into concrete child tasks using the `create_task` MCP tool. The agent receives the epic's context and creates tasks assigned to the epic automatically.
 - **New Agent** — Click "New Agent" in the Sessions toolbar. This starts a free-form agent session with no specific task — good for exploration, prototyping, or asking questions. You can optionally create a worktree for it.
 - **Terminal** — Click "Terminal" in the Sessions toolbar. This opens a plain shell with no agent, useful for running commands manually.
 
@@ -64,7 +74,7 @@ Navigate between views using the top bar tabs or the command palette.
 
 ### Dashboard (Tasks)
 
-The summary bar at the top shows task counts (total, active, ready, done, blocked, linked issues). The **Archive** button appears when archived tasks exist, toggling the archive view.
+The summary bar at the top shows task counts (total, active, ready, done, blocked, epics, linked issues). The **Archive** button appears when archived tasks exist, toggling the archive view.
 
 The Dashboard has two display modes, toggled from the **Board | Tree** switch in the toolbar:
 
@@ -76,7 +86,7 @@ The default Kanban board for managing tasks. From here you can:
 - Drag tasks between columns to change status
 - Launch agent sessions on tasks using the play button (visible on hover)
 - Research backlog tasks using the lightbulb button (analyzes the task without changing status)
-- Filter tasks by priority, label, agent, or status
+- Filter tasks by priority, label, agent, status, or epic
 - Search tasks by title or ID
 - See live MCP status on in-progress task cards (only active sessions show the status footer)
 - **Right-click context menu** on any task card for quick actions: rename (inline editing), change status, set priority, assign agent, manage labels, and archive/delete
@@ -223,5 +233,6 @@ Per-project configuration:
 - **Default Agent / Model** — Override the global default for this project
 - **Branch Naming Pattern** — Customize the worktree branch format using `{{task_id}}` and `{{task_slug}}` variables
 - **Instruction File** — Point to a custom instruction file (relative to project root) for agent system prompts
+- **Priorities** — Define custom priority levels for the project. Each priority has an ID (stored in task files), a display label, a color (from the ThemeColor palette), and a sort order. Add, remove, and reorder priorities as needed. Defaults to P0/P1/P2 for new projects.
 - **GitHub Sync** — Configure automatic syncing between task statuses and GitHub issues/PRs (see the [GitHub Workflow](github_workflow) guide for details)
 - **Delete Project** — Remove the project from Faber (does not delete files on disk)

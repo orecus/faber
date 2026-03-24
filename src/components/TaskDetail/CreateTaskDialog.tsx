@@ -24,28 +24,30 @@ import {
 } from "../ui/select";
 import { Badge } from "../ui/badge";
 
-import type { GitHubIssueCreated, Priority, Task } from "../../types";
+import type { GitHubIssueCreated, Task, TaskType } from "../../types";
+import { DEFAULT_PRIORITIES, getPriorityLabel, getDefaultPriorityId } from "../../lib/priorities";
 
 interface CreateTaskDialogProps {
   onDismiss: () => void;
   /** Called after "Create & Start" — receives the new task ID so the parent can open LaunchTaskDialog */
   onStartTask?: (taskId: string) => void;
+  /** Pre-select an epic when creating a task from an epic detail view */
+  defaultEpicId?: string;
 }
 
-const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
-  { value: "P0", label: "P0 — Critical" },
-  { value: "P1", label: "P1 — High" },
-  { value: "P2", label: "P2 — Normal" },
-];
-
 const DEFAULT_BODY_TEMPLATE = `## Objective\n\n\n\n## Acceptance Criteria\n\n- [ ] \n\n## Implementation Plan\n\n1. `;
+const EPIC_BODY_TEMPLATE = `## Goal\n\n\n\n## Scope\n\n- [ ] \n`;
 
 export default function CreateTaskDialog({
   onDismiss,
   onStartTask,
+  defaultEpicId,
 }: CreateTaskDialogProps) {
   const accentColor = useProjectAccentColor();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
   const setTasks = useAppStore((s) => s.setTasks);
   const setActiveTask = useAppStore((s) => s.setActiveTask);
   const setActiveView = useAppStore((s) => s.setActiveView);
@@ -56,7 +58,7 @@ export default function CreateTaskDialog({
   const installedAgents = useAppStore((s) => s.agents).filter((a) => a.installed);
 
   const [title, setTitle] = useState("");
-  const [priority, setPriority] = useState<Priority>("P2");
+  const [priority, setPriority] = useState(() => getDefaultPriorityId(priorities));
   const [body, setBody] = useState(DEFAULT_BODY_TEMPLATE);
   const [creating, setCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -64,6 +66,11 @@ export default function CreateTaskDialog({
   const ghAuthStatus = useAppStore((s) => s.ghAuthStatus);
   const [ghSyncAvailable, setGhSyncAvailable] = useState(false);
   const [createAsIssue, setCreateAsIssue] = useState(false);
+
+  // Type and epic
+  const [taskType, setTaskType] = useState<TaskType>("task");
+  const [selectedEpicId, setSelectedEpicId] = useState<string>(defaultEpicId ?? "");
+  const availableEpics = tasks.filter((t) => t.task_type === "epic");
 
   // Advanced fields
   const [showAdvanced, setShowAdvanced] = useState(false);
@@ -127,7 +134,7 @@ export default function CreateTaskDialog({
   /** Returns trimmed body or null if unchanged from template / empty */
   const getBodyParam = useCallback(() => {
     const trimmed = body.trim();
-    if (!trimmed || trimmed === DEFAULT_BODY_TEMPLATE.trim()) return null;
+    if (!trimmed || trimmed === DEFAULT_BODY_TEMPLATE.trim() || trimmed === EPIC_BODY_TEMPLATE.trim()) return null;
     return trimmed;
   }, [body]);
 
@@ -137,6 +144,7 @@ export default function CreateTaskDialog({
     .filter(Boolean);
 
   const hasAdvancedFields = parsedLabels.length > 0 || selectedDeps.length > 0 || selectedAgent !== "";
+  const hasTypeFields = taskType === "epic" || selectedEpicId !== "";
 
   /** Core create logic — returns the created task or null on error */
   const createTask = useCallback(async (): Promise<Task | null> => {
@@ -151,6 +159,16 @@ export default function CreateTaskDialog({
         priority,
         body: getBodyParam(),
       });
+
+      // If type/epic fields were set, update task type
+      if (hasTypeFields) {
+        task = await invoke<Task>("set_task_type", {
+          projectId: activeProjectId,
+          taskId: task.id,
+          taskType: taskType,
+          epicId: selectedEpicId || null,
+        });
+      }
 
       // If advanced fields were set, update the task file
       if (hasAdvancedFields) {
@@ -189,6 +207,9 @@ export default function CreateTaskDialog({
     title,
     priority,
     getBodyParam,
+    hasTypeFields,
+    taskType,
+    selectedEpicId,
     hasAdvancedFields,
     parsedLabels,
     selectedDeps,
@@ -338,29 +359,71 @@ export default function CreateTaskDialog({
           />
         </div>
 
-        {/* Priority */}
-        <div>
-          <label className="mb-1 block text-xs text-dim-foreground">
-            Priority
-          </label>
-          <Select
-            value={priority}
-            onValueChange={(v) => {
-              if (v) setPriority(v as Priority);
-            }}
-            items={PRIORITY_OPTIONS}
-          >
-            <SelectTrigger className="w-full">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              {PRIORITY_OPTIONS.map((opt) => (
-                <SelectItem key={opt.value} value={opt.value}>
-                  {opt.label}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </Select>
+        {/* Priority + Type row */}
+        <div className="flex items-end gap-3">
+          <div className="flex-1">
+            <label className="mb-1 block text-xs text-dim-foreground">
+              Priority
+            </label>
+            <Select
+              value={priority}
+              onValueChange={(v) => {
+                if (v) setPriority(v);
+              }}
+              items={priorities.map((p) => ({ value: p.id, label: getPriorityLabel(p.id, priorities) }))}
+            >
+              <SelectTrigger className="w-full">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                {priorities.map((p) => (
+                  <SelectItem key={p.id} value={p.id}>
+                    {getPriorityLabel(p.id, priorities)}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          <div>
+            <label className="mb-1 block text-xs text-dim-foreground">
+              Type
+            </label>
+          <div className="flex items-center rounded-[var(--radius-element)] border border-border overflow-hidden h-9">
+            <button
+              type="button"
+              onClick={() => {
+                setTaskType("task");
+                setSelectedEpicId("");
+                if (body.trim() === EPIC_BODY_TEMPLATE.trim()) setBody(DEFAULT_BODY_TEMPLATE);
+              }}
+              className={`px-4 h-full text-sm font-medium transition-colors cursor-pointer ${
+                taskType === "task"
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              }`}
+            >
+              Task
+            </button>
+            <div className="w-px h-full bg-border" />
+            <button
+              type="button"
+              onClick={() => {
+                setTaskType("epic");
+                setSelectedAgent("");
+                setSelectedDeps([]);
+                if (body.trim() === DEFAULT_BODY_TEMPLATE.trim()) setBody(EPIC_BODY_TEMPLATE);
+              }}
+              className={`px-4 h-full text-sm font-medium transition-colors cursor-pointer ${
+                taskType === "epic"
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
+              }`}
+            >
+              Epic
+            </button>
+          </div>
+          </div>
         </div>
 
         {/* Body template */}
@@ -380,6 +443,36 @@ export default function CreateTaskDialog({
             Ctrl+Enter to create
           </p>
         </div>
+
+        {/* Epic parent selector — only for tasks, not epics */}
+        {taskType === "task" && availableEpics.length > 0 && (
+          <div>
+            <label className="mb-1 block text-xs text-dim-foreground">
+              Part of Epic
+            </label>
+            <Select
+              value={selectedEpicId || "__none__"}
+              onValueChange={(v) => setSelectedEpicId(!v || v === "__none__" ? "" : v)}
+              items={[
+                { value: "__none__", label: "None" },
+                ...availableEpics.map((e) => ({ value: e.id, label: `${e.id} — ${e.title}` })),
+              ]}
+            >
+              <SelectTrigger className="w-full text-xs">
+                <SelectValue placeholder="None" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="__none__">None</SelectItem>
+                {availableEpics.map((e) => (
+                  <SelectItem key={e.id} value={e.id}>
+                    <span className="font-mono text-muted-foreground mr-1">{e.id}</span>
+                    {e.title}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
 
         {/* Advanced fields toggle */}
         <button
@@ -424,65 +517,67 @@ export default function CreateTaskDialog({
               )}
             </div>
 
-            {/* Dependencies */}
-            <div>
-              <label className="mb-1 block text-xs text-dim-foreground">
-                Depends on
-              </label>
-              <Select
-                value="__placeholder__"
-                onValueChange={(v) => {
-                  if (v && v !== "__placeholder__" && !selectedDeps.includes(v)) {
-                    setSelectedDeps((prev) => [...prev, v]);
-                  }
-                }}
-                items={[
-                  { value: "__placeholder__", label: "Add dependency…" },
-                  ...tasks
-                    .filter((t) => !selectedDeps.includes(t.id))
-                    .map((t) => ({ value: t.id, label: `${t.id} — ${t.title}` })),
-                ]}
-              >
-                <SelectTrigger className="w-full text-xs">
-                  <SelectValue placeholder="Add dependency…" />
-                </SelectTrigger>
-                <SelectContent>
-                  {tasks
-                    .filter((t) => !selectedDeps.includes(t.id))
-                    .map((t) => (
-                      <SelectItem key={t.id} value={t.id}>
-                        <span className="font-mono text-muted-foreground mr-1">{t.id}</span>
-                        {t.title}
-                      </SelectItem>
-                    ))}
-                </SelectContent>
-              </Select>
-              {selectedDeps.length > 0 && (
-                <div className="flex flex-wrap gap-1 mt-1.5">
-                  {selectedDeps.map((depId) => {
-                    const depTask = tasks.find((t) => t.id === depId);
-                    return (
-                      <Badge
-                        key={depId}
-                        variant="outline"
-                        className="text-[10px] px-1.5 py-0 gap-1 cursor-pointer"
-                        onClick={() =>
-                          setSelectedDeps((prev) =>
-                            prev.filter((d) => d !== depId),
-                          )
-                        }
-                      >
-                        {depTask ? `${depId} ${depTask.title}` : depId}
-                        <X className="size-2.5" />
-                      </Badge>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            {/* Dependencies — hidden for epics */}
+            {taskType !== "epic" && (
+              <div>
+                <label className="mb-1 block text-xs text-dim-foreground">
+                  Depends on
+                </label>
+                <Select
+                  value="__placeholder__"
+                  onValueChange={(v) => {
+                    if (v && v !== "__placeholder__" && !selectedDeps.includes(v)) {
+                      setSelectedDeps((prev) => [...prev, v]);
+                    }
+                  }}
+                  items={[
+                    { value: "__placeholder__", label: "Add dependency…" },
+                    ...tasks
+                      .filter((t) => !selectedDeps.includes(t.id))
+                      .map((t) => ({ value: t.id, label: `${t.id} — ${t.title}` })),
+                  ]}
+                >
+                  <SelectTrigger className="w-full text-xs">
+                    <SelectValue placeholder="Add dependency…" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {tasks
+                      .filter((t) => !selectedDeps.includes(t.id))
+                      .map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          <span className="font-mono text-muted-foreground mr-1">{t.id}</span>
+                          {t.title}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                {selectedDeps.length > 0 && (
+                  <div className="flex flex-wrap gap-1 mt-1.5">
+                    {selectedDeps.map((depId) => {
+                      const depTask = tasks.find((t) => t.id === depId);
+                      return (
+                        <Badge
+                          key={depId}
+                          variant="outline"
+                          className="text-[10px] px-1.5 py-0 gap-1 cursor-pointer"
+                          onClick={() =>
+                            setSelectedDeps((prev) =>
+                              prev.filter((d) => d !== depId),
+                            )
+                          }
+                        >
+                          {depTask ? `${depId} ${depTask.title}` : depId}
+                          <X className="size-2.5" />
+                        </Badge>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* Agent */}
-            {installedAgents.length > 0 && (
+            {/* Agent — hidden for epics */}
+            {taskType !== "epic" && installedAgents.length > 0 && (
               <div>
                 <label className="mb-1 block text-xs text-dim-foreground">
                   Agent
@@ -563,7 +658,7 @@ export default function CreateTaskDialog({
             >
               Create
             </Button>
-            {onStartTask && (
+            {onStartTask && taskType !== "epic" && (
               <Button
                 variant="color"
                 color={accentColor}

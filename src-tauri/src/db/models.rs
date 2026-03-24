@@ -4,6 +4,40 @@ use std::str::FromStr;
 
 // ── Enums ──
 
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum TaskType {
+    #[default]
+    Task,
+    Epic,
+}
+
+impl TaskType {
+    pub fn as_str(&self) -> &'static str {
+        match self {
+            Self::Task => "task",
+            Self::Epic => "epic",
+        }
+    }
+}
+
+impl fmt::Display for TaskType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(self.as_str())
+    }
+}
+
+impl FromStr for TaskType {
+    type Err = String;
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s {
+            "task" => Ok(Self::Task),
+            "epic" => Ok(Self::Epic),
+            _ => Err(format!("invalid task type: {s}")),
+        }
+    }
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "kebab-case")]
 pub enum TaskStatus {
@@ -49,40 +83,8 @@ impl FromStr for TaskStatus {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Priority {
-    P0,
-    P1,
-    P2,
-}
-
-impl Priority {
-    pub fn as_str(&self) -> &'static str {
-        match self {
-            Self::P0 => "P0",
-            Self::P1 => "P1",
-            Self::P2 => "P2",
-        }
-    }
-}
-
-impl fmt::Display for Priority {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.write_str(self.as_str())
-    }
-}
-
-impl FromStr for Priority {
-    type Err = String;
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match s {
-            "P0" => Ok(Self::P0),
-            "P1" => Ok(Self::P1),
-            "P2" => Ok(Self::P2),
-            _ => Err(format!("invalid priority: {s}")),
-        }
-    }
-}
+// Priority is now a plain String (user-configurable per project).
+// Validation happens against the project config at runtime.
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "lowercase")]
@@ -92,6 +94,7 @@ pub enum SessionMode {
     Shell,
     Research,
     Chat,
+    Breakdown,
 }
 
 impl SessionMode {
@@ -102,6 +105,7 @@ impl SessionMode {
             Self::Shell => "shell",
             Self::Research => "research",
             Self::Chat => "chat",
+            Self::Breakdown => "breakdown",
         }
     }
 }
@@ -121,6 +125,7 @@ impl FromStr for SessionMode {
             "shell" => Ok(Self::Shell),
             "research" => Ok(Self::Research),
             "chat" => Ok(Self::Chat),
+            "breakdown" => Ok(Self::Breakdown),
             _ => Err(format!("invalid session mode: {s}")),
         }
     }
@@ -248,7 +253,11 @@ pub struct Task {
     pub task_file_path: Option<String>,
     pub title: String,
     pub status: TaskStatus,
-    pub priority: Priority,
+    pub priority: String,
+    #[serde(default)]
+    pub task_type: TaskType,
+    #[serde(default)]
+    pub epic_id: Option<String>,
     pub agent: Option<String>,
     pub model: Option<String>,
     pub branch: Option<String>,
@@ -268,7 +277,9 @@ pub struct NewTask {
     pub task_file_path: Option<String>,
     pub title: String,
     pub status: Option<TaskStatus>,
-    pub priority: Option<Priority>,
+    pub priority: Option<String>,
+    pub task_type: Option<TaskType>,
+    pub epic_id: Option<String>,
     pub agent: Option<String>,
     pub model: Option<String>,
     pub branch: Option<String>,

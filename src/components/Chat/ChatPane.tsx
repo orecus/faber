@@ -1,5 +1,5 @@
 import { Bot, Loader2, MessageCircle } from "lucide-react";
-import React, { useCallback, useMemo, useRef, useState } from "react";
+import React, { useCallback, useMemo, useState } from "react";
 
 import {
   Conversation,
@@ -10,66 +10,57 @@ import {
 
 import { Shimmer } from "@/components/ai-elements/shimmer";
 
+import { usePersistedBoolean, usePersistedString } from "../../hooks/usePersistedState";
 import { useAppStore } from "../../store/appStore";
 import ChatInput from "./ChatInput";
 import ChatPlanQueue from "./ChatPlanQueue";
 import ChatMessage from "./ChatMessage";
+import GitContextBar from "./GitContextBar";
 import PermissionDialog from "./PermissionDialog";
 import WaitingCard from "./WaitingCard";
-import { isHiddenToolCall, isWaitingToolCall } from "./ToolCallCard";
 import AgentTurnBlock from "./AgentTurnBlock";
 
-import type { AcpChatMessage, AcpThinkingBlock, AcpToolCallState } from "../../types";
+import type { AcpEntry, AcpUserMessage, AcpAgentText, AcpToolCallEntry, AcpThinkingEntry } from "../../types";
 
-// ── Debug mode — set to true to show component borders and diagnostic info ──
-const DEBUG_CHAT_TIMELINE = false;
+// ── Display modes ──
+
+/** Chat display mode — pure view-layer transform over the same flat entry data. */
+export type ChatDisplayMode = "linear" | "grouped" | "single-response";
+
+// ── Constants ──
+
+const EMPTY_ENTRIES: AcpEntry[] = [];
 
 // ── Timeline types ──
 
-/** An agent turn groups thinking, tool calls + the agent's response into one cohesive block. */
-interface AgentTurn {
-  toolCalls: AcpToolCallState[];
-  thinkingBlocks: AcpThinkingBlock[];
-  agentMessage: AcpChatMessage | null;
-  /** Narration messages to render inline between tool steps (Option B only). */
-  narrations?: AcpChatMessage[];
-  isLastAgent: boolean;
-}
+type AgentEntry = AcpAgentText | AcpToolCallEntry | AcpThinkingEntry;
 
-/** Narration rendering mode. */
-export type NarrationMode = "split-turns" | "inline";
-
-/** A user→agent cycle: one user message followed by 0+ agent messages. */
-interface MessageCycle {
-  userMsg: AcpChatMessage | null;
-  agentMsgs: { msg: AcpChatMessage; idx: number }[];
-  startTime: number;
-  endTime: number;
+/** A grouped agent turn: consecutive non-user entries between user messages. */
+interface AgentTurnGroup {
+  entries: AgentEntry[];
+  /** Whether this is the last agent turn in the timeline (for streaming indicator). */
+  isLastTurn: boolean;
 }
 
 type TimelineItem =
-  | { type: "user-message"; data: AcpChatMessage }
-  | { type: "agent-turn"; turn: AgentTurn };
+  | { type: "user-message"; data: AcpUserMessage }
+  | { type: "agent-turn"; turn: AgentTurnGroup };
+
+// ── Component ──
 
 interface ChatPaneProps {
   sessionId: string;
   sessionStatus: string;
-  narrationMode?: NarrationMode;
 }
 
 export default React.memo(function ChatPane({
   sessionId,
   sessionStatus,
-  narrationMode = "split-turns",
 }: ChatPaneProps) {
-  const messages = useAppStore(
-    (s) => s.acpMessages[sessionId] ?? EMPTY_MESSAGES,
-  );
-  const toolCalls = useAppStore(
-    (s) => s.acpToolCalls[sessionId] ?? EMPTY_TOOL_CALLS,
-  );
-  const thinkingBlocks = useAppStore(
-    (s) => s.acpThinkingBlocks[sessionId] ?? EMPTY_THINKING_BLOCKS,
+  const [showThinkingBlocks] = usePersistedBoolean("show_thinking_blocks", true);
+  const [displayMode] = usePersistedString("chat_display_mode", "grouped") as [ChatDisplayMode, (v: ChatDisplayMode) => void, boolean];
+  const entries = useAppStore(
+    (s) => s.acpEntries[sessionId] ?? EMPTY_ENTRIES,
   );
   const promptPending = useAppStore(
     (s) => s.acpPromptPending[sessionId] ?? false,
@@ -87,77 +78,25 @@ export default React.memo(function ChatPane({
     setEditResendText(undefined);
   }, []);
 
-  // ── Stable narration mode ──
-  // The persisted setting may load a tick after mount, causing a prop change
-  // from the default to the saved value. To avoid a layout flash, we use a ref
-  // for the mode inside useMemo (no dep on the prop). A counter state triggers
-  // rebuilds only when messages change or the user explicitly toggles the mode.
-  const modeRef = useRef(narrationMode);
-  const prevModeRef = useRef(narrationMode);
-  const [modeVersion, setModeVersion] = useState(0);
-  if (narrationMode !== prevModeRef.current) {
-    prevModeRef.current = narrationMode;
-    modeRef.current = narrationMode;
-    // Only bump version (trigger rebuild) if we already have messages.
-    // When empty, the next message arrival will rebuild anyway.
-    if (messages.length > 0) {
-      setModeVersion((v) => v + 1);
-    }
-  }
-
-  // ── Build turn-based timeline ──
+  // ── Build timeline from flat entries ──
   const timeline = useMemo<TimelineItem[]>(() => {
-    const mode = modeRef.current;
-    const allMessages: AcpChatMessage[] = [...messages];
-
-    // Convert report_waiting tool calls to agent messages
-    const waitingToolCallIds = new Set<string>();
-    for (const tc of toolCalls) {
-      const waiting = isWaitingToolCall(tc);
-      if (waiting) {
-        waitingToolCallIds.add(tc.tool_call_id);
-        allMessages.push({
-          id: `waiting_${tc.tool_call_id}`,
-          role: "agent",
-          text: waiting.question,
-          timestamp: tc.timestamp,
-        });
-      }
+    switch (displayMode) {
+      case "linear":
+        return buildTimelineLinear(entries, showThinkingBlocks);
+      case "single-response":
+        return buildTimelineSingleResponse(entries, showThinkingBlocks);
+      case "grouped":
+      default:
+        return buildTimelineGrouped(entries, showThinkingBlocks);
     }
-
-    // Collect visible tool calls sorted by timestamp
-    const visibleToolCalls = toolCalls
-      .filter((tc) => !isHiddenToolCall(tc) && !waitingToolCallIds.has(tc.tool_call_id))
-      .sort((a, b) => a.timestamp - b.timestamp);
-
-    // Find last agent message for streaming indicator
-    let lastAgentIdx = -1;
-    for (let i = allMessages.length - 1; i >= 0; i--) {
-      if (allMessages[i].role === "agent") {
-        lastAgentIdx = i;
-        break;
-      }
-    }
-
-    // Build user→agent cycles (shared between both modes)
-    const cycles = buildMessageCycles(allMessages);
-
-    if (mode === "split-turns") {
-      return buildTimelineSplitTurns(cycles, visibleToolCalls, thinkingBlocks, lastAgentIdx);
-    } else {
-      return buildTimelineInline(cycles, visibleToolCalls, thinkingBlocks, lastAgentIdx);
-    }
-    // modeVersion triggers rebuilds when the user toggles the setting (not on initial load)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [messages, toolCalls, thinkingBlocks, modeVersion]);
+  }, [entries, showThinkingBlocks, displayMode]);
 
   const isEmpty = timeline.length === 0;
 
   // Check if the agent is actively working (for working indicator)
   const isAgentWorking = promptPending && (
     isEmpty ||
-    (messages.length > 0 && messages[messages.length - 1].role === "user" &&
-      toolCalls.filter((tc) => !isHiddenToolCall(tc)).length === 0)
+    (entries.length > 0 && entries[entries.length - 1].type === "user-message")
   );
 
   return (
@@ -188,70 +127,30 @@ export default React.memo(function ChatPane({
             />
           ) : (
             <>
-              {/* Debug: raw state summary */}
-              {DEBUG_CHAT_TIMELINE && (
-                <div className="text-[9px] font-mono text-orange-400/70 bg-orange-950/30 rounded px-2 py-1 mb-1">
-                  msgs={messages.length} ({messages.map((m, i) => `${i}:${m.role}@${m.timestamp}`).join(", ")})
-                  | tcs={toolCalls.length} (ts: {toolCalls.slice(0, 6).map((tc) => `${tc.tool_call_id.slice(0, 8)}@${tc.timestamp}`).join(", ")}{toolCalls.length > 6 ? "..." : ""})
-                  | timeline={timeline.length} | pending={String(promptPending)}
-                </div>
-              )}
               {timeline.map((item, idx) => {
                 if (item.type === "user-message") {
-                  if (DEBUG_CHAT_TIMELINE) {
-                    return (
-                      <div key={item.data.id} className="relative border border-blue-500/50 rounded">
-                        <span className="absolute -top-2.5 left-2 text-[9px] bg-blue-500/80 text-white px-1 rounded z-10">
-                          user-message (id:{item.data.id.slice(0, 15)})
-                        </span>
-                        <ChatMessage
-                          message={item.data}
-                          onEditResend={handleEditResend}
-                        />
-                      </div>
-                    );
-                  }
                   return (
                     <ChatMessage
                       key={item.data.id}
-                      message={item.data}
+                      message={{
+                        id: item.data.id,
+                        role: "user",
+                        text: item.data.text,
+                        timestamp: item.data.timestamp,
+                        attachments: item.data.attachments,
+                      }}
                       onEditResend={handleEditResend}
                     />
                   );
                 }
                 if (item.type === "agent-turn") {
-                  if (DEBUG_CHAT_TIMELINE) {
-                    const tcMsgIdxs = item.turn.toolCalls.map((tc) => `${tc.tool_call_id.slice(0, 12)}:mi=${tc.messageIndex}`).join(", ");
-                    return (
-                      <div key={`turn-${idx}`} className="relative border border-green-500/50 rounded">
-                        <span className="absolute -top-2.5 left-2 text-[9px] bg-green-500/80 text-white px-1 rounded z-10">
-                          agent-turn #{idx} (tc={item.turn.toolCalls.length}, msg={item.turn.agentMessage ? "yes" : "none"})
-                        </span>
-                        {tcMsgIdxs && (
-                          <div className="text-[8px] text-yellow-400/80 px-2 pt-3 pb-0 font-mono break-all">
-                            TC messageIndexes: {tcMsgIdxs}
-                          </div>
-                        )}
-                        <AgentTurnBlock
-                          toolCalls={item.turn.toolCalls}
-                          thinkingBlocks={item.turn.thinkingBlocks}
-                          agentMessage={item.turn.agentMessage}
-                          narrations={item.turn.narrations}
-                          isStreaming={item.turn.isLastAgent && promptPending}
-                          sessionId={sessionId}
-                        />
-                      </div>
-                    );
-                  }
                   return (
                     <AgentTurnBlock
                       key={`turn-${idx}`}
-                      toolCalls={item.turn.toolCalls}
-                      thinkingBlocks={item.turn.thinkingBlocks}
-                      agentMessage={item.turn.agentMessage}
-                      narrations={item.turn.narrations}
-                      isStreaming={item.turn.isLastAgent && promptPending}
+                      entries={item.turn.entries}
+                      isStreaming={item.turn.isLastTurn && promptPending}
                       sessionId={sessionId}
+                      showThinking={showThinkingBlocks}
                     />
                   );
                 }
@@ -278,91 +177,89 @@ export default React.memo(function ChatPane({
         initialText={editResendText}
         onInitialTextConsumed={handleEditResendConsumed}
       />
+
+      <GitContextBar sessionId={sessionId} />
     </div>
   );
 });
 
-// ── Timeline builder helpers ──
+// ── Timeline builders ──
 
-/** Split messages into user→agent cycles based on user message boundaries. */
-function buildMessageCycles(allMessages: AcpChatMessage[]): MessageCycle[] {
-  const cycles: MessageCycle[] = [];
-  let current: MessageCycle | null = null;
+/**
+ * Grouped (default): splits agent entries into turns at agent-text boundaries.
+ * Each agent-text is the "response" at the bottom of its turn, with preceding
+ * tool calls and thinking steps above it. Good for following multi-step work.
+ *
+ * Example: [thinking, text-1, tool-1, tool-2, text-2, tool-3, text-3]
+ *   → Turn 1: [thinking, text-1]
+ *   → Turn 2: [tool-1, tool-2, text-2]
+ *   → Turn 3: [tool-3, text-3]
+ */
+function buildTimelineGrouped(entries: AcpEntry[], showThinking: boolean): TimelineItem[] {
+  const result: TimelineItem[] = [];
+  let currentTurnEntries: AgentEntry[] = [];
 
-  for (let i = 0; i < allMessages.length; i++) {
-    const msg = allMessages[i];
-    if (msg.role === "user") {
-      if (current) {
-        current.endTime = msg.timestamp;
-        cycles.push(current);
-      }
-      current = { userMsg: msg, agentMsgs: [], startTime: msg.timestamp, endTime: Infinity };
+  const flushTurn = (isLast: boolean) => {
+    if (currentTurnEntries.length > 0) {
+      result.push({
+        type: "agent-turn",
+        turn: { entries: currentTurnEntries, isLastTurn: isLast },
+      });
+      currentTurnEntries = [];
+    }
+  };
+
+  for (const entry of entries) {
+    if (entry.type === "user-message") {
+      flushTurn(false);
+      result.push({ type: "user-message", data: entry });
+    } else if (entry.type === "thinking" && !showThinking) {
+      continue;
     } else {
-      if (!current) {
-        current = { userMsg: null, agentMsgs: [], startTime: 0, endTime: Infinity };
+      currentTurnEntries.push(entry);
+      // Flush after each agent-text — it's the "response" that closes a turn
+      if (entry.type === "agent-text") {
+        flushTurn(false);
       }
-      current.agentMsgs.push({ msg, idx: i });
     }
   }
-  if (current) cycles.push(current);
-  return cycles;
+
+  // Flush remaining entries (e.g. in-progress tool calls with no text yet)
+  flushTurn(true);
+
+  // Fix isLastTurn: mark the actual last agent-turn
+  for (let i = result.length - 1; i >= 0; i--) {
+    if (result[i].type === "agent-turn") {
+      (result[i] as { type: "agent-turn"; turn: AgentTurnGroup }).turn.isLastTurn = true;
+      break;
+    }
+  }
+
+  return result;
 }
 
 /**
- * Option A — Split turns: each agent message gets its own turn.
- * Tool calls are assigned by agent-message timestamp boundaries.
+ * Linear: each entry is its own turn — most transparent view.
+ * Every text segment, tool call, and thinking block is a separate item.
+ * Good for debugging and understanding exact agent flow.
  */
-function buildTimelineSplitTurns(
-  cycles: MessageCycle[],
-  visibleToolCalls: AcpToolCallState[],
-  thinkingBlocks: AcpThinkingBlock[],
-  lastAgentIdx: number,
-): TimelineItem[] {
+function buildTimelineLinear(entries: AcpEntry[], showThinking: boolean): TimelineItem[] {
   const result: TimelineItem[] = [];
+  const total = entries.length;
 
-  for (const cycle of cycles) {
-    if (cycle.userMsg) {
-      result.push({ type: "user-message", data: cycle.userMsg });
-    }
-
-    // Items in this cycle's time window
-    const cycleTcs = visibleToolCalls.filter(
-      (tc) => tc.timestamp >= cycle.startTime && tc.timestamp < cycle.endTime,
-    );
-    const cycleTbs = thinkingBlocks.filter(
-      (tb) => tb.timestamp >= cycle.startTime && tb.timestamp < cycle.endTime,
-    );
-
-    if (cycle.agentMsgs.length === 0) {
-      // Orphan cycle — no agent messages yet, show in-progress turn
-      if (cycleTcs.length > 0 || cycleTbs.length > 0) {
-        result.push({
-          type: "agent-turn",
-          turn: { toolCalls: cycleTcs, thinkingBlocks: cycleTbs, agentMessage: null, isLastAgent: false },
-        });
-      }
+  for (let i = 0; i < total; i++) {
+    const entry = entries[i];
+    if (entry.type === "user-message") {
+      result.push({ type: "user-message", data: entry });
+    } else if (entry.type === "thinking" && !showThinking) {
       continue;
-    }
-
-    // Assign tool calls / thinking to each agent message by timestamp boundaries
-    for (let a = 0; a < cycle.agentMsgs.length; a++) {
-      // First agent msg gets everything from cycle start; subsequent msgs get from their own timestamp
-      const lowerBound = a === 0 ? cycle.startTime : cycle.agentMsgs[a].msg.timestamp;
-      const upperBound = a < cycle.agentMsgs.length - 1
-        ? cycle.agentMsgs[a + 1].msg.timestamp
-        : cycle.endTime;
-
-      const turnTcs = cycleTcs.filter((tc) => tc.timestamp >= lowerBound && tc.timestamp < upperBound);
-      const turnTbs = cycleTbs.filter((tb) => tb.timestamp >= lowerBound && tb.timestamp < upperBound);
-
+    } else {
+      const isLast = i === total - 1 || entries.slice(i + 1).every(
+        (e) => e.type === "user-message" || (e.type === "thinking" && !showThinking),
+      );
       result.push({
         type: "agent-turn",
-        turn: {
-          toolCalls: turnTcs,
-          thinkingBlocks: turnTbs,
-          agentMessage: cycle.agentMsgs[a].msg,
-          isLastAgent: cycle.agentMsgs[a].idx === lastAgentIdx,
-        },
+        turn: { entries: [entry], isLastTurn: isLast },
       });
     }
   }
@@ -371,82 +268,49 @@ function buildTimelineSplitTurns(
 }
 
 /**
- * Option B — Inline narration: single turn per cycle, narration messages
- * passed separately for inline rendering between tool call steps.
+ * Single response: one turn per user→agent cycle — most compact.
+ * ALL agent entries between two user messages are grouped into a single turn.
+ * All tool calls shown as chain-of-thought steps, with only the final text
+ * rendered as the response.
  */
-function buildTimelineInline(
-  cycles: MessageCycle[],
-  visibleToolCalls: AcpToolCallState[],
-  thinkingBlocks: AcpThinkingBlock[],
-  lastAgentIdx: number,
-): TimelineItem[] {
+function buildTimelineSingleResponse(entries: AcpEntry[], showThinking: boolean): TimelineItem[] {
   const result: TimelineItem[] = [];
+  let currentTurnEntries: AgentEntry[] = [];
 
-  for (const cycle of cycles) {
-    if (cycle.userMsg) {
-      result.push({ type: "user-message", data: cycle.userMsg });
+  const flushTurn = (isLast: boolean) => {
+    if (currentTurnEntries.length > 0) {
+      result.push({
+        type: "agent-turn",
+        turn: { entries: currentTurnEntries, isLastTurn: isLast },
+      });
+      currentTurnEntries = [];
     }
+  };
 
-    const cycleTcs = visibleToolCalls.filter(
-      (tc) => tc.timestamp >= cycle.startTime && tc.timestamp < cycle.endTime,
-    );
-    const cycleTbs = thinkingBlocks.filter(
-      (tb) => tb.timestamp >= cycle.startTime && tb.timestamp < cycle.endTime,
-    );
-
-    if (cycle.agentMsgs.length === 0) {
-      if (cycleTcs.length > 0 || cycleTbs.length > 0) {
-        result.push({
-          type: "agent-turn",
-          turn: { toolCalls: cycleTcs, thinkingBlocks: cycleTbs, agentMessage: null, isLastAgent: false },
-        });
-      }
+  for (const entry of entries) {
+    if (entry.type === "user-message") {
+      flushTurn(false);
+      result.push({ type: "user-message", data: entry });
+    } else if (entry.type === "thinking" && !showThinking) {
       continue;
+    } else {
+      currentTurnEntries.push(entry);
     }
-
-    // Last agent message is the "real" response; earlier ones are inline narrations
-    const lastAgent = cycle.agentMsgs[cycle.agentMsgs.length - 1];
-    const narrations = cycle.agentMsgs.length > 1
-      ? cycle.agentMsgs.slice(0, -1).map((am) => am.msg)
-      : undefined;
-
-    result.push({
-      type: "agent-turn",
-      turn: {
-        toolCalls: cycleTcs,
-        thinkingBlocks: cycleTbs,
-        agentMessage: lastAgent.msg,
-        narrations,
-        isLastAgent: lastAgent.idx === lastAgentIdx,
-      },
-    });
   }
 
+  flushTurn(true);
   return result;
 }
-
-// ── Constants ──
-
-const EMPTY_MESSAGES: AcpChatMessage[] = [];
-const EMPTY_TOOL_CALLS: AcpToolCallState[] = [];
-const EMPTY_THINKING_BLOCKS: AcpThinkingBlock[] = [];
 
 // ── Sub-components ──
 
 function WorkingIndicator() {
   return (
-    <div className={DEBUG_CHAT_TIMELINE ? "relative border border-purple-500/50 rounded" : undefined}>
-      {DEBUG_CHAT_TIMELINE && (
-        <span className="absolute -top-2.5 left-2 text-[9px] bg-purple-500/80 text-white px-1 rounded z-10">
-          WorkingIndicator
-        </span>
-      )}
-      <div className="flex items-center gap-2 py-2 px-1">
-        <Loader2 className="size-3.5 animate-spin text-primary" />
-        <span className="text-xs text-muted-foreground">
-          <Shimmer duration={2}>Working...</Shimmer>
-        </span>
-      </div>
+    <div className="flex items-center gap-2 py-2 px-1">
+      <Loader2 className="size-3.5 animate-spin text-primary" />
+      <span className="text-xs text-muted-foreground">
+        <Shimmer duration={2}>Working...</Shimmer>
+      </span>
     </div>
   );
 }

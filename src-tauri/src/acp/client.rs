@@ -215,28 +215,34 @@ impl AcpClient {
         self.agent_capabilities = Some(response.agent_capabilities.clone());
         self.agent_info = response.agent_info.clone();
 
-        // If the agent advertises authentication methods, perform the
+        // If the agent advertises authentication methods, attempt the
         // authenticate handshake. Currently only AuthMethod::Agent exists
         // (agent handles auth itself), so we just select the first method.
+        // Some agents (e.g. OpenCode) advertise auth methods but don't
+        // implement them yet — treat failure as non-fatal and continue.
         if let Some(method) = response.auth_methods.first() {
             let method_id = method.id().clone();
             info!(
                 method_id = %method_id,
                 method_name = %method.name(),
-                "ACP → authenticate (agent requires authentication)"
+                "ACP → authenticate (agent advertised authentication)"
             );
 
             let auth_request = acp::AuthenticateRequest::new(method_id);
-            let auth_response = self
-                .connection
-                .authenticate(auth_request)
-                .await
-                .map_err(|e| format!("ACP authenticate failed: {}", e))?;
-
-            info!(
-                "ACP ← authenticate response: {:?}",
-                auth_response
-            );
+            match self.connection.authenticate(auth_request).await {
+                Ok(auth_response) => {
+                    info!(
+                        "ACP ← authenticate response: {:?}",
+                        auth_response
+                    );
+                }
+                Err(e) => {
+                    warn!(
+                        error = %e,
+                        "ACP authentication failed, continuing without auth"
+                    );
+                }
+            }
         }
 
         Ok(response)
@@ -273,8 +279,22 @@ impl AcpClient {
 
         info!(
             acp_session_id = %response.session_id,
+            has_config_options = response.config_options.is_some(),
+            config_option_count = response.config_options.as_ref().map(|v| v.len()).unwrap_or(0),
             "ACP ← session/new response"
         );
+
+        // Log config option details at debug level for troubleshooting
+        if let Some(ref opts) = response.config_options {
+            for opt in opts {
+                debug!(
+                    id = %opt.id,
+                    name = %opt.name,
+                    category = ?opt.category,
+                    "ACP config option from session/new"
+                );
+            }
+        }
 
         Ok(response)
     }
@@ -516,49 +536,11 @@ impl Drop for AcpClient {
 
 /// Resolve a command name to its full path on the current platform.
 ///
-/// On Windows, CLI tools installed via npm/pip are `.cmd` batch files.
-/// `Command::new("gemini")` can't execute `.cmd` directly, but if we resolve
-/// the full path (e.g., `C:\Users\...\gemini.cmd`), Windows will use the
-/// correct handler. Falls back to the original command if resolution fails.
+/// Delegates to the shared `agent::resolve_command` helper and logs the result.
 fn resolve_command_path(command: &str) -> String {
-    #[cfg(windows)]
-    {
-        #[allow(unused_imports)]
-        use std::os::windows::process::CommandExt;
-        // Use `where.exe` to find the full path
-        let output = std::process::Command::new("where.exe")
-            .arg(command)
-            .stdout(std::process::Stdio::piped())
-            .stderr(std::process::Stdio::null())
-            .creation_flags(0x08000000) // CREATE_NO_WINDOW
-            .output();
-
-        if let Ok(output) = output {
-            if output.status.success() {
-                let stdout = String::from_utf8_lossy(&output.stdout);
-                let lines: Vec<&str> = stdout.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
-
-                // `where.exe` may return multiple results (e.g. `gemini` and `gemini.cmd`).
-                // Prefer .cmd/.bat/.exe — these are valid Win32 executables that Windows
-                // can spawn directly. The extensionless file is often a POSIX shell shim
-                // that can't be executed as a Win32 process.
-                let preferred = lines.iter().find(|l| {
-                    let lower = l.to_lowercase();
-                    lower.ends_with(".cmd") || lower.ends_with(".bat") || lower.ends_with(".exe")
-                });
-                let resolved = preferred.or(lines.first()).map(|s| s.to_string());
-
-                if let Some(resolved) = resolved {
-                    info!(command = %command, resolved = %resolved, candidates = ?lines, "Resolved ACP command path");
-                    return resolved;
-                }
-            }
-        }
-        warn!(command = %command, "Could not resolve command path via where.exe, using as-is");
-        command.to_string()
+    let resolved = crate::agent::resolve_command(command);
+    if resolved != command {
+        info!(command = %command, resolved = %resolved, "Resolved ACP command path");
     }
-    #[cfg(not(windows))]
-    {
-        command.to_string()
-    }
+    resolved
 }

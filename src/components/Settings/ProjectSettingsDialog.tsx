@@ -6,9 +6,11 @@ import {
   Cpu,
   FileText,
   FolderCode,
+  Flag,
   GitBranch,
   Image,
   MessageSquare,
+  Plus,
   Terminal,
   Trash2,
   X,
@@ -45,8 +47,10 @@ import {
 
 import { TaskFileConflictDialog } from "./TaskFileConflictDialog";
 
-import type { AgentInfo, Project, SessionTransport, TaskConflict } from "../../types";
+import type { AgentInfo, PriorityLevel, Project, SessionTransport, TaskConflict } from "../../types";
 import type { ThemeColor } from "../ui/orecus.io/lib/color-utils";
+import { DEFAULT_PRIORITIES, PRIORITY_COLORS } from "../../lib/priorities";
+import { Input } from "../ui/input";
 
 const TAB_COLORS: { value: ThemeColor; label: string }[] = [
   { value: "blue", label: "Blue" },
@@ -178,6 +182,10 @@ export function ProjectSettingsDialog({
   const [conflictDialogOpen, setConflictDialogOpen] = useState(false);
   const [taskConflicts, setTaskConflicts] = useState<TaskConflict[]>([]);
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const storePriorities = useAppStore((s) =>
+    projectId ? (s.projectPriorities[projectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
+  const [priorities, setPriorities] = useState<PriorityLevel[]>(storePriorities);
 
   // Load per-project settings
   useEffect(() => {
@@ -283,6 +291,55 @@ export function ProjectSettingsDialog({
       }).catch(() => {});
     },
     [projectId],
+  );
+
+  // ── Priority management ──
+
+  const savePriorities = useCallback(
+    (updated: PriorityLevel[]) => {
+      setPriorities(updated);
+      invoke("set_project_setting", {
+        projectId,
+        key: "priorities",
+        value: JSON.stringify(updated),
+      }).catch(() => {});
+    },
+    [projectId],
+  );
+
+  const addPriority = useCallback(() => {
+    const nextOrder = priorities.length > 0 ? Math.max(...priorities.map((p) => p.order)) + 1 : 0;
+    const id = `P${priorities.length}`;
+    savePriorities([...priorities, { id, label: "New", color: "gray", order: nextOrder }]);
+  }, [priorities, savePriorities]);
+
+  const removePriority = useCallback(
+    (index: number) => {
+      if (priorities.length <= 1) return;
+      savePriorities(priorities.filter((_, i) => i !== index));
+    },
+    [priorities, savePriorities],
+  );
+
+  const updatePriority = useCallback(
+    (index: number, field: keyof PriorityLevel, value: string | number) => {
+      const updated = priorities.map((p, i) => (i === index ? { ...p, [field]: value } : p));
+      savePriorities(updated);
+    },
+    [priorities, savePriorities],
+  );
+
+  const movePriority = useCallback(
+    (index: number, direction: -1 | 1) => {
+      const targetIndex = index + direction;
+      if (targetIndex < 0 || targetIndex >= priorities.length) return;
+      const updated = [...priorities];
+      [updated[index], updated[targetIndex]] = [updated[targetIndex], updated[index]];
+      // Reassign order values to match new positions
+      const reordered = updated.map((p, i) => ({ ...p, order: i }));
+      savePriorities(reordered);
+    },
+    [priorities, savePriorities],
   );
 
   const selectedAgent = agents.find((a) => a.name === agent);
@@ -624,6 +681,120 @@ export function ProjectSettingsDialog({
               checked={worktreeAutoCleanup}
               onChange={handleWorktreeAutoCleanupChange}
             />
+          </div>
+
+          {/* ── Priorities ── */}
+          <div className={panelClass}>
+            <div className="flex items-center justify-between">
+              <div className={sectionHeadingClass}>
+                <Flag className="inline size-3 mr-1 -mt-px" />
+                Priorities
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="h-6 px-2 text-[11px]"
+                onClick={addPriority}
+              >
+                <Plus className="size-3 mr-1" />
+                Add
+              </Button>
+            </div>
+
+            <div className="flex flex-col gap-2">
+              {priorities.map((p, i) => {
+                const hex = gradientHexColors[(p.color as ThemeColor) || "gray"] ?? gradientHexColors.gray;
+                return (
+                  <div
+                    key={i}
+                    className="flex items-center gap-2 rounded-md bg-background/50 ring-1 ring-border/20 px-2 py-1.5"
+                  >
+                    {/* Reorder buttons */}
+                    <div className="flex flex-col -my-1">
+                      <button
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0 leading-none text-[9px]"
+                        onClick={() => movePriority(i, -1)}
+                        disabled={i === 0}
+                        title="Move up"
+                      >
+                        ▲
+                      </button>
+                      <button
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0 leading-none text-[9px]"
+                        onClick={() => movePriority(i, 1)}
+                        disabled={i === priorities.length - 1}
+                        title="Move down"
+                      >
+                        ▼
+                      </button>
+                    </div>
+
+                    {/* Color dot */}
+                    <span
+                      className="size-2.5 rounded-full shrink-0"
+                      style={{ background: `linear-gradient(135deg, ${hex.start}, ${hex.end})` }}
+                    />
+
+                    {/* ID */}
+                    <Input
+                      className="!h-7 w-14 text-[11px] font-mono px-1.5 py-0"
+                      value={p.id}
+                      onChange={(e) => updatePriority(i, "id", e.target.value)}
+                      placeholder="ID"
+                    />
+
+                    {/* Label */}
+                    <Input
+                      className="!h-7 flex-1 text-[11px] px-1.5 py-0"
+                      value={p.label}
+                      onChange={(e) => updatePriority(i, "label", e.target.value)}
+                      placeholder="Label"
+                    />
+
+                    {/* Color select */}
+                    <Select
+                      value={p.color}
+                      onValueChange={(v) => { if (v) updatePriority(i, "color", v); }}
+                      items={PRIORITY_COLORS.map((c) => ({ value: c.value, label: c.label }))}
+                    >
+                      <SelectTrigger className="!h-7 w-[100px] text-[11px] px-1.5 py-0">
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PRIORITY_COLORS.map((c) => {
+                          const cHex = gradientHexColors[c.value];
+                          return (
+                            <SelectItem key={c.value} value={c.value}>
+                              <span className="flex items-center gap-1.5">
+                                <span
+                                  className="inline-block size-2 rounded-full shrink-0"
+                                  style={{ background: `linear-gradient(135deg, ${cHex.start}, ${cHex.end})` }}
+                                />
+                                {c.label}
+                              </span>
+                            </SelectItem>
+                          );
+                        })}
+                      </SelectContent>
+                    </Select>
+
+                    {/* Delete */}
+                    <button
+                      className="text-muted-foreground hover:text-destructive disabled:opacity-30 p-0.5"
+                      onClick={() => removePriority(i)}
+                      disabled={priorities.length <= 1}
+                      title="Remove priority"
+                    >
+                      <X className="size-3" />
+                    </button>
+                  </div>
+                );
+              })}
+            </div>
+
+            <span className="text-[10px] text-muted-foreground">
+              Define priority levels for this project. ID is stored in task files, label is shown in the UI.
+            </span>
           </div>
 
           {/* ── Danger Zone ── */}

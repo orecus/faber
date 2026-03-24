@@ -95,7 +95,9 @@ fn do_create_task(
             task_file_path: None,
             title: title.to_string(),
             status: None,
-            priority: Some(priority_val.parse().unwrap_or(db::models::Priority::P2)),
+            priority: Some(priority_val.to_string()),
+            task_type: None,
+            epic_id: None,
             agent: None,
             model: None,
             branch: None,
@@ -129,6 +131,64 @@ pub(crate) struct GithubSyncContext {
     has_pr: bool,
     label_sync: bool,
     label_mapping: std::collections::HashMap<String, String>,
+}
+
+/// Derive the effective status for an epic based on its children's statuses.
+pub fn derive_epic_status(children: &[Task]) -> TaskStatus {
+    if children.is_empty() {
+        return TaskStatus::Backlog;
+    }
+    let all_done = children.iter().all(|t| t.status == TaskStatus::Done || t.status == TaskStatus::Archived);
+    if all_done {
+        return TaskStatus::Done;
+    }
+    let any_in_progress = children.iter().any(|t| t.status == TaskStatus::InProgress);
+    if any_in_progress {
+        return TaskStatus::InProgress;
+    }
+    let any_in_review = children.iter().any(|t| t.status == TaskStatus::InReview);
+    if any_in_review {
+        return TaskStatus::InReview;
+    }
+    let any_ready = children.iter().any(|t| t.status == TaskStatus::Ready);
+    if any_ready {
+        return TaskStatus::Ready;
+    }
+    TaskStatus::Backlog
+}
+
+/// Recompute an epic's status from its children and update DB + file if changed.
+fn recompute_epic_status(
+    conn: &rusqlite::Connection,
+    project_id: &str,
+    epic_id: &str,
+) -> Result<(), AppError> {
+    let epic = match db::tasks::get(conn, epic_id, project_id)? {
+        Some(t) if t.task_type == db::models::TaskType::Epic => t,
+        _ => return Ok(()), // Not an epic or doesn't exist
+    };
+
+    let children = db::tasks::list_by_epic(conn, project_id, epic_id)?;
+    let derived = derive_epic_status(&children);
+
+    if derived != epic.status {
+        tracing::debug!(epic_id, old = %epic.status, new = %derived, "Auto-deriving epic status");
+
+        // Update file on disk if it exists
+        let disk_enabled = tasks::task_files_enabled(conn, project_id);
+        if disk_enabled {
+            if let Some(ref file_path) = epic.task_file_path {
+                let path = Path::new(file_path);
+                if path.exists() {
+                    let _ = tasks::update_task_file_field(path, "status", derived.as_str());
+                }
+            }
+        }
+
+        db::tasks::update_status(conn, epic_id, project_id, derived)?;
+    }
+
+    Ok(())
 }
 
 pub(crate) fn do_update_task_status(
@@ -179,6 +239,11 @@ pub(crate) fn do_update_task_status(
 
     let updated_task = db::tasks::get(conn, task_id, project_id)?
         .ok_or_else(|| AppError::NotFound(format!("Task {task_id}")))?;
+
+    // Auto-derive parent epic status if this task belongs to an epic
+    if let Some(ref epic_id) = updated_task.epic_id {
+        let _ = recompute_epic_status(conn, project_id, epic_id);
+    }
 
     Ok((updated_task, sync_ctx, todos))
 }
@@ -360,6 +425,8 @@ fn do_save_task_content(
             created,
             depends_on: depends_on.clone(),
             labels: labels.clone(),
+            task_type: if task.task_type == db::models::TaskType::Epic { Some("epic".to_string()) } else { None },
+            epic_id: task.epic_id.clone(),
             agent: agent.map(|s| s.to_string()),
             model: model.map(|s| s.to_string()),
             branch: branch.map(|s| s.to_string()),
@@ -386,7 +453,9 @@ fn do_save_task_content(
                 task_file_path: None,
                 title: title.to_string(),
                 status: Some(status.parse().unwrap_or(db::models::TaskStatus::Backlog)),
-                priority: Some(priority.parse().unwrap_or(db::models::Priority::P2)),
+                priority: Some(priority.to_string()),
+                task_type: Some(task.task_type),
+                epic_id: task.epic_id.clone(),
                 agent: agent.map(|s| s.to_string()),
                 model: model.map(|s| s.to_string()),
                 branch: branch.map(|s| s.to_string()),
@@ -407,7 +476,9 @@ fn do_save_task_content(
             task_file_path: None,
             title: title.to_string(),
             status: Some(status.parse().unwrap_or(db::models::TaskStatus::Backlog)),
-            priority: Some(priority.parse().unwrap_or(db::models::Priority::P2)),
+            priority: Some(priority.to_string()),
+            task_type: Some(task.task_type),
+            epic_id: task.epic_id.clone(),
             agent: agent.map(|s| s.to_string()),
             model: model.map(|s| s.to_string()),
             branch: branch.map(|s| s.to_string()),
@@ -420,6 +491,11 @@ fn do_save_task_content(
         };
         db::tasks::upsert(conn, &new_task)?
     };
+
+    // Auto-derive parent epic status if this task belongs to an epic
+    if let Some(ref epic_id) = updated.epic_id {
+        let _ = recompute_epic_status(conn, project_id, epic_id);
+    }
 
     // Generate TODOS.md content under lock; file write deferred (only if disk enabled)
     let todos = if disk_enabled {
@@ -566,6 +642,98 @@ pub fn get_task_file_content(
 ) -> Result<TaskFileContent, AppError> {
     let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
     do_get_task_file_content(&conn, &project_id, &task_id)
+}
+
+#[tauri::command]
+pub fn set_task_type(
+    state: State<'_, DbState>,
+    project_id: String,
+    task_id: String,
+    task_type: String,
+    epic_id: Option<String>,
+) -> Result<Task, AppError> {
+    let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let task = db::tasks::get(&conn, &task_id, &project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Task {task_id}")))?;
+
+    let new_type: db::models::TaskType = task_type.parse()
+        .map_err(|e: String| AppError::Validation(e))?;
+
+    // Validate: epics cannot have an epic_id
+    if new_type == db::models::TaskType::Epic && epic_id.is_some() {
+        return Err(AppError::Validation("Epics cannot be nested inside other epics".into()));
+    }
+
+    // Validate: if epic_id is set, target must be an epic
+    if let Some(ref eid) = epic_id {
+        let parent = db::tasks::get(&conn, eid, &project_id)?
+            .ok_or_else(|| AppError::NotFound(format!("Epic {eid}")))?;
+        if parent.task_type != db::models::TaskType::Epic {
+            return Err(AppError::Validation(format!("Task {eid} is not an epic")));
+        }
+    }
+
+    // Validate: can't change epic to task if children exist
+    if task.task_type == db::models::TaskType::Epic && new_type == db::models::TaskType::Task {
+        let children = db::tasks::list_by_epic(&conn, &project_id, &task_id)?;
+        if !children.is_empty() {
+            return Err(AppError::Validation(format!(
+                "Cannot change type: {} children still reference this epic",
+                children.len()
+            )));
+        }
+    }
+
+    // Update DB
+    let new_task = db::models::NewTask {
+        id: task.id.clone(),
+        project_id: project_id.clone(),
+        task_file_path: task.task_file_path.clone(),
+        title: task.title.clone(),
+        status: Some(task.status),
+        priority: Some(task.priority.clone()),
+        task_type: Some(new_type),
+        epic_id: epic_id.clone(),
+        agent: task.agent.clone(),
+        model: task.model.clone(),
+        branch: task.branch.clone(),
+        worktree_path: task.worktree_path.clone(),
+        github_issue: task.github_issue.clone(),
+        github_pr: task.github_pr.clone(),
+        depends_on: task.depends_on.clone(),
+        labels: task.labels.clone(),
+        body: task.body.clone(),
+    };
+    let updated = db::tasks::upsert(&conn, &new_task)?;
+
+    // Update file on disk if it exists
+    let disk_enabled = tasks::task_files_enabled(&conn, &project_id);
+    if disk_enabled {
+        if let Some(ref file_path) = updated.task_file_path {
+            let path = Path::new(file_path);
+            if path.exists() {
+                let _ = tasks::update_task_file_field(path, "task_type", new_type.as_str());
+                let _ = tasks::update_task_file_field(
+                    path,
+                    "epic_id",
+                    epic_id.as_deref().unwrap_or(""),
+                );
+            }
+        }
+    }
+
+    // Recompute epic status if assigned/unassigned from an epic
+    if let Some(ref eid) = epic_id {
+        let _ = recompute_epic_status(&conn, &project_id, eid);
+    }
+    // Also recompute old epic if it changed
+    if task.epic_id.as_deref() != epic_id.as_deref() {
+        if let Some(ref old_eid) = task.epic_id {
+            let _ = recompute_epic_status(&conn, &project_id, old_eid);
+        }
+    }
+
+    Ok(updated)
 }
 
 #[tauri::command]
@@ -770,6 +938,21 @@ pub async fn stop_config_watcher(
     Ok(())
 }
 
+// ── Priority Config Command ──
+
+#[tauri::command]
+pub fn get_project_priorities(
+    state: State<'_, DbState>,
+    project_id: String,
+) -> Result<Vec<crate::project_config::PriorityLevel>, AppError> {
+    let conn = state.lock().map_err(|e| AppError::Database(e.to_string()))?;
+    let project = db::projects::get(&conn, &project_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Project {project_id}")))?;
+    let project_root = std::path::Path::new(&project.path);
+    let cfg = crate::project_config::load(project_root);
+    Ok(cfg.priorities)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -929,7 +1112,7 @@ mod tests {
             updated.status,
             crate::db::models::TaskStatus::InProgress
         );
-        assert_eq!(updated.priority, crate::db::models::Priority::P0);
+        assert_eq!(updated.priority, "P0");
         assert_eq!(updated.agent.as_deref(), Some("claude-code"));
 
         // Verify file on disk

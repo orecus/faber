@@ -6,11 +6,13 @@ import {
   Flag,
   Bot,
   Tag,
+  Layers,
   Archive,
   Trash2,
   ExternalLink,
   Play,
   Lightbulb,
+  Ungroup,
   Pencil,
   ChevronRightIcon,
   CheckIcon,
@@ -18,7 +20,8 @@ import {
 
 import { cn } from "@/lib/utils";
 import { useAppStore } from "../../store/appStore";
-import type { Task, TaskStatus, Priority } from "../../types";
+import type { Task, TaskStatus } from "../../types";
+import { DEFAULT_PRIORITIES, getPriorityLabel, getPriorityBgClass } from "../../lib/priorities";
 import ConfirmDialog from "../Review/ConfirmDialog";
 
 // ── Constants ──
@@ -29,12 +32,6 @@ const STATUSES: { value: TaskStatus; label: string }[] = [
   { value: "in-progress", label: "In Progress" },
   { value: "in-review", label: "In Review" },
   { value: "done", label: "Done" },
-];
-
-const PRIORITIES: { value: Priority; label: string; color: string }[] = [
-  { value: "P0", label: "P0 — Critical", color: "text-destructive" },
-  { value: "P1", label: "P1 — High", color: "text-warning" },
-  { value: "P2", label: "P2 — Normal", color: "text-muted-foreground" },
 ];
 
 // ── Shared menu item styles ──
@@ -66,6 +63,7 @@ interface TaskCardContextMenuProps {
   onTaskClick: (taskId: string) => void;
   onStartSession?: (taskId: string) => void;
   onResearchSession?: (taskId: string) => void;
+  onBreakdownEpic?: (taskId: string) => void;
   onViewSession?: (sessionId: string) => void;
   children: (props: TaskContextMenuRenderProps) => React.ReactNode;
 }
@@ -76,9 +74,13 @@ export default function TaskCardContextMenu({
   onTaskClick,
   onStartSession,
   onResearchSession,
+  onBreakdownEpic,
   children,
 }: TaskCardContextMenuProps) {
   const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
   const agents = useAppStore((s) => s.agents);
   const updateTask = useAppStore((s) => s.updateTask);
   const setTasks = useAppStore((s) => s.setTasks);
@@ -174,7 +176,7 @@ export default function TaskCardContextMenu({
   );
 
   const handlePriorityChange = useCallback(
-    (priority: Priority) => {
+    (priority: string) => {
       setMenuOpen(false);
       saveTaskField({ priority });
     },
@@ -241,6 +243,32 @@ export default function TaskCardContextMenu({
     [agents],
   );
 
+  // Epic list for submenu (only show for non-epic tasks)
+  const tasks = useAppStore((s) => s.tasks);
+  const epicList = useMemo(
+    () => tasks.filter((t) => t.task_type === "epic" && t.id !== task.id),
+    [tasks, task.id],
+  );
+
+  const handleEpicChange = useCallback(
+    async (epicId: string | null) => {
+      if (!activeProjectId) return;
+      try {
+        await invoke("set_task_type", {
+          projectId: activeProjectId,
+          taskId: task.id,
+          taskType: task.task_type || "task",
+          epicId,
+        });
+        const freshTasks = await invoke<Task[]>("list_tasks", { projectId: activeProjectId });
+        setTasks(freshTasks);
+      } catch (err) {
+        console.warn("Failed to set epic:", err);
+      }
+    },
+    [activeProjectId, task.id, task.task_type, setTasks],
+  );
+
   // Combined labels: task's labels + project-wide labels
   const combinedLabels = useMemo(() => {
     const set = new Set([...allLabels, ...task.labels]);
@@ -299,19 +327,15 @@ export default function TaskCardContextMenu({
                 <MenuPrimitive.Portal>
                   <MenuPrimitive.Positioner className="isolate z-50 outline-none" side="right" align="start" sideOffset={2}>
                     <MenuPrimitive.Popup className={cn(popupClass, "min-w-[140px]")}>
-                      {PRIORITIES.map((p) => (
+                      {priorities.map((p) => (
                         <MenuPrimitive.Item
-                          key={p.value}
+                          key={p.id}
                           className={menuItemClass}
-                          onClick={() => handlePriorityChange(p.value)}
+                          onClick={() => handlePriorityChange(p.id)}
                         >
-                          <span className={cn("size-2 rounded-full shrink-0", {
-                            "bg-destructive": p.value === "P0",
-                            "bg-warning": p.value === "P1",
-                            "bg-muted-foreground/50": p.value === "P2",
-                          })} />
-                          {p.label}
-                          {task.priority === p.value && <CheckIcon className="size-3.5 ml-auto text-primary" />}
+                          <span className={cn("size-2 rounded-full shrink-0", getPriorityBgClass(p.id, priorities))} />
+                          {getPriorityLabel(p.id, priorities)}
+                          {task.priority === p.id && <CheckIcon className="size-3.5 ml-auto text-primary" />}
                         </MenuPrimitive.Item>
                       ))}
                     </MenuPrimitive.Popup>
@@ -410,10 +434,44 @@ export default function TaskCardContextMenu({
                 </MenuPrimitive.SubmenuRoot>
               )}
 
+              {/* Epic submenu — only for non-epic tasks */}
+              {task.task_type !== "epic" && epicList.length > 0 && (
+                <MenuPrimitive.SubmenuRoot>
+                  <MenuPrimitive.SubmenuTrigger className={subTriggerClass}>
+                    <Layers className="size-3.5" />
+                    Set Epic
+                    <ChevronRightIcon className="size-3.5 ml-auto" />
+                  </MenuPrimitive.SubmenuTrigger>
+                  <MenuPrimitive.Portal>
+                    <MenuPrimitive.Positioner className="isolate z-50 outline-none" side="right" align="start" sideOffset={2}>
+                      <MenuPrimitive.Popup className={cn(popupClass, "min-w-[160px]")}>
+                        <MenuPrimitive.Item
+                          className={menuItemClass}
+                          onClick={() => handleEpicChange(null)}
+                        >
+                          <span className="text-muted-foreground">None</span>
+                          {!task.epic_id && <CheckIcon className="size-3.5 ml-auto text-primary" />}
+                        </MenuPrimitive.Item>
+                        {epicList.map((epic) => (
+                          <MenuPrimitive.Item
+                            key={epic.id}
+                            className={menuItemClass}
+                            onClick={() => handleEpicChange(epic.id)}
+                          >
+                            <span className="truncate">{epic.id} {epic.title}</span>
+                            {task.epic_id === epic.id && <CheckIcon className="size-3.5 ml-auto text-primary" />}
+                          </MenuPrimitive.Item>
+                        ))}
+                      </MenuPrimitive.Popup>
+                    </MenuPrimitive.Positioner>
+                  </MenuPrimitive.Portal>
+                </MenuPrimitive.SubmenuRoot>
+              )}
+
               <MenuPrimitive.Separator className="bg-border -mx-1 my-1 h-px" />
 
               {/* Session actions */}
-              {onStartSession && task.status !== "done" && task.status !== "in-review" && (
+              {onStartSession && task.task_type !== "epic" && task.status !== "done" && task.status !== "in-review" && (
                 <MenuPrimitive.Item
                   className={menuItemClass}
                   onClick={() => {
@@ -425,7 +483,7 @@ export default function TaskCardContextMenu({
                   Start session
                 </MenuPrimitive.Item>
               )}
-              {onResearchSession && (task.status === "backlog" || task.status === "ready") && (
+              {onResearchSession && task.task_type !== "epic" && (task.status === "backlog" || task.status === "ready") && (
                 <MenuPrimitive.Item
                   className={menuItemClass}
                   onClick={() => {
@@ -435,6 +493,18 @@ export default function TaskCardContextMenu({
                 >
                   <Lightbulb className="size-3.5 text-warning" />
                   Research task
+                </MenuPrimitive.Item>
+              )}
+              {onBreakdownEpic && task.task_type === "epic" && (task.status === "backlog" || task.status === "ready") && (
+                <MenuPrimitive.Item
+                  className={menuItemClass}
+                  onClick={() => {
+                    setMenuOpen(false);
+                    onBreakdownEpic(task.id);
+                  }}
+                >
+                  <Ungroup className="size-3.5 text-primary" />
+                  Breakdown epic
                 </MenuPrimitive.Item>
               )}
 

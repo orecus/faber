@@ -26,11 +26,22 @@ export default React.memo(function ConfigOptionsPopover({
     (s) => s.acpConfigOptions[sessionId],
   );
 
-  // Filter out mode and model categories — they have dedicated selectors
-  const configOptions = useMemo(
-    () => rawConfigOptions?.filter((o) => o.category !== "mode" && o.category !== "model"),
-    [rawConfigOptions],
-  );
+  // Known categories with dedicated selectors
+  const KNOWN_CATEGORIES = new Set(["mode", "model", "thought_level"]);
+
+  // Filter out known categories — they have dedicated selectors
+  const configOptions = useMemo(() => {
+    const filtered = rawConfigOptions?.filter((o) => !KNOWN_CATEGORIES.has(o.category ?? ""));
+    // Log unhandled categories for discovery
+    if (filtered) {
+      for (const o of filtered) {
+        if (o.category) {
+          console.info(`[ACP] Unhandled config option category: "${o.category}" (id: "${o.id}", name: "${o.name}")`);
+        }
+      }
+    }
+    return filtered;
+  }, [rawConfigOptions]);
 
   // Don't render if no config options available after filtering
   if (!configOptions || configOptions.length === 0) return null;

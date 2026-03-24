@@ -30,7 +30,7 @@ Only one chat session can be active per project at a time. If you switch away an
 
 The toolbar shows:
 - The agent name and a **status badge** — Connecting, Ready, Working (animated), Waiting (animated), Error, Completed, or Stopped.
-- A **narration mode toggle** (Split / Inline) — controls how agent messages are displayed. See [Narration Modes](#narration-modes) below.
+- A **thinking toggle** — show or hide the agent's reasoning/thinking blocks in the timeline.
 - A **Close** button — ends the session after a confirmation dialog.
 
 ### Sending Messages
@@ -94,16 +94,9 @@ Special indicators within turns:
 
 When a turn has more than 5 steps, the middle items collapse into a summary row. The first 2 and last 2 steps always remain visible.
 
-### Narration Modes
-
-The toolbar toggle controls how multi-step agent responses are displayed:
-
-- **Split turns** (default) — Each agent message gets its own turn block with its associated tool calls grouped chronologically. Best for following the agent's reasoning step by step.
-- **Inline** — All tool calls appear in a single block, with intermediate agent messages rendered as inline narration between steps. The final message is the primary response. Best for a compact view.
-
 ## Thinking & Reasoning
 
-When an agent includes thinking/reasoning in its response, a collapsible "Thought for N seconds" block appears above the message. Click to expand and read the agent's internal reasoning. These blocks are open while streaming and collapse when complete.
+When an agent includes thinking/reasoning in its response, a collapsible "Thought for N seconds" block appears in the timeline showing how long the agent spent reasoning. Click to expand and read the agent's internal reasoning. Use the thinking toggle in the toolbar to show or hide these blocks entirely.
 
 ## Waiting for Input
 
@@ -121,6 +114,18 @@ When the agent sends plan updates, a **plan queue** widget appears showing plan 
 An **Activity Bar** side panel (toggle from the toolbar) provides:
 - **Plan** — Full plan view with progress bar
 - **Files** — Aggregated list of all files the agent has edited, created, or deleted, with per-file diff stats
+
+## Git Context Bar
+
+A thin bar at the bottom of the chat pane gives you git controls without leaving the conversation:
+
+- **Branch selector** — See the current branch and switch branches. If a worktree is active and the session is running, switching triggers a warning.
+- **Create Worktree** — When no worktree is attached, a **+** button opens a popover to create one with a branch name and base ref.
+- **Push** — Push the current branch to the remote.
+- **PR** — Open the Create PR dialog pre-filled with the task title and linked GitHub issue.
+- **Merge** — Open the Merge Branch dialog to merge into a target branch.
+
+Push, PR, and Merge require a worktree to be active. The bar only appears for ACP (chat) sessions.
 
 ## Edit and Resend
 

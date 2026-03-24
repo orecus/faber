@@ -312,12 +312,36 @@ impl FaberAcpHandler {
 
             acp::SessionUpdate::UserMessageChunk(chunk) => {
                 let text = extract_text_from_content_block(&chunk.content);
-                info!(
-                    session_id = %self.session_id,
-                    acp_session = %sid,
-                    text_len = text.len(),
-                    "ACP ← UserMessageChunk"
-                );
+                // ACP echoes ALL user-role content: system prompts, tool results,
+                // slash commands, etc. Only emit genuine user messages.
+                // System/tool content contains XML tags or known system markers.
+                let is_system_content = text.contains("</")
+                    || text.contains("MCP tool")
+                    || text.contains("get_task")
+                    || text.contains("update_task_plan")
+                    || text.trim_start().starts_with('<');
+                if is_system_content {
+                    info!(
+                        session_id = %self.session_id,
+                        acp_session = %sid,
+                        text_len = text.len(),
+                        "ACP ← UserMessageChunk (filtered — system content)"
+                    );
+                } else {
+                    info!(
+                        session_id = %self.session_id,
+                        acp_session = %sid,
+                        text_len = text.len(),
+                        "ACP ← UserMessageChunk"
+                    );
+                    self.emit(
+                        EVENT_ACP_USER_MESSAGE_CHUNK,
+                        AcpMessageChunkPayload {
+                            session_id: self.session_id.clone(),
+                            text,
+                        },
+                    );
+                }
             }
 
             acp::SessionUpdate::AvailableCommandsUpdate(cmds) => {

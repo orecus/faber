@@ -19,7 +19,7 @@ Continuous Mode lets you queue multiple tasks and run them sequentially with aut
 4. Choose a branching strategy and agent
 5. Click **Start**
 
-The first task launches immediately. When the agent calls `report_complete`, Faber marks the task as **In Review**, stops the session, and launches the next task in the queue.
+The first task launches immediately. When the agent calls `report_complete`, Faber marks the task as **In Review** and automatically launches the next task in the queue. The completed session stays open so you can review the agent's output.
 
 ---
 
@@ -31,7 +31,7 @@ All tasks in **Ready** status are listed with checkboxes. You can:
 
 - **Uncheck** tasks you don't want to include (minimum 2 required)
 - **Reorder** tasks using the up/down arrows
-- See **priority badges** (P0, P1, P2) and **dependency counts** for each task
+- See **priority badges** and **dependency counts** for each task
 
 ### Branching Strategy
 

@@ -62,7 +62,7 @@ Project rules take precedence — agents typically read the project-level file f
 
 ### How Rules Work with Sessions
 
-When you launch a session, Faber automatically appends an **MCP integration section** to the agent's instruction file. This section (wrapped in `<!-- Faber:MCP -->` markers) gives the agent access to Faber's progress-reporting tools. Your custom content is always preserved — Faber only touches the marked section.
+When you launch a session, Faber automatically appends an **MCP integration section** to the agent's instruction file. This section (wrapped in `<!-- Faber:MCP -->` markers) gives the agent access to Faber's progress-reporting and task management tools. The content is tailored to the session mode — task sessions include completion workflow instructions, research sessions include research-specific guidance, etc. Your custom content is always preserved — Faber only touches the marked section.
 
 If the instruction file contained nothing but the MCP section (i.e., you never added custom content), Faber cleans it up when the session ends.
 

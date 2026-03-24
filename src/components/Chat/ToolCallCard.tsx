@@ -348,6 +348,11 @@ export function formatMcpTool(toolName: string, titleJson: string): ToolDisplay 
       return { icon: CheckCircle2, label: summary, informational: true };
     }
 
+    case "report_researched": {
+      const summary = typeof params.summary === "string" ? params.summary : "Research complete";
+      return { icon: CheckCircle2, label: summary, informational: true };
+    }
+
     case "report_error":
       return { icon: XCircle, label: `Error: ${params.error ?? "unknown"}` };
 
@@ -957,7 +962,7 @@ export function isInformationalToolCall(toolCall: AcpToolCallState): boolean {
   if (!toolName) return false;
   const INFORMATIONAL_TOOLS = new Set([
     "get_task", "report_progress", "update_task_plan", "update_task",
-    "report_files_changed", "report_complete", "create_task", "list_tasks",
+    "report_files_changed", "report_complete", "report_researched", "create_task", "list_tasks",
   ]);
   return INFORMATIONAL_TOOLS.has(toolName);
 }

@@ -6,6 +6,7 @@ import {
   ExternalLink,
   FileText,
   Github,
+  Layers,
   Loader2,
   RefreshCw,
   Save,
@@ -22,6 +23,8 @@ import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
 import AgentActivityTab from "./AgentActivityTab";
+import EpicChildTasks from "./EpicChildTasks";
+import EpicProgressBar from "./EpicProgressBar";
 import GitHubTab from "./GitHubTab";
 import SyncToGitHubDialog from "./SyncToGitHubDialog";
 import type { SyncOptions } from "./SyncToGitHubDialog";
@@ -96,6 +99,16 @@ export default function TaskDetailView() {
   const currentTask = useMemo(
     () => storeTasks.find((t) => t.id === activeTaskId) ?? null,
     [storeTasks, activeTaskId],
+  );
+
+  // Epic detection
+  const isEpic = currentTask?.task_type === "epic";
+  const childTasks = useMemo(
+    () =>
+      isEpic
+        ? storeTasks.filter((t) => t.epic_id === activeTaskId)
+        : [],
+    [isEpic, storeTasks, activeTaskId],
   );
 
   // Tab state
@@ -194,10 +207,18 @@ export default function TaskDetailView() {
         </Button>
 
         <Badge variant="outline" className="font-mono text-[11px]">
+          {isEpic && <Layers size={10} className="mr-1 inline" />}
           {activeTaskId}
         </Badge>
 
         <TaskTitle title={formData.title} onChange={handleTitleChange} compact />
+
+        {/* Epic progress indicator in toolbar */}
+        {isEpic && (
+          <div className="hidden sm:block">
+            <EpicProgressBar childTasks={childTasks} />
+          </div>
+        )}
 
         {/* GitHub issue badge */}
         {formData.github_issue && (
@@ -214,8 +235,8 @@ export default function TaskDetailView() {
 
         <div className="flex-1" />
 
-        {/* Task actions (status-aware: start, research, view session, create PR, archive, reopen) */}
-        {currentTask && activeProjectId && (
+        {/* Task actions (status-aware: start, research, view session, create PR, archive, reopen) — hidden for epics */}
+        {currentTask && activeProjectId && !isEpic && (
           <TaskDetailActions task={currentTask} projectId={activeProjectId} />
         )}
 
@@ -295,12 +316,14 @@ export default function TaskDetailView() {
           tabRadius="md"
           fullWidth={false}
         >
-          <Tabs.Tab value="details" icon={<FileText size={12} />}>
-            Task Details
+          <Tabs.Tab value="details" icon={isEpic ? <Layers size={12} /> : <FileText size={12} />}>
+            {isEpic ? "Epic Details" : "Task Details"}
           </Tabs.Tab>
-          <Tabs.Tab value="activity" icon={<Activity size={12} />}>
-            Agent Activity
-          </Tabs.Tab>
+          {!isEpic && (
+            <Tabs.Tab value="activity" icon={<Activity size={12} />}>
+              Agent Activity
+            </Tabs.Tab>
+          )}
           {formData.github_issue && (
             <Tabs.Tab value="github" icon={<Github size={12} />}>
               GitHub
@@ -320,6 +343,15 @@ export default function TaskDetailView() {
                 <div className={`flex min-h-[200px] flex-col rounded-lg ring-1 ring-border/40 p-3 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
                   <TaskBody body={body} onChange={setBody} onSave={handleSave} />
                 </div>
+
+                {/* Child tasks section for epics */}
+                {isEpic && activeTaskId && (
+                  <EpicChildTasks
+                    epicId={activeTaskId}
+                    childTasks={childTasks}
+                    onNavigateToTask={navigateToTask}
+                  />
+                )}
               </>
             )}
 
@@ -353,6 +385,8 @@ export default function TaskDetailView() {
               agents={agents}
               taskId={activeTaskId}
               tasks={tasks}
+              taskType={currentTask?.task_type ?? "task"}
+              epicId={currentTask?.epic_id ?? null}
               onNavigateToTask={navigateToTask}
               onCreateGitHubIssue={ghAuthOk && hasRemote ? handleCreateGitHubIssue : undefined}
               creatingIssue={creatingIssue}

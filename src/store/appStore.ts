@@ -4,14 +4,16 @@ import { subscribeWithSelector } from "zustand/middleware";
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { ptyBuffer } from "../lib/ptyBuffer";
+import type { PriorityLevel } from "../types";
 import type {
   AcpAvailableCommand,
   AcpAvailableCommandsUpdate,
-  AcpChatMessage,
   AcpConfigOption,
   AcpConfigOptionUpdate,
+  AcpEntry,
   AcpError,
   AcpMessageChunk,
+  AcpMessageAttachment,
   AcpModeUpdate,
   AcpPlanEntry,
   AcpPlanUpdate,
@@ -19,7 +21,6 @@ import type {
   AcpRegistryEntry,
   AcpSessionInfo,
   AcpToolCall,
-  AcpToolCallState,
   AcpToolCallUpdate,
   AcpUsageData,
   AgentInfo,
@@ -118,23 +119,21 @@ interface AppState {
   shells: ShellInfo[];
   mcpStatus: Record<string, McpSessionState>;
 
-  // ACP chat state (per-session)
-  acpMessages: Record<string, AcpChatMessage[]>;
-  acpToolCalls: Record<string, AcpToolCallState[]>;
+  // ACP chat state (per-session) — flat typed-entry model
+  /** Single flat array of all ACP entries per session (source of truth). */
+  acpEntries: Record<string, AcpEntry[]>;
+  /** Current turn counter per session (increments on each user message). */
+  acpTurnCounter: Record<string, number>;
+  /** Pending thinking text accumulator (not yet flushed to an entry). */
+  acpThinkingAccum: Record<string, string>;
+  /** Timestamp when thinking started (for duration tracking). */
+  acpThinkingStartTime: Record<string, number>;
   acpPlans: Record<string, AcpPlanEntry[]>;
   acpModes: Record<string, string>;
   acpModels: Record<string, string>;
   acpPromptPending: Record<string, boolean>;
   /** Draft text per session (persisted across view switches). */
   acpDraftText: Record<string, string>;
-  /** Accumulated thinking text per session (from AgentThoughtChunk events). */
-  acpThinking: Record<string, string>;
-  /** Timestamp when thinking started for each session (for duration tracking). */
-  acpThinkingStartTime: Record<string, number>;
-  /** Flushed thinking blocks per session (standalone timeline items). */
-  acpThinkingBlocks: Record<string, import("../types").AcpThinkingBlock[]>;
-  /** Whether a tool call has arrived since the last message chunk (per session). */
-  acpHadToolCallSinceChunk: Record<string, boolean>;
   acpPermissionRequests: Record<string, import("../types").AcpPermissionRequest[]>;
   /** Available slash commands per ACP session (from AvailableCommandsUpdate). */
   acpAvailableCommands: Record<string, AcpAvailableCommand[]>;
@@ -173,6 +172,7 @@ interface AppState {
   projectWorktrees: Record<string, WorktreeInfo[]>;
   projectGitData: Record<string, ProjectGitData>;
   projectBranches: Record<string, string | null>;
+  projectPriorities: Record<string, PriorityLevel[]>;
   projectFilters: Record<string, FilterState>;
 
   // Actions — state setters
@@ -201,19 +201,26 @@ interface AppState {
   setMcpStatus: (sessionId: string, data: Partial<McpSessionState>) => void;
   cleanupSessionMcp: (sessionId: string) => void;
 
-  // ACP actions
-  appendAcpChunk: (sessionId: string, text: string, forceNew?: boolean) => void;
-  addAcpUserMessage: (sessionId: string, text: string, attachments?: import("../types").AcpMessageAttachment[]) => void;
-  addAcpToolCall: (sessionId: string, tc: AcpToolCallState) => void;
+  // ACP actions — flat entry model
+  /** Push a new entry to the session's entry list. */
+  pushAcpEntry: (sessionId: string, entry: AcpEntry) => void;
+  /** Update the last streaming agent-text entry (append/replace text). */
+  updateAcpAgentText: (sessionId: string, text: string) => void;
+  /** Update a tool call entry by its tool_call_id. */
   updateAcpToolCall: (sessionId: string, toolCallId: string, status: string, title: string | null, content?: import("../types").ToolCallContentItem[] | null) => void;
+  /** Update the last streaming thinking entry. */
+  updateAcpThinking: (sessionId: string, text: string) => void;
+  /** Flush accumulated thinking text into a finalized thinking entry. */
+  flushAcpThinking: (sessionId: string) => void;
+  /** Mark all streaming entries as done (on prompt-complete). */
+  finalizeAcpStreaming: (sessionId: string) => void;
+  /** Add a user message entry (increments turn counter). */
+  addAcpUserMessage: (sessionId: string, text: string, attachments?: AcpMessageAttachment[]) => void;
   setAcpPlan: (sessionId: string, entries: AcpPlanEntry[]) => void;
   setAcpMode: (sessionId: string, mode: string) => void;
   setAcpModel: (sessionId: string, model: string) => void;
   setAcpPromptPending: (sessionId: string, pending: boolean) => void;
   setAcpDraftText: (sessionId: string, text: string) => void;
-  appendAcpThinking: (sessionId: string, text: string) => void;
-  flushAcpThinking: (sessionId: string) => void;
-  clearAcpThinking: (sessionId: string) => void;
   addAcpPermissionRequest: (sessionId: string, request: import("../types").AcpPermissionRequest) => void;
   removeAcpPermissionRequest: (sessionId: string, requestId: string) => void;
   setAcpAvailableCommands: (sessionId: string, commands: AcpAvailableCommand[]) => void;
@@ -322,17 +329,15 @@ export const useAppStore = create<AppState>()(
     acpUpdatesAvailable: 0,
     shells: [],
     mcpStatus: {},
-    acpMessages: {},
-    acpToolCalls: {},
+    acpEntries: {},
+    acpTurnCounter: {},
+    acpThinkingAccum: {},
+    acpThinkingStartTime: {},
     acpPlans: {},
     acpModes: {},
     acpModels: {},
     acpPromptPending: {},
     acpDraftText: {},
-    acpThinking: {},
-    acpThinkingStartTime: {},
-    acpThinkingBlocks: {},
-    acpHadToolCallSinceChunk: {},
     acpPermissionRequests: {},
     acpAvailableCommands: {},
     acpConfigOptions: {},
@@ -359,6 +364,7 @@ export const useAppStore = create<AppState>()(
     projectWorktrees: {},
     projectGitData: {},
     projectBranches: {},
+    projectPriorities: {},
     projectFilters: {},
 
     // ── Actions ──
@@ -412,6 +418,7 @@ export const useAppStore = create<AppState>()(
         const { [id]: _w, ...restWorktrees } = state.projectWorktrees;
         const { [id]: _g, ...restGitData } = state.projectGitData;
         const { [id]: _f, ...restFilters } = state.projectFilters;
+        const { [id]: _p, ...restPriorities } = state.projectPriorities;
         invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
         return {
           projects,
@@ -421,6 +428,7 @@ export const useAppStore = create<AppState>()(
           projectWorktrees: restWorktrees,
           projectGitData: restGitData,
           projectFilters: restFilters,
+          projectPriorities: restPriorities,
         };
       }),
 
@@ -445,6 +453,7 @@ export const useAppStore = create<AppState>()(
         const { [id]: _w, ...restWorktrees } = state.projectWorktrees;
         const { [id]: _g, ...restGitData } = state.projectGitData;
         const { [id]: _f, ...restFilters } = state.projectFilters;
+        const { [id]: _p2, ...restPriorities2 } = state.projectPriorities;
         invoke("set_setting", { key: "open_project_ids", value: JSON.stringify(openProjectIds) }).catch(() => {});
         return {
           openProjectIds,
@@ -453,6 +462,7 @@ export const useAppStore = create<AppState>()(
           projectWorktrees: restWorktrees,
           projectGitData: restGitData,
           projectFilters: restFilters,
+          projectPriorities: restPriorities2,
         };
       }),
 
@@ -492,9 +502,14 @@ export const useAppStore = create<AppState>()(
     setTasks: (tasks) => set({ tasks }),
 
     updateTask: (task) =>
-      set((state) => ({
-        tasks: state.tasks.map((t) => (t.id === task.id ? task : t)),
-      })),
+      set((state) => {
+        const exists = state.tasks.some((t) => t.id === task.id);
+        return {
+          tasks: exists
+            ? state.tasks.map((t) => (t.id === task.id ? task : t))
+            : [...state.tasks, task],
+        };
+      }),
 
     setActiveTask: (id) => set({ activeTaskId: id }),
 
@@ -554,7 +569,7 @@ export const useAppStore = create<AppState>()(
       if (get().mcpStatus[sessionId]) {
         get().cleanupSessionMcp(sessionId);
       }
-      if (get().acpMessages[sessionId]) {
+      if (get().acpEntries[sessionId]) {
         get().cleanupSessionAcp(sessionId);
       }
     },
@@ -597,94 +612,186 @@ export const useAppStore = create<AppState>()(
       });
     },
 
-    // ── ACP actions ──
+    // ── ACP actions — flat entry model ──
 
-    appendAcpChunk: (sessionId, text, forceNew = false) =>
+    pushAcpEntry: (sessionId, entry) =>
+      set((state) => ({
+        acpEntries: {
+          ...state.acpEntries,
+          [sessionId]: [...(state.acpEntries[sessionId] ?? []), entry],
+        },
+      })),
+
+    updateAcpAgentText: (sessionId, text) =>
       set((state) => {
-        const msgs = [...(state.acpMessages[sessionId] ?? [])];
-        const last = msgs[msgs.length - 1];
-        if (!forceNew && last && last.role === "agent") {
-          // Detect cumulative vs delta chunks:
-          // If the incoming text starts with what we already have, the agent is
-          // sending the full message so far (cumulative) — replace, don't append.
-          const isCumulative =
-            last.text.length > 0 &&
-            text.length >= last.text.length &&
-            text.startsWith(last.text);
-          const newText = isCumulative ? text : last.text + text;
-          msgs[msgs.length - 1] = { ...last, text: newText };
-          return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
-        } else {
-          // Start a new agent message — mark as narration if forced by tool-call boundary
-          const now = Date.now();
-          msgs.push({
-            id: `msg_${now}_${Math.random().toString(36).slice(2, 6)}`,
-            role: "agent",
-            text,
-            timestamp: now,
-            ...(forceNew ? { isNarration: true } : {}),
-          });
-          return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
+        const entries = state.acpEntries[sessionId];
+        if (!entries?.length) return {};
+        const updated = [...entries];
+        // Find last streaming agent-text entry
+        for (let i = updated.length - 1; i >= 0; i--) {
+          const e = updated[i];
+          if (e.type === "agent-text" && e.streaming) {
+            // Detect cumulative vs delta:
+            const isCumulative =
+              e.text.length > 0 &&
+              text.length >= e.text.length &&
+              text.startsWith(e.text);
+            updated[i] = { ...e, text: isCumulative ? text : e.text + text };
+            return { acpEntries: { ...state.acpEntries, [sessionId]: updated } };
+          }
         }
-      }),
-
-    addAcpUserMessage: (sessionId, text, attachments) =>
-      set((state) => {
-        const msgs = [...(state.acpMessages[sessionId] ?? [])];
-        msgs.push({
-          id: `msg_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-          role: "user",
-          text,
-          timestamp: Date.now(),
-          attachments: attachments && attachments.length > 0 ? attachments : undefined,
-        });
-        return { acpMessages: { ...state.acpMessages, [sessionId]: msgs } };
-      }),
-
-    addAcpToolCall: (sessionId, tc) =>
-      set((state) => {
-        const existing = state.acpToolCalls[sessionId] ?? [];
-        // Deduplicate: skip if this tool_call_id already exists
-        if (existing.some((t) => t.tool_call_id === tc.tool_call_id)) return {};
-        return { acpToolCalls: { ...state.acpToolCalls, [sessionId]: [...existing, tc] } };
+        return {};
       }),
 
     updateAcpToolCall: (sessionId, toolCallId, status, title, content) =>
       set((state) => {
-        const existing = state.acpToolCalls[sessionId] ?? [];
-        const found = existing.some((tc) => tc.tool_call_id === toolCallId);
-
+        const entries = state.acpEntries[sessionId];
+        if (!entries) {
+          // Auto-create if no entries exist yet
+          const turn = state.acpTurnCounter[sessionId] ?? 0;
+          const now = Date.now();
+          const newEntry: AcpEntry = {
+            type: "tool-call",
+            id: `tc_${now}_${Math.random().toString(36).slice(2, 6)}`,
+            timestamp: now,
+            turnIndex: turn,
+            tool_call_id: toolCallId,
+            title: title ?? toolCallId,
+            kind: "other",
+            status,
+            ...(content != null ? { content } : {}),
+          };
+          return {
+            acpEntries: {
+              ...state.acpEntries,
+              [sessionId]: [newEntry],
+            },
+          };
+        }
+        const found = entries.some(
+          (e) => e.type === "tool-call" && e.tool_call_id === toolCallId,
+        );
         if (found) {
-          // Update existing tool call
-          const tcs = existing.map((tc) =>
-            tc.tool_call_id === toolCallId
+          const updated = entries.map((e) =>
+            e.type === "tool-call" && e.tool_call_id === toolCallId
               ? {
-                  ...tc,
+                  ...e,
                   status,
                   ...(title != null ? { title } : {}),
                   ...(content != null ? { content } : {}),
                 }
-              : tc,
+              : e,
           );
-          return { acpToolCalls: { ...state.acpToolCalls, [sessionId]: tcs } };
+          return { acpEntries: { ...state.acpEntries, [sessionId]: updated } };
         } else {
-          // Auto-create: the ToolCallUpdate arrived before (or without) a ToolCall event.
-          // This happens when agents send permission requests that auto-approve — the
-          // initial ToolCall notification may be swallowed by the permission flow.
-          const msgs = state.acpMessages[sessionId] ?? [];
-          const tcs = [
-            ...existing,
-            {
-              tool_call_id: toolCallId,
-              title: title ?? toolCallId,
-              kind: "other",
-              status,
-              messageIndex: msgs.length > 0 ? msgs.length - 1 : -1,
-              timestamp: Date.now(),
+          // Auto-create: ToolCallUpdate arrived before ToolCall event
+          const turn = state.acpTurnCounter[sessionId] ?? 0;
+          const now = Date.now();
+          return {
+            acpEntries: {
+              ...state.acpEntries,
+              [sessionId]: [
+                ...entries,
+                {
+                  type: "tool-call" as const,
+                  id: `tc_${now}_${Math.random().toString(36).slice(2, 6)}`,
+                  timestamp: now,
+                  turnIndex: turn,
+                  tool_call_id: toolCallId,
+                  title: title ?? toolCallId,
+                  kind: "other",
+                  status,
+                  ...(content != null ? { content } : {}),
+                },
+              ],
             },
-          ];
-          return { acpToolCalls: { ...state.acpToolCalls, [sessionId]: tcs } };
+          };
         }
+      }),
+
+    updateAcpThinking: (sessionId, text) =>
+      set((state) => {
+        const entries = state.acpEntries[sessionId];
+        if (!entries?.length) return {};
+        const updated = [...entries];
+        for (let i = updated.length - 1; i >= 0; i--) {
+          const e = updated[i];
+          if (e.type === "thinking" && e.streaming) {
+            updated[i] = { ...e, text: e.text + text };
+            return { acpEntries: { ...state.acpEntries, [sessionId]: updated } };
+          }
+        }
+        return {};
+      }),
+
+    flushAcpThinking: (sessionId) =>
+      set((state) => {
+        const pendingText = state.acpThinkingAccum[sessionId];
+        if (!pendingText) return {};
+
+        const startTime = state.acpThinkingStartTime[sessionId];
+        const now = Date.now();
+        const duration = startTime ? Math.ceil((now - startTime) / 1000) : undefined;
+        const turn = state.acpTurnCounter[sessionId] ?? 0;
+
+        const entry: AcpEntry = {
+          type: "thinking",
+          id: `think_${now}_${Math.random().toString(36).slice(2, 6)}`,
+          text: pendingText,
+          timestamp: startTime ?? now,
+          turnIndex: turn,
+          streaming: false,
+          duration,
+        };
+
+        const { [sessionId]: _, ...restAccum } = state.acpThinkingAccum;
+        const { [sessionId]: _ts, ...restTimes } = state.acpThinkingStartTime;
+
+        return {
+          acpEntries: {
+            ...state.acpEntries,
+            [sessionId]: [...(state.acpEntries[sessionId] ?? []), entry],
+          },
+          acpThinkingAccum: restAccum,
+          acpThinkingStartTime: restTimes,
+        };
+      }),
+
+    finalizeAcpStreaming: (sessionId) =>
+      set((state) => {
+        const entries = state.acpEntries[sessionId];
+        if (!entries?.length) return {};
+        const hasStreaming = entries.some(
+          (e) => (e.type === "agent-text" || e.type === "thinking") && e.streaming,
+        );
+        if (!hasStreaming) return {};
+        const updated = entries.map((e) =>
+          (e.type === "agent-text" || e.type === "thinking") && e.streaming
+            ? { ...e, streaming: false }
+            : e,
+        );
+        return { acpEntries: { ...state.acpEntries, [sessionId]: updated } };
+      }),
+
+    addAcpUserMessage: (sessionId, text, attachments) =>
+      set((state) => {
+        const newTurn = (state.acpTurnCounter[sessionId] ?? 0) + 1;
+        const now = Date.now();
+        const entry: AcpEntry = {
+          type: "user-message",
+          id: `msg_${now}_${Math.random().toString(36).slice(2, 6)}`,
+          text,
+          timestamp: now,
+          turnIndex: newTurn,
+          attachments: attachments && attachments.length > 0 ? attachments : undefined,
+        };
+        return {
+          acpEntries: {
+            ...state.acpEntries,
+            [sessionId]: [...(state.acpEntries[sessionId] ?? []), entry],
+          },
+          acpTurnCounter: { ...state.acpTurnCounter, [sessionId]: newTurn },
+        };
       }),
 
     setAcpPlan: (sessionId, entries) =>
@@ -711,57 +818,6 @@ export const useAppStore = create<AppState>()(
       set((state) => ({
         acpDraftText: { ...state.acpDraftText, [sessionId]: text },
       })),
-
-    appendAcpThinking: (sessionId, text) =>
-      set((state) => {
-        const isFirstChunk = !state.acpThinking[sessionId];
-        return {
-          acpThinking: {
-            ...state.acpThinking,
-            [sessionId]: (state.acpThinking[sessionId] ?? "") + text,
-          },
-          // Track when thinking started (first chunk only)
-          acpThinkingStartTime: isFirstChunk
-            ? { ...state.acpThinkingStartTime, [sessionId]: Date.now() }
-            : state.acpThinkingStartTime,
-        };
-      }),
-
-    flushAcpThinking: (sessionId) =>
-      set((state) => {
-        const pendingText = state.acpThinking[sessionId];
-        if (!pendingText) return {};
-
-        const startTime = state.acpThinkingStartTime[sessionId];
-        const now = Date.now();
-        const duration = startTime ? Math.ceil((now - startTime) / 1000) : undefined;
-
-        const block: import("../types").AcpThinkingBlock = {
-          id: `think_${now}_${Math.random().toString(36).slice(2, 6)}`,
-          text: pendingText,
-          timestamp: startTime ?? now,
-          duration,
-        };
-
-        const { [sessionId]: _, ...restThinking } = state.acpThinking;
-        const { [sessionId]: _ts, ...restTimes } = state.acpThinkingStartTime;
-
-        return {
-          acpThinkingBlocks: {
-            ...state.acpThinkingBlocks,
-            [sessionId]: [...(state.acpThinkingBlocks[sessionId] ?? []), block],
-          },
-          acpThinking: restThinking,
-          acpThinkingStartTime: restTimes,
-        };
-      }),
-
-    clearAcpThinking: (sessionId) =>
-      set((state) => {
-        const { [sessionId]: _, ...rest } = state.acpThinking;
-        const { [sessionId]: _ts, ...restTimes } = state.acpThinkingStartTime;
-        return { acpThinking: rest, acpThinkingStartTime: restTimes };
-      }),
 
     addAcpPermissionRequest: (sessionId, request) =>
       set((state) => ({
@@ -798,33 +854,29 @@ export const useAppStore = create<AppState>()(
 
     cleanupSessionAcp: (sessionId) => {
       set((state) => {
-        const { [sessionId]: _m, ...msgs } = state.acpMessages;
-        const { [sessionId]: _t, ...tcs } = state.acpToolCalls;
+        const { [sessionId]: _e, ...entries } = state.acpEntries;
+        const { [sessionId]: _tc, ...turnCounters } = state.acpTurnCounter;
+        const { [sessionId]: _ta, ...thinkingAccum } = state.acpThinkingAccum;
+        const { [sessionId]: _ts, ...thinkingTimes } = state.acpThinkingStartTime;
         const { [sessionId]: _p, ...plans } = state.acpPlans;
         const { [sessionId]: _d, ...modes } = state.acpModes;
         const { [sessionId]: _md, ...models } = state.acpModels;
         const { [sessionId]: _pp, ...pending } = state.acpPromptPending;
         const { [sessionId]: _dt, ...drafts } = state.acpDraftText;
-        const { [sessionId]: _th, ...thinking } = state.acpThinking;
-        const { [sessionId]: _ts, ...thinkingTimes } = state.acpThinkingStartTime;
-        const { [sessionId]: _tb, ...thinkingBlocks } = state.acpThinkingBlocks;
-        const { [sessionId]: _htc, ...hadToolCall } = state.acpHadToolCallSinceChunk;
         const { [sessionId]: _pr, ...permReqs } = state.acpPermissionRequests;
         const { [sessionId]: _ac, ...availCmds } = state.acpAvailableCommands;
         const { [sessionId]: _co, ...cfgOpts } = state.acpConfigOptions;
         const { [sessionId]: _u, ...usage } = state.acpUsage;
         return {
-          acpMessages: msgs,
-          acpToolCalls: tcs,
+          acpEntries: entries,
+          acpTurnCounter: turnCounters,
+          acpThinkingAccum: thinkingAccum,
+          acpThinkingStartTime: thinkingTimes,
           acpPlans: plans,
           acpModes: modes,
           acpModels: models,
           acpPromptPending: pending,
           acpDraftText: drafts,
-          acpThinking: thinking,
-          acpThinkingStartTime: thinkingTimes,
-          acpThinkingBlocks: thinkingBlocks,
-          acpHadToolCallSinceChunk: hadToolCall,
           acpPermissionRequests: permReqs,
           acpAvailableCommands: availCmds,
           acpConfigOptions: cfgOpts,
@@ -1395,6 +1447,13 @@ export const useAppStore = create<AppState>()(
               .catch(() => set({ tasks: [] }))
               .finally(() => rmBg("Syncing tasks"));
 
+            // Load project priorities from config
+            invoke<PriorityLevel[]>("get_project_priorities", { projectId: pid })
+              .then((priorities) => set((s) => ({
+                projectPriorities: { ...s.projectPriorities, [pid]: priorities },
+              })))
+              .catch(() => {});
+
             // Start file watchers for the new project
             invoke("start_task_watcher", { projectId: pid }).catch(() => {});
             invoke("start_config_watcher", { projectId: pid }).catch(() => {});
@@ -1728,13 +1787,47 @@ export const useAppStore = create<AppState>()(
         }),
       );
 
-      // ── ACP event listeners ──
+      // ── ACP event listeners — flat entry model ──
+
+      // User messages echoed from ACP (e.g. when resuming a previous session).
+      // Backend filters out system prompts and tool results — only genuine user messages arrive.
+      eventCleanups.push(
+        listen<AcpMessageChunk>("acp-user-message-chunk", (event) => {
+          if (disposed) return;
+          const { session_id, text } = event.payload;
+          console.log("[ACP] user-message-chunk", session_id, `${text.length}ch`, text.slice(0, 120));
+          // Deduplicate: skip if we already have this message (e.g. added via ChatInput)
+          const entries = get().acpEntries[session_id] ?? [];
+          for (let i = entries.length - 1; i >= 0; i--) {
+            const e = entries[i];
+            if (e.type === "user-message") {
+              if (text.startsWith(e.text) || e.text.startsWith(text)) return;
+              break;
+            }
+            if (e.type === "agent-text" || e.type === "tool-call") break;
+          }
+          get().addAcpUserMessage(session_id, text);
+        }),
+      );
 
       eventCleanups.push(
         listen<AcpMessageChunk>("acp-thought-chunk", (event) => {
           if (disposed) return;
-          console.log("[ACP] thought-chunk", event.payload.session_id, `${event.payload.text.length}ch`, event.payload.text.slice(0, 80));
-          get().appendAcpThinking(event.payload.session_id, event.payload.text);
+          const { session_id, text } = event.payload;
+          console.log("[ACP] thought-chunk", session_id, `${text.length}ch`, text.slice(0, 80));
+          // Accumulate thinking text — will be flushed to an entry on next message/tool/complete
+          set((state) => {
+            const isFirst = !state.acpThinkingAccum[session_id];
+            return {
+              acpThinkingAccum: {
+                ...state.acpThinkingAccum,
+                [session_id]: (state.acpThinkingAccum[session_id] ?? "") + text,
+              },
+              acpThinkingStartTime: isFirst
+                ? { ...state.acpThinkingStartTime, [session_id]: Date.now() }
+                : state.acpThinkingStartTime,
+            };
+          });
         }),
       );
 
@@ -1742,16 +1835,28 @@ export const useAppStore = create<AppState>()(
         listen<AcpMessageChunk>("acp-message-chunk", (event) => {
           if (disposed) return;
           const { session_id, text } = event.payload;
-          const hadToolCall = get().acpHadToolCallSinceChunk[session_id] ?? false;
-          console.log("[ACP] message-chunk", session_id, `${text.length}ch`, hadToolCall ? "(narration)" : "", text.slice(0, 120));
-          // Flush any pending thinking into a standalone block before the message
+          console.log("[ACP] message-chunk", session_id, `${text.length}ch`, text.slice(0, 120));
+          // Flush any pending thinking into a standalone entry before the message
           get().flushAcpThinking(session_id);
-          get().appendAcpChunk(session_id, text, hadToolCall);
-          // Reset the flag after consuming it
-          if (hadToolCall) {
-            set((state) => ({
-              acpHadToolCallSinceChunk: { ...state.acpHadToolCallSinceChunk, [session_id]: false },
-            }));
+          // Finalize any streaming agent-text before starting new one after a tool call
+          // (no-op if last entry is already a streaming agent-text)
+          const entries = get().acpEntries[session_id] ?? [];
+          const last = entries[entries.length - 1];
+          if (last && last.type === "agent-text" && last.streaming) {
+            // Continue streaming into existing entry
+            get().updateAcpAgentText(session_id, text);
+          } else {
+            // Start a new agent-text entry
+            const turn = get().acpTurnCounter[session_id] ?? 0;
+            const now = Date.now();
+            get().pushAcpEntry(session_id, {
+              type: "agent-text",
+              id: `msg_${now}_${Math.random().toString(36).slice(2, 6)}`,
+              text,
+              timestamp: now,
+              turnIndex: turn,
+              streaming: true,
+            });
           }
           // If a research-complete overlay is pending for this session,
           // reset the debounce so we wait until streaming fully stops.
@@ -1772,28 +1877,28 @@ export const useAppStore = create<AppState>()(
       eventCleanups.push(
         listen<AcpToolCall>("acp-tool-call", (event) => {
           if (disposed) return;
-          const { session_id, tool_call_id, title } = event.payload;
-          console.log("[ACP] tool-call", session_id, tool_call_id, title, event.payload.kind, event.payload.status);
-          const { session_id: _sid, ...rest } = event.payload;
-          // Flush any pending thinking into a standalone block before the tool call
+          const { session_id, tool_call_id, title, kind, status, content } = event.payload;
+          console.log("[ACP] tool-call", session_id, tool_call_id, title, kind, status);
+          // Flush any pending thinking
           get().flushAcpThinking(session_id);
-          const msgs = get().acpMessages[session_id] ?? [];
-          get().addAcpToolCall(session_id, {
-            ...rest,
-            messageIndex: msgs.length - 1,
-            timestamp: Date.now(),
+          // Finalize any streaming agent-text (tool call boundary)
+          get().finalizeAcpStreaming(session_id);
+          // Deduplicate
+          const entries = get().acpEntries[session_id] ?? [];
+          if (entries.some((e) => e.type === "tool-call" && e.tool_call_id === tool_call_id)) return;
+          const turn = get().acpTurnCounter[session_id] ?? 0;
+          const now = Date.now();
+          get().pushAcpEntry(session_id, {
+            type: "tool-call",
+            id: `tc_${now}_${Math.random().toString(36).slice(2, 6)}`,
+            timestamp: now,
+            turnIndex: turn,
+            tool_call_id,
+            title,
+            kind,
+            status,
+            content,
           });
-          // Only mark narration boundary for non-faber tool calls.
-          // Faber MCP tools (report_status, report_progress, etc.) are internal
-          // and shouldn't split the agent's message into separate narration bubbles.
-          const isFaber = /^mcp_faber_/.test(tool_call_id)
-            || /^mcp__faber__/.test(tool_call_id)
-            || /mcp__faber__/.test(title ?? "");
-          if (!isFaber) {
-            set((state) => ({
-              acpHadToolCallSinceChunk: { ...state.acpHadToolCallSinceChunk, [session_id]: true },
-            }));
-          }
         }),
       );
 
@@ -1826,7 +1931,6 @@ export const useAppStore = create<AppState>()(
         listen<AcpSessionInfo>("acp-session-info", (event) => {
           if (disposed) return;
           console.log("[ACP] session-info", event.payload.session_id, event.payload.title);
-          // Update session name if provided
           if (event.payload.title) {
             const sessions = get().sessions.map((s) =>
               s.id === event.payload.session_id
@@ -1842,8 +1946,10 @@ export const useAppStore = create<AppState>()(
         listen<AcpPromptComplete>("acp-prompt-complete", (event) => {
           if (disposed) return;
           console.log("[ACP] prompt-complete", event.payload.session_id, event.payload.stop_reason);
-          // Flush any trailing thinking (e.g. thinking was the last thing before stop)
+          // Flush any trailing thinking
           get().flushAcpThinking(event.payload.session_id);
+          // Finalize all streaming entries
+          get().finalizeAcpStreaming(event.payload.session_id);
           get().setAcpPromptPending(event.payload.session_id, false);
         }),
       );
@@ -1854,18 +1960,19 @@ export const useAppStore = create<AppState>()(
           const { session_id, error } = event.payload;
           console.error("[ACP] error", session_id, error);
           get().setAcpPromptPending(session_id, false);
+          get().finalizeAcpStreaming(session_id);
 
-          // Inject error as a visible message in the chat timeline
-          set((state) => {
-            const msgs = [...(state.acpMessages[session_id] ?? [])];
-            msgs.push({
-              id: `err_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-              role: "agent",
-              text: error,
-              timestamp: Date.now(),
-              isError: true,
-            });
-            return { acpMessages: { ...state.acpMessages, [session_id]: msgs } };
+          // Inject error as a visible agent-text entry in the chat timeline
+          const turn = get().acpTurnCounter[session_id] ?? 0;
+          const now = Date.now();
+          get().pushAcpEntry(session_id, {
+            type: "agent-text",
+            id: `err_${now}_${Math.random().toString(36).slice(2, 6)}`,
+            text: error,
+            timestamp: now,
+            turnIndex: turn,
+            streaming: false,
+            isError: true,
           });
 
           // Fire OS notification for ACP errors
@@ -1939,7 +2046,10 @@ export const useAppStore = create<AppState>()(
       eventCleanups.push(
         listen<Task>("task-updated", (event) => {
           if (disposed) return;
-          get().updateTask(event.payload);
+          const task = event.payload;
+          // Only process tasks belonging to the active project
+          if (task.project_id !== get().activeProjectId) return;
+          get().updateTask(task);
         }),
       );
 
@@ -1970,6 +2080,12 @@ export const useAppStore = create<AppState>()(
                 );
                 set({ projects });
               })
+              .catch(() => {});
+            // Reload priorities from config
+            invoke<PriorityLevel[]>("get_project_priorities", { projectId })
+              .then((priorities) => set((s) => ({
+                projectPriorities: { ...s.projectPriorities, [projectId]: priorities },
+              })))
               .catch(() => {});
             // Also dispatch a custom event so persisted-setting hooks can re-read
             window.dispatchEvent(

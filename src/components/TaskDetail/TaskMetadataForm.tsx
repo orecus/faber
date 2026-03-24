@@ -6,7 +6,9 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import type { TaskStatus, Priority, AgentInfo } from "../../types";
+import type { TaskStatus, AgentInfo } from "../../types";
+import { useAppStore } from "../../store/appStore";
+import { DEFAULT_PRIORITIES, getPriorityLabel, getPriorityCssVar } from "../../lib/priorities";
 
 const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -15,12 +17,6 @@ const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
   { value: "in-review", label: "In Review" },
   { value: "done", label: "Done" },
   { value: "archived", label: "Archived" },
-];
-
-const PRIORITY_OPTIONS: { value: Priority; label: string }[] = [
-  { value: "P0", label: "P0 — Critical" },
-  { value: "P1", label: "P1 — High" },
-  { value: "P2", label: "P2 — Normal" },
 ];
 
 const STATUS_COLORS: Record<TaskStatus, string> = {
@@ -32,16 +28,10 @@ const STATUS_COLORS: Record<TaskStatus, string> = {
   "archived": "var(--muted-foreground)",
 };
 
-const PRIORITY_COLORS: Record<Priority, string> = {
-  P0: "var(--destructive)",
-  P1: "var(--warning)",
-  P2: "var(--muted-foreground)",
-};
-
 export interface TaskFormData {
   title: string;
   status: TaskStatus;
-  priority: Priority;
+  priority: string;
   agent: string;
   model: string;
   branch: string;
@@ -77,6 +67,10 @@ function ReadonlyField({ label, children }: { label: string; children: React.Rea
 }
 
 export default function TaskMetadataForm({ data, onChange, editing, agents }: TaskMetadataFormProps) {
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
   const update = <K extends keyof TaskFormData>(field: K, value: TaskFormData[K]) => {
     onChange({ ...data, [field]: value });
   };
@@ -101,7 +95,7 @@ export default function TaskMetadataForm({ data, onChange, editing, agents }: Ta
         </ReadonlyField>
 
         <ReadonlyField label="Priority">
-          <span style={{ color: PRIORITY_COLORS[data.priority] }}>{data.priority}</span>
+          <span style={{ color: getPriorityCssVar(data.priority, priorities) }}>{data.priority}</span>
         </ReadonlyField>
 
         <ReadonlyField label="Agent">
@@ -157,14 +151,14 @@ export default function TaskMetadataForm({ data, onChange, editing, agents }: Ta
       {/* Priority */}
       <div>
         <FieldLabel>Priority</FieldLabel>
-        <Select value={data.priority} onValueChange={(v) => { if (v) update("priority", v as Priority); }} items={PRIORITY_OPTIONS}>
+        <Select value={data.priority} onValueChange={(v) => { if (v) update("priority", v); }} items={priorities.map((p) => ({ value: p.id, label: getPriorityLabel(p.id, priorities) }))}>
           <SelectTrigger className="w-full">
             <SelectValue />
           </SelectTrigger>
           <SelectContent>
-            {PRIORITY_OPTIONS.map((opt) => (
-              <SelectItem key={opt.value} value={opt.value}>
-                {opt.label}
+            {priorities.map((p) => (
+              <SelectItem key={p.id} value={p.id}>
+                {getPriorityLabel(p.id, priorities)}
               </SelectItem>
             ))}
           </SelectContent>

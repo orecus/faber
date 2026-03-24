@@ -45,30 +45,36 @@ interface LaunchContinuousDialogProps {
   readyTasks: Task[];
   onStarted: () => void;
   onDismiss: () => void;
+  /** Pre-select tasks belonging to this epic */
+  epicId?: string | null;
 }
 
-const PRIORITY_COLORS: Record<string, string> = {
-  P0: "bg-destructive/20 text-destructive",
-  P1: "bg-warning/20 text-warning",
-  P2: "bg-muted text-muted-foreground",
-};
+import { DEFAULT_PRIORITIES, getPriorityBadgeClass } from "../../lib/priorities";
 
 export default function LaunchContinuousDialog({
   projectId,
   readyTasks,
   onStarted,
   onDismiss,
+  epicId,
 }: LaunchContinuousDialogProps) {
   const accentColor = useProjectAccentColor();
+  const priorities = useAppStore((s) =>
+    projectId ? (s.projectPriorities[projectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
   const agents = useAppStore((s) => s.agents);
   const projectInfo = useAppStore((s) => s.projectInfo);
   const addBackgroundTask = useAppStore((s) => s.addBackgroundTask);
   const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
 
   // Task queue state: ordered list of task IDs with selection
+  // When epicId is provided, pre-select only tasks belonging to that epic
   const [orderedTasks, setOrderedTasks] = useState<
     { task: Task; selected: boolean }[]
-  >(() => readyTasks.map((t) => ({ task: t, selected: true })));
+  >(() => readyTasks.map((t) => ({
+    task: t,
+    selected: epicId ? t.epic_id === epicId : true,
+  })));
 
   const [strategy, setStrategy] = useState<BranchingStrategy>("independent");
   const [selectedAgentName, setSelectedAgentName] = useState<string>("");
@@ -372,7 +378,7 @@ export default function LaunchContinuousDialog({
                     </span>
                   )}
                   <span
-                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${PRIORITY_COLORS[item.task.priority] ?? "bg-muted text-muted-foreground"}`}
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${getPriorityBadgeClass(item.task.priority, priorities)}`}
                   >
                     {item.task.priority}
                   </span>

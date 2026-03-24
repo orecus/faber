@@ -1,9 +1,10 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { Play, Search, CirclePause, CheckCircle2, Loader2, Github, AlertTriangle, Lightbulb, FlaskConical, Bug, Code, ClipboardList, Eye, MoreVertical } from "lucide-react";
+import { Play, Search, CirclePause, CheckCircle2, Loader2, Github, AlertTriangle, Lightbulb, FlaskConical, Bug, Code, ClipboardList, Eye, MoreVertical, Layers, Ungroup } from "lucide-react";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { useAppStore } from "../../store/appStore";
 import type { Task, Session } from "../../types";
+import { DEFAULT_PRIORITIES, getPriorityBgClass } from "../../lib/priorities";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { Separator } from "../ui/separator";
 import { borderAccentColors, ringColors } from "../ui/orecus.io/lib/color-utils";
@@ -19,9 +20,12 @@ interface TaskCardProps {
   onStartSession?: (taskId: string) => void;
   onResearchSession?: (taskId: string) => void;
   onViewSession?: (sessionId: string) => void;
+  onEpicClick?: (epicId: string) => void;
+  onBreakdownEpic?: (taskId: string) => void;
   isDragOverlay?: boolean;
   variant?: TaskCardVariant;
   taskMap?: Map<string, Task>;
+  allTasks?: Task[];
   dependents?: string[];
   isBlocked?: boolean;
   treeDepth?: number;
@@ -31,8 +35,12 @@ interface TaskCardProps {
   onTitleEditCancel?: () => void;
 }
 
-export default React.memo(function TaskCard({ task, linkedSession, onClick, onStartSession, onResearchSession, onViewSession, isDragOverlay, variant = "default", taskMap, dependents = [], isBlocked = false, treeDepth = 0, onContextMenu, isEditingTitle = false, onTitleSave, onTitleEditCancel }: TaskCardProps) {
+export default React.memo(function TaskCard({ task, linkedSession, onClick, onStartSession, onResearchSession, onViewSession, onEpicClick, onBreakdownEpic, isDragOverlay, variant = "default", taskMap, allTasks, dependents = [], isBlocked = false, treeDepth = 0, onContextMenu, isEditingTitle = false, onTitleSave, onTitleEditCancel }: TaskCardProps) {
   const accentColor = useProjectAccentColor();
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
   const mcpData = useAppStore((s) => linkedSession ? s.mcpStatus[linkedSession.id] : undefined);
 
   const isSessionActive = linkedSession != null &&
@@ -40,10 +48,22 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
     task.status !== "done" &&
     !mcpData?.completed;
 
+  const isEpic = task.task_type === "epic";
+
+  // Compute epic child progress
+  const epicProgress = React.useMemo(() => {
+    if (!isEpic || !allTasks) return null;
+    const children = allTasks.filter((t) => t.epic_id === task.id);
+    if (children.length === 0) return null;
+    const done = children.filter((t) => t.status === "done" || t.status === "archived").length;
+    const inProgress = children.filter((t) => t.status === "in-progress").length;
+    return { total: children.length, done, inProgress };
+  }, [isEpic, allTasks, task.id]);
+
   const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
     id: task.id,
     data: { task },
-    disabled: isDragOverlay || isSessionActive,
+    disabled: isDragOverlay || isSessionActive || isEpic,
   });
 
   const isCompact = variant === "compact";
@@ -108,9 +128,7 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
         onContextMenu={onContextMenu}
       >
         <div className="flex items-center gap-1.5">
-          <div className={`size-1.5 shrink-0 rounded-full ${
-            task.priority === "P0" ? "bg-destructive" : task.priority === "P1" ? "bg-warning" : "bg-muted-foreground/50"
-          }`} />
+          <div className={`size-1.5 shrink-0 rounded-full ${getPriorityBgClass(task.priority, priorities)}`} />
           <span className="text-[11px] text-muted-foreground truncate flex-1">
             {task.title}
           </span>
@@ -138,9 +156,11 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
     <div
       ref={setNodeRef}
       className={`relative group px-2.5 py-2 shrink-0 bg-card border rounded-[var(--radius-element)] select-none overflow-hidden transition-shadow duration-150 ${
+        isEpic ? "border-l-[3px] border-l-primary" : ""
+      } ${
         isDragOverlay
           ? `${borderAccentColors[accentColor]} shadow-[0_8px_24px_rgba(0,0,0,0.3)] cursor-grabbing`
-          : isSessionActive ? "border-border cursor-default" : "border-border cursor-grab"
+          : isSessionActive ? "border-border cursor-default" : isEpic ? "border-border cursor-pointer" : "border-border cursor-grab"
       } ${isDragging ? "opacity-30" : ""} ${activeRingClass} ${isBlocked && !isDragOverlay ? "opacity-75" : ""}`}
       style={{
         ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined),
@@ -151,12 +171,17 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
       onClick={(e) => {
         if (isEditingTitle) return;
         e.stopPropagation();
-        onClick(task.id);
+        if (isEpic && onEpicClick) {
+          onEpicClick(task.id);
+        } else {
+          onClick(task.id);
+        }
       }}
       onContextMenu={onContextMenu}
     >
       {/* Top row: id + priority + deps + actions */}
       <div className="flex items-center gap-1.5 mb-1">
+        {isEpic && <Layers className="size-3 shrink-0 text-primary" />}
         <span className="text-[10px] font-mono text-muted-foreground shrink-0">{task.id}</span>
         <PriorityBadge priority={task.priority} />
         {task.github_issue && (
@@ -192,7 +217,7 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
                 <Search className="size-3" />
               </Button>
             )}
-            {(task.status === "backlog" || task.status === "ready") && onResearchSession && (
+            {!isEpic && (task.status === "backlog" || task.status === "ready") && onResearchSession && (
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -208,7 +233,7 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
                 <Lightbulb className="size-3 text-warning" />
               </Button>
             )}
-            {task.status !== "in-review" && task.status !== "done" && onStartSession && (
+            {!isEpic && task.status !== "in-review" && task.status !== "done" && onStartSession && (
               <Button
                 variant="ghost"
                 size="icon-xs"
@@ -222,6 +247,22 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
                 onPointerDown={(e) => e.stopPropagation()}
               >
                 <Play className="size-3" />
+              </Button>
+            )}
+            {isEpic && (task.status === "backlog" || task.status === "ready") && onBreakdownEpic && (
+              <Button
+                variant="ghost"
+                size="icon-xs"
+                hoverEffect="scale"
+                clickEffect="scale"
+                title="Breakdown epic"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onBreakdownEpic(task.id);
+                }}
+                onPointerDown={(e) => e.stopPropagation()}
+              >
+                <Ungroup className="size-3 text-primary" />
               </Button>
             )}
             {onContextMenu && (
@@ -281,8 +322,28 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
         </div>
       )}
 
+      {/* Epic progress */}
+      {isEpic && epicProgress && (
+        <div className="mt-1.5">
+          <div className="flex items-center justify-between mb-0.5">
+            <span className="text-[10px] text-muted-foreground">
+              {epicProgress.done}/{epicProgress.total} subtasks done
+            </span>
+            <span className="text-[10px] font-medium text-dim-foreground">
+              {Math.round((epicProgress.done / epicProgress.total) * 100)}%
+            </span>
+          </div>
+          <div className="h-1 w-full rounded-full bg-accent overflow-hidden">
+            <div
+              className="h-full rounded-full bg-primary transition-all duration-300"
+              style={{ width: `${(epicProgress.done / epicProgress.total) * 100}%` }}
+            />
+          </div>
+        </div>
+      )}
+
       {/* Agent row */}
-      {task.agent && !showMcpFooter && (
+      {task.agent && !showMcpFooter && !isEpic && (
         <div className="mt-1 text-[10px] text-muted-foreground truncate">
           {task.agent}
         </div>

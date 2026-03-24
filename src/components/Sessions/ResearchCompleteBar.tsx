@@ -4,6 +4,7 @@ import React, { useCallback, useEffect, useRef, useState } from "react";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { useAppStore } from "../../store/appStore";
 import { MessageResponse } from "../ai-elements/message";
+import ConfirmDialog from "../Review/ConfirmDialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
 interface ResearchCompleteBarProps {
@@ -22,12 +23,13 @@ export default React.memo(function ResearchCompleteBar({
   const setLaunchTaskForSession = useAppStore((s) => s.setLaunchTaskForSession);
   const mcpSummary = useAppStore((s) => s.mcpStatus[sessionId]?.summary);
 
-  // Get the last agent message from ACP chat state
+  // Get the last agent text from ACP entries
   const lastAgentMessage = useAppStore((s) => {
-    const msgs = s.acpMessages[sessionId];
-    if (!msgs) return null;
-    for (let i = msgs.length - 1; i >= 0; i--) {
-      if (msgs[i].role === "agent" && msgs[i].text) return msgs[i].text;
+    const entries = s.acpEntries[sessionId];
+    if (!entries) return null;
+    for (let i = entries.length - 1; i >= 0; i--) {
+      const e = entries[i];
+      if (e.type === "agent-text" && e.text) return e.text;
     }
     return null;
   });
@@ -55,7 +57,14 @@ export default React.memo(function ResearchCompleteBar({
     setTimeout(() => dismissResearchComplete(sessionId), 300);
   }, [sessionId, dismissResearchComplete]);
 
+  const [showCloseConfirm, setShowCloseConfirm] = useState(false);
+
   const handleCloseSession = useCallback(() => {
+    setShowCloseConfirm(true);
+  }, []);
+
+  const handleCloseConfirmed = useCallback(() => {
+    setShowCloseConfirm(false);
     setVisible(false);
     setTimeout(() => {
       dismissResearchComplete(sessionId);
@@ -78,7 +87,7 @@ export default React.memo(function ResearchCompleteBar({
 
       {/* Centered card stack */}
       <div
-        className={`relative transition-all duration-300 ease-out w-[85%] max-w-2xl flex flex-col gap-2 ${
+        className={`relative transition-all duration-300 ease-out w-[90%] flex flex-col gap-2 ${
           visible
             ? "opacity-100 scale-100 translate-y-0"
             : "opacity-0 scale-95 translate-y-4"
@@ -87,7 +96,7 @@ export default React.memo(function ResearchCompleteBar({
         {/* Agent's last message card */}
         {lastAgentMessage && (
           <div className="rounded-xl bg-card/95 backdrop-blur-md ring-1 ring-border/50 shadow-2xl overflow-hidden">
-            <div className="px-4 py-3 max-h-[40vh] overflow-y-auto text-sm">
+            <div className="px-6 py-4 max-h-[70vh] overflow-y-auto text-sm">
               <MessageResponse mode="static">
                 {lastAgentMessage}
               </MessageResponse>
@@ -161,6 +170,17 @@ export default React.memo(function ResearchCompleteBar({
           </div>
         </div>
       </div>
+
+      {showCloseConfirm && (
+        <ConfirmDialog
+          title="Close research session?"
+          message="This will end the current research session."
+          variant="danger"
+          confirmLabel="Close"
+          onConfirm={handleCloseConfirmed}
+          onCancel={() => setShowCloseConfirm(false)}
+        />
+      )}
     </div>
   );
 });

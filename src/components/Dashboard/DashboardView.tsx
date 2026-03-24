@@ -15,6 +15,7 @@ import EmptyState from "./EmptyState";
 import FilterBar from "./FilterBar";
 import KanbanBoard from "./KanbanBoard";
 import ArchivedTaskList from "./ArchivedTaskList";
+import LaunchBreakdownDialog from "../Launchers/LaunchBreakdownDialog";
 import LaunchResearchDialog from "../Launchers/LaunchResearchDialog";
 import LaunchTaskDialog from "../Launchers/LaunchTaskDialog";
 import SummaryHeader from "./SummaryHeader";
@@ -66,7 +67,16 @@ export default function DashboardView() {
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [launchTaskId, setLaunchTaskId] = useState<string | null>(null);
   const [researchTaskId, setResearchTaskId] = useState<string | null>(null);
+  const [breakdownTaskId, setBreakdownTaskId] = useState<string | null>(null);
   const [showContinuousMode, setShowContinuousMode] = useState(false);
+
+  // Epic click on Kanban card → toggle FilterBar epic filter
+  const handleEpicClick = useCallback(
+    (epicId: string) => {
+      dispatchFilter({ type: "TOGGLE_EPIC", epicId });
+    },
+    [dispatchFilter],
+  );
 
   // Dashboard mode: board (kanban) or graph (swimlane)
   const [graphMode, setGraphMode] = usePersistedBoolean("dashboard_show_graph", false);
@@ -149,6 +159,10 @@ export default function DashboardView() {
       ].sort(),
     [boardTasks],
   );
+  const allEpics = useMemo(
+    () => boardTasks.filter((t) => t.task_type === "epic").map((t) => ({ id: t.id, title: t.title })),
+    [boardTasks],
+  );
 
   // Task click → navigate to task detail
   const handleTaskClick = useCallback(
@@ -199,6 +213,11 @@ export default function DashboardView() {
     setResearchTaskId(taskId);
   }, []);
 
+  // Open breakdown dialog for an epic
+  const handleBreakdownEpic = useCallback((taskId: string) => {
+    setBreakdownTaskId(taskId);
+  }, []);
+
   // Navigate to a session's terminal pane
   const handleViewSession = useCallback(
     (sessionId: string) => {
@@ -220,6 +239,13 @@ export default function DashboardView() {
     () =>
       researchTaskId ? (tasks.find((t) => t.id === researchTaskId) ?? null) : null,
     [researchTaskId, tasks],
+  );
+
+  // Resolve the epic being broken down
+  const breakdownTask = useMemo(
+    () =>
+      breakdownTaskId ? (tasks.find((t) => t.id === breakdownTaskId) ?? null) : null,
+    [breakdownTaskId, tasks],
   );
 
   // Create & Start callback — closes create dialog, opens launch dialog
@@ -262,6 +288,19 @@ export default function DashboardView() {
         setActiveView("sessions");
       }}
       onDismiss={() => setResearchTaskId(null)}
+    />
+  );
+
+  // Breakdown epic dialog
+  const breakdownTaskDialog = breakdownTask && activeProjectId && (
+    <LaunchBreakdownDialog
+      task={breakdownTask}
+      projectId={activeProjectId}
+      onLaunched={() => {
+        setBreakdownTaskId(null);
+        setActiveView("sessions");
+      }}
+      onDismiss={() => setBreakdownTaskId(null)}
     />
   );
 
@@ -349,6 +388,7 @@ export default function DashboardView() {
         {createTaskDialog}
         {launchTaskDialog}
         {researchTaskDialog}
+        {breakdownTaskDialog}
         {continuousModeDialog}
       </ViewLayout>
     );
@@ -371,6 +411,7 @@ export default function DashboardView() {
           hasActiveFilters={hasActiveFilters}
           allLabels={allLabels}
           allAgents={allAgents}
+          allEpics={allEpics}
           searchInputRef={searchInputRef}
         />
 
@@ -404,7 +445,9 @@ export default function DashboardView() {
             onStatusChange={handleStatusChange}
             onStartSession={handleStartSession}
             onResearchSession={handleResearchSession}
+            onBreakdownEpic={handleBreakdownEpic}
             onViewSession={handleViewSession}
+            onEpicClick={handleEpicClick}
           />
         ) : (
           /* Tree / outline view — full height, replaces kanban */
@@ -423,6 +466,7 @@ export default function DashboardView() {
       {createTaskDialog}
       {launchTaskDialog}
       {researchTaskDialog}
+      {breakdownTaskDialog}
       {continuousModeDialog}
     </ViewLayout>
   );

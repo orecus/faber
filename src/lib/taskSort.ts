@@ -1,4 +1,5 @@
-import type { Task, TaskStatus } from "../types";
+import type { Task, TaskStatus, PriorityLevel } from "../types";
+import { DEFAULT_PRIORITIES, buildPriorityOrderMap } from "./priorities";
 
 // ── Sort modes ──
 
@@ -14,14 +15,15 @@ export const SORT_MODE_LABELS: Record<ColumnSortMode, string> = {
 };
 
 /** Sort tasks by a given mode (non-topological). Returns a new sorted array. */
-export function sortTasksByMode(tasks: Task[], mode: ColumnSortMode): Task[] {
+export function sortTasksByMode(tasks: Task[], mode: ColumnSortMode, priorities?: PriorityLevel[]): Task[] {
   if (mode === "topological") return tasks; // handled separately
+  const orderMap = buildPriorityOrderMap(priorities ?? DEFAULT_PRIORITIES);
   const sorted = [...tasks];
   switch (mode) {
     case "priority":
       sorted.sort((a, b) => {
-        const pa = PRIORITY_ORDER[a.priority] ?? 2;
-        const pb = PRIORITY_ORDER[b.priority] ?? 2;
+        const pa = orderMap[a.priority] ?? 999;
+        const pb = orderMap[b.priority] ?? 999;
         if (pa !== pb) return pa - pb;
         return a.created_at.localeCompare(b.created_at);
       });
@@ -87,14 +89,14 @@ export function unmetDependencyCount(task: Task, taskMap: Map<string, Task>): nu
 
 // ── Topological sort within a column ──
 
-const PRIORITY_ORDER: Record<string, number> = { P0: 0, P1: 1, P2: 2 };
-
-/** Compare tasks by priority (P0 > P1 > P2), then by creation date (oldest first). */
-function compareTasks(a: Task, b: Task): number {
-  const pa = PRIORITY_ORDER[a.priority] ?? 2;
-  const pb = PRIORITY_ORDER[b.priority] ?? 2;
-  if (pa !== pb) return pa - pb;
-  return a.created_at.localeCompare(b.created_at);
+/** Build a task comparator using the given priority order map. */
+function makeCompareTasks(orderMap: Record<string, number>) {
+  return (a: Task, b: Task): number => {
+    const pa = orderMap[a.priority] ?? 999;
+    const pb = orderMap[b.priority] ?? 999;
+    if (pa !== pb) return pa - pb;
+    return a.created_at.localeCompare(b.created_at);
+  };
 }
 
 /**
@@ -104,9 +106,10 @@ function compareTasks(a: Task, b: Task): number {
  * Ties broken by priority (P0 > P1 > P2), then by creation date (oldest first).
  * Handles cycles gracefully by breaking them.
  */
-export function topoSortTasks(columnTasks: Task[], _allTasks: Task[]): Task[] {
+export function topoSortTasks(columnTasks: Task[], _allTasks: Task[], priorities?: PriorityLevel[]): Task[] {
   if (columnTasks.length <= 1) return columnTasks;
 
+  const compareTasks = makeCompareTasks(buildPriorityOrderMap(priorities ?? DEFAULT_PRIORITIES));
   const columnIds = new Set(columnTasks.map((t) => t.id));
 
   // Build adjacency within this column only
@@ -239,8 +242,11 @@ const STATUS_ORDER: Record<TaskStatus, number> = {
 export function buildColumnItems(
   columnTasks: Task[],
   taskMap: Map<string, Task>,
+  priorities?: PriorityLevel[],
 ): ColumnItem[] {
   if (columnTasks.length === 0) return [];
+
+  const compareTasks = makeCompareTasks(buildPriorityOrderMap(priorities ?? DEFAULT_PRIORITIES));
 
   const columnIds = new Set(columnTasks.map((t) => t.id));
 
@@ -257,12 +263,52 @@ export function buildColumnItems(
       }
     }
   }
+
+  // Epic grouping: tasks with epic_id whose epic is in this column
+  // are treated as children of the epic (indented below it)
+  const epicChildIds = new Set<string>();
+  for (const t of columnTasks) {
+    if (t.epic_id && columnIds.has(t.epic_id) && t.task_type !== "epic") {
+      childrenOf.get(t.epic_id)!.push(t);
+      epicChildIds.add(t.id);
+    }
+  }
+
   // Sort children by priority then creation date
   for (const [, children] of childrenOf) {
+    // Deduplicate (a task could appear via both dependency and epic)
+    const seen = new Set<string>();
+    const unique = children.filter((c) => {
+      if (seen.has(c.id)) return false;
+      seen.add(c.id);
+      return true;
+    });
+    children.length = 0;
+    children.push(...unique);
     children.sort(compareTasks);
   }
 
-  // Identify cross-column parents (ghost parents)
+  // Ghost epic parents: tasks whose epic is in another column
+  const ghostEpicChildren = new Map<string, Task[]>();
+  const hasGhostEpicParent = new Set<string>();
+
+  for (const task of columnTasks) {
+    if (task.epic_id && !columnIds.has(task.epic_id) && task.task_type !== "epic") {
+      const epicTask = taskMap.get(task.epic_id);
+      if (epicTask) {
+        hasGhostEpicParent.add(task.id);
+        if (!ghostEpicChildren.has(task.epic_id)) {
+          ghostEpicChildren.set(task.epic_id, []);
+        }
+        ghostEpicChildren.get(task.epic_id)!.push(task);
+      }
+    }
+  }
+  for (const [, children] of ghostEpicChildren) {
+    children.sort(compareTasks);
+  }
+
+  // Identify cross-column parents (ghost parents for dependencies)
   const ghostParentChildren = new Map<string, Task[]>();
   const hasCrossColumnParent = new Set<string>();
 
@@ -286,7 +332,7 @@ export function buildColumnItems(
     children.sort(compareTasks);
   }
 
-  // Identify root tasks: tasks with no in-column parent AND no cross-column parent
+  // Identify root tasks: no in-column parent, no cross-column parent, no epic parent in-column, no ghost epic parent
   const hasInColumnParent = new Set<string>();
   for (const t of columnTasks) {
     for (const depId of t.depends_on) {
@@ -296,7 +342,7 @@ export function buildColumnItems(
     }
   }
   const roots = columnTasks
-    .filter((t) => !hasInColumnParent.has(t.id) && !hasCrossColumnParent.has(t.id))
+    .filter((t) => !hasInColumnParent.has(t.id) && !hasCrossColumnParent.has(t.id) && !epicChildIds.has(t.id) && !hasGhostEpicParent.has(t.id))
     .sort(compareTasks);
 
   // DFS render: emit parent then recurse into children
@@ -312,7 +358,28 @@ export function buildColumnItems(
     }
   }
 
-  // 1. Render ghost parent groups first
+  // 1a. Render ghost epic parent groups first
+  const sortedGhostEpicIds = [...ghostEpicChildren.keys()].sort((a, b) => {
+    const tA = taskMap.get(a);
+    const tB = taskMap.get(b);
+    const sA = tA ? STATUS_ORDER[tA.status] ?? 99 : 99;
+    const sB = tB ? STATUS_ORDER[tB.status] ?? 99 : 99;
+    if (sA !== sB) return sA - sB;
+    return a.localeCompare(b);
+  });
+
+  for (const ghostId of sortedGhostEpicIds) {
+    const parentTask = taskMap.get(ghostId);
+    if (!parentTask) continue;
+
+    items.push({ type: "ghost", parentTask, depth: 0 });
+
+    for (const child of ghostEpicChildren.get(ghostId) ?? []) {
+      dfs(child, 1);
+    }
+  }
+
+  // 1b. Render ghost dependency parent groups
   const sortedGhostParentIds = [...ghostParentChildren.keys()].sort((a, b) => {
     const tA = taskMap.get(a);
     const tB = taskMap.get(b);

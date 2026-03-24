@@ -111,7 +111,9 @@ All agents are auto-detected from your system PATH. You can see which agents are
 
 ## How System Prompts Work
 
-Faber composes a system prompt for each session that includes your project's IDE instructions (from `.agents/prompts/prompt.md`) and MCP tool documentation. How this prompt reaches the agent depends on the agent:
+Faber composes a system prompt for each session that includes your project's IDE instructions (from `.agents/prompts/prompt.md`) and MCP tool documentation. The content is **tailored to the session mode** — task sessions get completion workflow instructions, research sessions get research-specific guidance, and vibe/chat sessions get a lighter set.
+
+How this prompt reaches the agent depends on the agent:
 
 - **CLI flag agents** (Claude Code): The prompt is passed directly as a command-line argument (`--system-prompt`). Faber also writes MCP documentation to `CLAUDE.md` using marker comments.
 - **Instruction file agents** (Codex, Copilot, Cursor, Gemini, OpenCode): The prompt is written to the agent's instruction file in the working directory (`AGENTS.md` or `GEMINI.md`). Faber uses `<!-- Faber:MCP -->` markers so your own edits to these files are preserved.
@@ -128,21 +130,36 @@ The MCP config is written to the agent's expected config location before the ses
 
 ### Available MCP Tools
 
-Agents can call these tools to communicate with Faber:
+Agents can call these tools to communicate with Faber. The tools available depend on the session mode — agents only see tools relevant to their session type.
+
+#### Status & Progress (all sessions)
 
 | Tool | Purpose |
 |---|---|
-| `report_status` | Set working status and message |
-| `report_progress` | Report step N of M with description |
-| `report_files_changed` | List files that were modified |
-| `report_error` | Report an error with optional details |
-| `report_waiting` | Signal that user input is needed |
-| `report_complete` | Signal task completion (auto-marks task as done) |
+| `report_status` | Set working status, message, and activity type. Call first when starting work. |
+| `report_progress` | Report step N of M with description. Drives the progress bar in the UI. |
+| `report_files_changed` | List files that were created, modified, or deleted |
+| `report_error` | Report a hard blocker. The agent should stop and wait after calling this. |
+| `report_waiting` | Signal that user input is needed. The session pauses until the user responds. |
+
+#### Task Management (all sessions)
+
+| Tool | Purpose |
+|---|---|
 | `get_task` | Fetch task metadata and full markdown body |
 | `update_task` | Update task metadata (status, priority, labels, etc.) |
 | `update_task_plan` | Update the implementation plan section of a task file |
 | `create_task` | Create a new task in the current project |
 | `list_tasks` | List tasks in the project with optional status/label filters |
+
+#### Completion (session-mode-specific)
+
+| Tool | Available in | Purpose |
+|---|---|---|
+| `report_complete` | Task, Continuous | Signal that the task is fully done. Moves the task to **In Review**. In continuous mode, auto-launches the next task. |
+| `report_researched` | Research | Signal that research is complete. The user is prompted to continue to implementation. May move the task from Backlog to Ready. |
+
+Breakdown, Vibe, and Chat sessions have no completion tool — the user drives the lifecycle.
 
 ---
 

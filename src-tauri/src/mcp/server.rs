@@ -19,7 +19,7 @@ use crate::commands::tasks::do_update_task_status;
 use crate::continuous::{self, ContinuousState};
 use crate::db;
 use crate::db::DbState;
-use crate::db::models::{SessionMode, TaskStatus};
+use crate::db::models::TaskStatus;
 use crate::error::AppError;
 use crate::session;
 use crate::task_logger::{self, TaskLogEvent};
@@ -36,6 +36,7 @@ pub struct FileChange {
 pub struct McpSessionData {
     pub project_id: Option<String>,
     pub task_id: Option<String>,
+    pub session_mode: Option<String>,
     pub status: String,
     pub message: String,
     pub current_step: Option<u32>,
@@ -216,8 +217,14 @@ async fn handle_mcp_request_inner(
         }
 
         "tools/list" => {
+            // Filter tools based on session mode — vibe/chat sessions don't need task tools
+            let session_mode = {
+                let guard = state.mcp.lock().await;
+                guard.sessions.get(&session_id)
+                    .and_then(|d| d.session_mode.clone())
+            };
             let result = McpToolsListResult {
-                tools: tools::all_tools(),
+                tools: tools::tools_for_mode(session_mode.as_deref()),
             };
             JsonRpcResponse::success(req.id, serde_json::to_value(result).unwrap())
         }
@@ -270,6 +277,9 @@ async fn handle_tool_call(
         "report_error" => handle_report_error(session_id, &params.arguments, mcp, app).await,
         "report_complete" => {
             handle_report_complete(session_id, &params.arguments, mcp, app).await
+        }
+        "report_researched" => {
+            handle_report_researched(session_id, &params.arguments, mcp, app).await
         }
         "get_task" => handle_get_task(session_id, &params.arguments, mcp, app).await,
         "update_task_plan" => {
@@ -571,7 +581,10 @@ async fn handle_report_waiting(
         );
     });
 
-    McpToolResult::text(format!("Waiting reported: {question}"))
+    McpToolResult::text(format!(
+        "Waiting state set. The user has been notified with your question: \"{question}\". \
+         STOP working and wait — the session is paused until the user responds."
+    ))
 }
 
 async fn handle_report_error(
@@ -626,7 +639,10 @@ async fn handle_report_error(
         );
     });
 
-    McpToolResult::text("Error reported")
+    McpToolResult::text(format!(
+        "Error reported to the IDE. The session is now in error state. \
+         Stop working and wait for the user to address the issue: {error}"
+    ))
 }
 
 async fn handle_report_complete(
@@ -706,17 +722,80 @@ async fn handle_report_complete(
         });
     }
 
-    McpToolResult::text("Task marked complete")
+    McpToolResult::text(
+        "Task marked complete and moved to 'in-review'. \
+         The user will review your changes. You should stop working now."
+            .to_string(),
+    )
 }
 
-/// Look up the session's linked task and advance its status.
-/// Research sessions only move backlog → ready (capped).
-/// Task sessions always move to "in-review".
+async fn handle_report_researched(
+    session_id: &str,
+    args: &Value,
+    mcp: &Arc<TokioMutex<McpState>>,
+    app: &AppHandle,
+) -> McpToolResult {
+    let summary = args
+        .get("summary")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+
+    {
+        let mut guard = mcp.lock().await;
+        if let Some(data) = guard.sessions.get_mut(session_id) {
+            data.status = "done".to_string();
+            data.message = summary.to_string();
+            data.completed = true;
+            data.completion_summary = Some(summary.to_string());
+            data.waiting = false;
+            data.waiting_question = None;
+            data.activity = None;
+        }
+    }
+
+    // Move task from backlog → ready (if applicable)
+    try_mark_research_complete(app, session_id);
+
+    let project_id = get_session_project_id(app, session_id);
+
+    let _ = app.emit(
+        "mcp-complete",
+        McpCompleteEvent {
+            session_id: session_id.to_string(),
+            summary: summary.to_string(),
+            files_changed: None,
+            project_id,
+        },
+    );
+
+    // Log to task file (fire-and-forget)
+    let app_clone = app.clone();
+    let sid = session_id.to_string();
+    let log_summary = summary.to_string();
+    std::thread::spawn(move || {
+        task_logger::log_mcp_event(
+            &app_clone,
+            &sid,
+            TaskLogEvent::Complete {
+                summary: log_summary,
+                files_changed: None,
+            },
+        );
+    });
+
+    McpToolResult::text(
+        "Research findings recorded. The user has been notified and will decide next steps. \
+         You can continue discussing or wait for the user."
+            .to_string(),
+    )
+}
+
+/// Look up the session's linked task and move it to "in-review".
+/// Used by report_complete (task/continuous sessions).
 /// Errors are logged but not propagated — MCP should always succeed.
 fn try_mark_task_complete(app: &AppHandle, session_id: &str) {
     let db: tauri::State<'_, DbState> = app.state();
 
-    // Phase 1: Hold DB lock for task update + read GitHub sync context
     let result = {
         let conn = match db.lock() {
             Ok(c) => c,
@@ -743,53 +822,85 @@ fn try_mark_task_complete(app: &AppHandle, session_id: &str) {
             None => return, // vibe/shell session, no task to mark
         };
 
-        if session.mode == SessionMode::Research {
-            // Research sessions only advance backlog → ready. Never beyond.
-            // The user can continue to implementation via the UI prompt.
-            let current_task = db::tasks::get(&conn, &task_id, &session.project_id)
-                .ok()
-                .flatten();
-            match current_task {
-                Some(task) if task.status == TaskStatus::Backlog => {
-                    let new_status = "ready";
-                    match do_update_task_status(&conn, &session.project_id, &task_id, new_status) {
-                        Ok((task, sync_ctx, todos)) => {
-                            tracing::info!(task_id = %task.id, %new_status, "Research complete, moved task to ready");
-                            let _ = app.emit("task-updated", &task);
-                            if let Some(t) = todos { t.write(); }
-                            sync_ctx
-                        }
-                        Err(e) => {
-                            tracing::error!(%e, task_id, %new_status, "Failed to mark task status");
-                            None
-                        }
-                    }
-                }
-                _ => {
-                    // Task is already ready or beyond — research completion is a no-op
-                    tracing::info!(task_id, "Research session complete, task status unchanged");
-                    None
-                }
+        let new_status = "in-review";
+        match do_update_task_status(&conn, &session.project_id, &task_id, new_status) {
+            Ok((task, sync_ctx, todos)) => {
+                tracing::info!(task_id = %task.id, %new_status, "Marked task status");
+                let _ = app.emit("task-updated", &task);
+                if let Some(t) = todos { t.write(); }
+                sync_ctx
             }
-        } else {
-            let new_status = "in-review";
-            match do_update_task_status(&conn, &session.project_id, &task_id, new_status) {
-                Ok((task, sync_ctx, todos)) => {
-                    tracing::info!(task_id = %task.id, %new_status, "Marked task status");
-                    let _ = app.emit("task-updated", &task);
-                    if let Some(t) = todos { t.write(); }
-                    sync_ctx
-                }
-                Err(e) => {
-                    tracing::error!(%e, task_id, %new_status, "Failed to mark task status");
-                    None
-                }
+            Err(e) => {
+                tracing::error!(%e, task_id, %new_status, "Failed to mark task status");
+                None
             }
         }
     };
-    // DB lock released here
 
-    // Phase 2: GitHub sync without holding DB lock (spawns `gh` CLI subprocesses)
+    if let Some(ctx) = result {
+        crate::commands::tasks::execute_github_sync(ctx);
+    }
+}
+
+/// Look up the session's linked task and advance backlog → ready.
+/// Used by report_researched (research sessions).
+/// If the task is already beyond backlog, this is a no-op.
+fn try_mark_research_complete(app: &AppHandle, session_id: &str) {
+    let db: tauri::State<'_, DbState> = app.state();
+
+    let result = {
+        let conn = match db.lock() {
+            Ok(c) => c,
+            Err(e) => {
+                tracing::error!(%e, "Failed to lock DB for research completion");
+                return;
+            }
+        };
+
+        let session = match db::sessions::get(&conn, session_id) {
+            Ok(Some(s)) => s,
+            Ok(None) => {
+                tracing::warn!(session_id, "Session not found for research completion");
+                return;
+            }
+            Err(e) => {
+                tracing::error!(%e, session_id, "Failed to fetch session for research completion");
+                return;
+            }
+        };
+
+        let task_id = match &session.task_id {
+            Some(tid) => tid.clone(),
+            None => return,
+        };
+
+        // Research sessions only advance backlog → ready. Never beyond.
+        let current_task = db::tasks::get(&conn, &task_id, &session.project_id)
+            .ok()
+            .flatten();
+        match current_task {
+            Some(task) if task.status == TaskStatus::Backlog => {
+                let new_status = "ready";
+                match do_update_task_status(&conn, &session.project_id, &task_id, new_status) {
+                    Ok((task, sync_ctx, todos)) => {
+                        tracing::info!(task_id = %task.id, %new_status, "Research complete, moved task to ready");
+                        let _ = app.emit("task-updated", &task);
+                        if let Some(t) = todos { t.write(); }
+                        sync_ctx
+                    }
+                    Err(e) => {
+                        tracing::error!(%e, task_id, %new_status, "Failed to mark task status");
+                        None
+                    }
+                }
+            }
+            _ => {
+                tracing::info!(task_id, "Research session complete, task status unchanged");
+                None
+            }
+        }
+    };
+
     if let Some(ctx) = result {
         crate::commands::tasks::execute_github_sync(ctx);
     }
@@ -1031,6 +1142,8 @@ async fn handle_update_task_plan(
             title: task.title.clone(),
             status: Some(task.status),
             priority: Some(task.priority),
+            task_type: Some(task.task_type),
+            epic_id: task.epic_id.clone(),
             agent: task.agent.clone(),
             model: task.model.clone(),
             branch: task.branch.clone(),
@@ -1125,6 +1238,51 @@ async fn handle_update_task(
         .map(|s| s.to_string())
         .or_else(|| task.github_pr.clone());
 
+    // Handle task_type changes
+    let new_task_type = args
+        .get("task_type")
+        .and_then(|v| v.as_str())
+        .map(|s| s.parse::<db::models::TaskType>().unwrap_or(task.task_type))
+        .unwrap_or(task.task_type);
+
+    // Handle epic_id changes (empty string = unassign)
+    let new_epic_id = if let Some(v) = args.get("epic_id").and_then(|v| v.as_str()) {
+        if v.is_empty() { None } else { Some(v.to_string()) }
+    } else {
+        task.epic_id.clone()
+    };
+
+    // Validate: epics cannot have an epic_id (no nesting)
+    if new_task_type == db::models::TaskType::Epic && new_epic_id.is_some() {
+        return McpToolResult::error("Epics cannot be nested inside other epics");
+    }
+
+    // Validate: if epic_id is set, verify target exists and is an epic
+    if let Some(ref eid) = new_epic_id {
+        match db::tasks::get(&conn, eid, &project_id) {
+            Ok(Some(parent)) => {
+                if parent.task_type != db::models::TaskType::Epic {
+                    return McpToolResult::error(format!("Task {eid} is not an epic"));
+                }
+            }
+            Ok(None) => return McpToolResult::error(format!("Epic {eid} not found")),
+            Err(e) => return McpToolResult::error(format!("Failed to look up epic: {e}")),
+        }
+    }
+
+    // Validate: if changing from epic to task, verify no children reference it
+    if task.task_type == db::models::TaskType::Epic && new_task_type == db::models::TaskType::Task {
+        match db::tasks::list_by_epic(&conn, &project_id, &task.id) {
+            Ok(children) if !children.is_empty() => {
+                return McpToolResult::error(format!(
+                    "Cannot change type to 'task': {} children still reference this epic",
+                    children.len()
+                ));
+            }
+            _ => {}
+        }
+    }
+
     // Validate status
     if new_status.parse::<TaskStatus>().is_err() {
         return McpToolResult::error(format!("Invalid status: {new_status}"));
@@ -1157,6 +1315,8 @@ async fn handle_update_task(
                     created: parsed.frontmatter.created,
                     depends_on: new_depends_on.clone(),
                     labels: new_labels.clone(),
+                    task_type: if new_task_type == db::models::TaskType::Epic { Some("epic".to_string()) } else { None },
+                    epic_id: new_epic_id.clone(),
                     agent: task.agent.clone(),
                     model: task.model.clone(),
                     branch: task.branch.clone(),
@@ -1193,11 +1353,9 @@ async fn handle_update_task(
                 .parse::<TaskStatus>()
                 .unwrap_or(TaskStatus::Backlog),
         ),
-        priority: Some(
-            new_priority
-                .parse::<db::models::Priority>()
-                .unwrap_or(db::models::Priority::P2),
-        ),
+        priority: Some(new_priority.to_string()),
+        task_type: Some(new_task_type),
+        epic_id: new_epic_id.clone(),
         agent: task.agent.clone(),
         model: task.model.clone(),
         branch: task.branch.clone(),
@@ -1214,7 +1372,32 @@ async fn handle_update_task(
         Err(e) => return McpToolResult::error(format!("Failed to update task: {e}")),
     };
 
-    // 7. Emit task-updated event
+    // 7. Auto-derive parent epic status if this task belongs to an epic
+    if let Some(ref epic_id) = updated.epic_id {
+        if let Ok(children) = db::tasks::list_by_epic(&conn, &project_id, epic_id) {
+            let derived = crate::commands::tasks::derive_epic_status(&children);
+            if let Ok(Some(epic)) = db::tasks::get(&conn, epic_id, &project_id) {
+                if derived != epic.status {
+                    let _ = db::tasks::update_status(&conn, epic_id, &project_id, derived);
+                    // Also update file if disk enabled
+                    if crate::tasks::task_files_enabled(&conn, &project_id) {
+                        if let Some(ref fp) = epic.task_file_path {
+                            let path = std::path::Path::new(fp);
+                            if path.exists() {
+                                let _ = crate::tasks::update_task_file_field(path, "status", derived.as_str());
+                            }
+                        }
+                    }
+                    // Emit event for the epic status change
+                    if let Ok(Some(updated_epic)) = db::tasks::get(&conn, epic_id, &project_id) {
+                        let _ = app.emit("task-updated", &updated_epic);
+                    }
+                }
+            }
+        }
+    }
+
+    // 8. Emit task-updated event
     let _ = app.emit("task-updated", &updated);
 
     tracing::info!(
@@ -1230,6 +1413,8 @@ async fn handle_update_task(
         "title": updated.title,
         "status": updated.status,
         "priority": updated.priority,
+        "task_type": updated.task_type,
+        "epic_id": updated.epic_id,
         "labels": updated.labels,
         "depends_on": updated.depends_on,
         "github_issue": updated.github_issue,
@@ -1279,6 +1464,8 @@ async fn handle_list_tasks(
     // 3. Apply optional filters
     let status_filter = args.get("status").and_then(|v| v.as_str());
     let label_filter = args.get("label").and_then(|v| v.as_str());
+    let task_type_filter = args.get("task_type").and_then(|v| v.as_str());
+    let epic_id_filter = args.get("epic_id").and_then(|v| v.as_str());
 
     let filtered: Vec<_> = tasks
         .into_iter()
@@ -1290,6 +1477,16 @@ async fn handle_list_tasks(
             }
             if let Some(label) = label_filter {
                 if !t.labels.iter().any(|l| l == label) {
+                    return false;
+                }
+            }
+            if let Some(tt) = task_type_filter {
+                if t.task_type.as_str() != tt {
+                    return false;
+                }
+            }
+            if let Some(eid) = epic_id_filter {
+                if t.epic_id.as_deref() != Some(eid) {
                     return false;
                 }
             }
@@ -1306,6 +1503,8 @@ async fn handle_list_tasks(
                 "title": t.title,
                 "status": t.status,
                 "priority": t.priority,
+                "task_type": t.task_type,
+                "epic_id": t.epic_id,
                 "labels": t.labels,
                 "depends_on": t.depends_on,
                 "github_issue": t.github_issue,
@@ -1335,6 +1534,8 @@ async fn handle_create_task(
 
     let priority = args.get("priority").and_then(|v| v.as_str());
     let body = args.get("body").and_then(|v| v.as_str());
+    let task_type_str = args.get("task_type").and_then(|v| v.as_str());
+    let epic_id_str = args.get("epic_id").and_then(|v| v.as_str());
 
     // 1. Get project_id from session context
     let project_id = {
@@ -1391,7 +1592,9 @@ async fn handle_create_task(
             task_file_path: None,
             title: title.to_string(),
             status: None,
-            priority: Some(priority_val.parse().unwrap_or(db::models::Priority::P2)),
+            priority: Some(priority_val.to_string()),
+            task_type: task_type_str.map(|s| s.parse().unwrap_or(db::models::TaskType::Task)),
+            epic_id: epic_id_str.map(|s| s.to_string()),
             agent: None,
             model: None,
             branch: None,
@@ -1420,7 +1623,12 @@ async fn handle_create_task(
         .map(|arr| arr.iter().filter_map(|v| v.as_str().map(String::from)).collect())
         .unwrap_or_default();
 
-    if !label_strs.is_empty() || !dep_strs.is_empty() {
+    // Determine effective task_type and epic_id for post-creation updates
+    let effective_task_type = task_type_str.and_then(|s| s.parse::<db::models::TaskType>().ok());
+    let effective_epic_id = epic_id_str.map(|s| s.to_string());
+    let needs_type_update = effective_task_type.is_some() || effective_epic_id.is_some();
+
+    if !label_strs.is_empty() || !dep_strs.is_empty() || needs_type_update {
         if disk_enabled {
             // Update via file for disk mode
             if let Some(file_path) = &task.task_file_path {
@@ -1433,6 +1641,12 @@ async fn handle_create_task(
                             }
                             if !dep_strs.is_empty() {
                                 parsed.frontmatter.depends_on = dep_strs.clone();
+                            }
+                            if let Some(ref tt) = effective_task_type {
+                                parsed.frontmatter.task_type = if *tt == db::models::TaskType::Epic { Some("epic".to_string()) } else { None };
+                            }
+                            if effective_epic_id.is_some() {
+                                parsed.frontmatter.epic_id = effective_epic_id.clone();
                             }
                             if let Ok(new_content) = crate::tasks::serialize_task_file(&parsed.frontmatter, &parsed.body) {
                                 let _ = std::fs::write(file_path, new_content);
@@ -1449,7 +1663,9 @@ async fn handle_create_task(
                 task_file_path: None,
                 title: task.title.clone(),
                 status: Some(task.status),
-                priority: Some(task.priority),
+                priority: Some(task.priority.clone()),
+                task_type: effective_task_type.or(Some(task.task_type)),
+                epic_id: if effective_epic_id.is_some() { effective_epic_id.clone() } else { task.epic_id.clone() },
                 agent: task.agent.clone(),
                 model: task.model.clone(),
                 branch: task.branch.clone(),
@@ -1695,6 +1911,7 @@ fn remove_mcp_entry(path: &Path) {
 pub fn write_mcp_config(
     cwd: &Path,
     agent_name: &str,
+    session_mode: Option<&str>,
 ) -> Result<Option<PathBuf>, AppError> {
     let entry = match build_mcp_entry(agent_name) {
         Some(e) => e,
@@ -1725,7 +1942,7 @@ pub fn write_mcp_config(
     // Always call this — `write_instruction_file` is idempotent and will
     // upsert the MCP section into an existing file or create a new one.
     if let Some(filename) = session::agent_instruction_filename(agent_name) {
-        session::write_instruction_file(cwd, filename);
+        session::write_instruction_file(cwd, filename, session_mode);
     }
 
     Ok(Some(config_path))
@@ -1751,7 +1968,7 @@ mod tests {
     #[test]
     fn write_mcp_config_claude_code() {
         let dir = tempfile::tempdir().unwrap();
-        let result = write_mcp_config(dir.path(), "claude-code").unwrap();
+        let result = write_mcp_config(dir.path(), "claude-code", None).unwrap();
         // Result depends on whether sidecar binary exists in dev
         if let Some(path) = result {
             assert!(path.exists());
@@ -1769,7 +1986,7 @@ mod tests {
     #[test]
     fn write_mcp_config_gemini() {
         let dir = tempfile::tempdir().unwrap();
-        let result = write_mcp_config(dir.path(), "gemini").unwrap();
+        let result = write_mcp_config(dir.path(), "gemini", None).unwrap();
         if let Some(path) = result {
             assert!(path.exists());
             assert!(path.to_str().unwrap().contains(".gemini"));
@@ -1779,14 +1996,14 @@ mod tests {
     #[test]
     fn write_mcp_config_shell_skipped() {
         let dir = tempfile::tempdir().unwrap();
-        let result = write_mcp_config(dir.path(), "shell").unwrap();
+        let result = write_mcp_config(dir.path(), "shell", None).unwrap();
         assert!(result.is_none());
     }
 
     #[test]
     fn cleanup_removes_our_entry() {
         let dir = tempfile::tempdir().unwrap();
-        write_mcp_config(dir.path(), "claude-code").unwrap();
+        write_mcp_config(dir.path(), "claude-code", None).unwrap();
         // Only assert cleanup if sidecar was found and config was written
         if dir.path().join(".mcp.json").exists() {
             cleanup_mcp_config(dir.path());
@@ -1816,7 +2033,7 @@ mod tests {
         .unwrap();
 
         // Write our config — should merge, not overwrite
-        write_mcp_config(dir.path(), "claude-code").unwrap();
+        write_mcp_config(dir.path(), "claude-code", None).unwrap();
 
         let content: Value =
             serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();

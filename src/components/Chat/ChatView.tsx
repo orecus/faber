@@ -1,33 +1,30 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   AlertTriangle,
+  ChevronRight,
   Clock,
   ExternalLink,
   History,
-  Layers,
   Loader2,
   MessageCircle,
   Plus,
   RefreshCw,
-  Rows3,
   Search,
   X,
 } from "lucide-react";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
-import { usePersistedString } from "../../hooks/usePersistedState";
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
-import { cn } from "@/lib/utils";
-import { Button } from "../ui/orecus.io/components/enhanced-button";
 import AgentCardGrid from "../Launchers/AgentCardGrid";
 import ConfirmDialog from "../Review/ConfirmDialog";
+import { Button } from "../ui/orecus.io/components/enhanced-button";
 import ChatPane from "./ChatPane";
 import ThreadStatusBadge from "./ThreadStatusBadge";
 
-import type { NarrationMode } from "./ChatPane";
 import type { AgentSessionInfo, Session, SessionMode } from "../../types";
+import { cn } from "@/lib/utils";
 
 /** Format an ISO timestamp to a relative time string. */
 function formatRelativeTime(isoString: string | null): string {
@@ -51,7 +48,11 @@ function getDateGroup(isoString: string | null): string {
   if (!isoString) return "Older";
   const date = new Date(isoString);
   const now = new Date();
-  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfToday = new Date(
+    now.getFullYear(),
+    now.getMonth(),
+    now.getDate(),
+  );
   const startOfYesterday = new Date(startOfToday.getTime() - 86400000);
   if (date >= startOfToday) return "Today";
   if (date >= startOfYesterday) return "Yesterday";
@@ -97,9 +98,7 @@ const ChatView = memo(function ChatView() {
   const agentLoadSessionSupported = useAppStore(
     (s) => s.agentLoadSessionSupported,
   );
-  const agentSessionListLoading = useAppStore(
-    (s) => s.agentSessionListLoading,
-  );
+  const agentSessionListLoading = useAppStore((s) => s.agentSessionListLoading);
   const agentSessionListFetchedAt = useAppStore(
     (s) => s.agentSessionListFetchedAt,
   );
@@ -110,12 +109,6 @@ const ChatView = memo(function ChatView() {
   const [error, setError] = useState<string | null>(null);
   const [showCloseConfirm, setShowCloseConfirm] = useState(false);
   const [searchFilter, setSearchFilter] = useState("");
-
-  // Narration rendering mode — persisted across sessions
-  const [narrationMode, setNarrationMode] = usePersistedString(
-    "chat_narration_mode",
-    "split-turns",
-  ) as [NarrationMode, (v: NarrationMode) => void, boolean];
 
   // Find the active chat session for this project
   const chatSession: Session | undefined = useMemo(
@@ -164,7 +157,12 @@ const ChatView = memo(function ChatView() {
   // Auto-fetch session list when empty state is shown or cache is stale (>60s)
   const SESSION_LIST_TTL_MS = 60_000;
   useEffect(() => {
-    if (!chatSession && selectedAgentName && activeProjectId && !isListLoading) {
+    if (
+      !chatSession &&
+      selectedAgentName &&
+      activeProjectId &&
+      !isListLoading
+    ) {
       const fetchedAt = sessionListKey
         ? (agentSessionListFetchedAt[sessionListKey] ?? 0)
         : 0;
@@ -356,7 +354,7 @@ const ChatView = memo(function ChatView() {
   if (chatSession) {
     return (
       <div
-        className="flex flex-col px-3 py-2 gap-2 min-h-0 overflow-hidden bg-card/80"
+        className="flex flex-col px-3 pt-2 gap-2 min-h-0 overflow-hidden bg-card/80"
         style={{ gridArea: "content" }}
       >
         {/* Minimal toolbar */}
@@ -373,36 +371,6 @@ const ChatView = memo(function ChatView() {
             sessionStatus={chatSession.status}
           />
           <div className="flex-1" />
-          {/* Narration mode toggle */}
-          <div className="inline-flex items-center rounded-md ring-1 ring-border/40 overflow-hidden">
-            <button
-              onClick={() => setNarrationMode("split-turns")}
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-1 text-[11px] transition-colors",
-                narrationMode === "split-turns"
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-              )}
-              title="Split turns — each narration becomes its own turn with tool calls"
-            >
-              <Rows3 size={12} />
-              <span className="hidden @xl:inline">Split</span>
-            </button>
-            <div className="w-px h-4 bg-border/40" />
-            <button
-              onClick={() => setNarrationMode("inline")}
-              className={cn(
-                "flex items-center gap-1.5 px-2 py-1 text-[11px] transition-colors",
-                narrationMode === "inline"
-                  ? "bg-accent text-foreground"
-                  : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
-              )}
-              title="Inline — narration shown inline between tool steps in a single turn"
-            >
-              <Layers size={12} />
-              <span className="hidden @xl:inline">Inline</span>
-            </button>
-          </div>
           <Button
             variant="ghost"
             size="sm"
@@ -437,7 +405,6 @@ const ChatView = memo(function ChatView() {
             <ChatPane
               sessionId={chatSession.id}
               sessionStatus={chatSession.status}
-              narrationMode={narrationMode}
             />
           </div>
         </div>
@@ -585,16 +552,37 @@ const SessionItemSkeleton = memo(function SessionItemSkeleton({
 /** Date group header between session items. */
 const DateGroupHeader = memo(function DateGroupHeader({
   label,
+  collapsed,
+  onToggle,
+  count,
 }: {
   label: string;
+  collapsed: boolean;
+  onToggle: () => void;
+  count: number;
 }) {
   return (
-    <div className="flex items-center gap-2 px-3 pt-3 pb-1.5">
-      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50">
+    <button
+      onClick={onToggle}
+      className="flex items-center gap-2 px-3 pt-3 pb-1.5 w-full cursor-pointer group/dg"
+    >
+      <ChevronRight
+        size={10}
+        className={cn(
+          "text-muted-foreground/40 transition-transform duration-150",
+          !collapsed && "rotate-90",
+        )}
+      />
+      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 group-hover/dg:text-muted-foreground transition-colors">
         {label}
       </span>
+      {collapsed && (
+        <span className="text-[10px] text-muted-foreground/30 tabular-nums">
+          {count}
+        </span>
+      )}
       <div className="flex-1 h-px bg-border/20" />
-    </div>
+    </button>
   );
 });
 
@@ -629,6 +617,16 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
   hasData: boolean;
 }) {
   const searchRef = useRef<HTMLInputElement>(null);
+  const [collapsedGroups, setCollapsedGroups] = useState<
+    Record<string, boolean>
+  >({
+    Yesterday: true,
+    Older: true,
+  });
+
+  const toggleGroup = useCallback((label: string) => {
+    setCollapsedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+  }, []);
 
   // Group sessions by date (skip grouping when search is active)
   const groupedSessions = useMemo(() => {
@@ -648,7 +646,7 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
   }, [sessions, searchFilter]);
 
   return (
-    <div className="flex flex-col w-72 shrink-0 border-l border-border/40 min-h-0">
+    <div className="flex flex-col w-72 shrink-0 border-l border-border/40 bg-card/60 min-h-0">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/30 shrink-0">
         <History size={13} className="text-muted-foreground" />
@@ -730,10 +728,7 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
           !searchFilter && (
             <div className="flex flex-col items-center gap-2 py-10 px-4">
               <div className="flex items-center justify-center w-9 h-9 rounded-xl bg-muted/50">
-                <MessageCircle
-                  size={16}
-                  className="text-muted-foreground/40"
-                />
+                <MessageCircle size={16} className="text-muted-foreground/40" />
               </div>
               <p className="text-xs text-muted-foreground text-center">
                 No previous sessions yet.
@@ -746,37 +741,40 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
           )}
 
         {/* No search results */}
-        {hasData &&
-          isSupported &&
-          searchFilter &&
-          sessions.length === 0 && (
-            <div className="flex flex-col items-center gap-1 py-10 px-4">
-              <p className="text-xs text-muted-foreground">
-                No sessions matching
-              </p>
-              <p className="text-xs text-foreground font-medium truncate max-w-full">
-                &ldquo;{searchFilter}&rdquo;
-              </p>
-            </div>
-          )}
+        {hasData && isSupported && searchFilter && sessions.length === 0 && (
+          <div className="flex flex-col items-center gap-1 py-10 px-4">
+            <p className="text-xs text-muted-foreground">
+              No sessions matching
+            </p>
+            <p className="text-xs text-foreground font-medium truncate max-w-full">
+              &ldquo;{searchFilter}&rdquo;
+            </p>
+          </div>
+        )}
 
         {/* Date-grouped session list */}
         {hasData && isSupported && sessions.length > 0 && groupedSessions
           ? groupedSessions.map((group) => (
               <div key={group.label}>
-                <DateGroupHeader label={group.label} />
-                {group.items.map((session) => (
-                  <SessionHistoryItem
-                    key={session.session_id}
-                    session={session}
-                    faberMeta={acpSessionMap.get(session.session_id)}
-                    onResumeInChat={onResumeInChat}
-                    onLaunchAsSession={onLaunchAsSession}
-                    isResuming={resumingId === session.session_id}
-                    isDisabled={resumingId !== null}
-                    isLoadSupported={isLoadSupported}
-                  />
-                ))}
+                <DateGroupHeader
+                  label={group.label}
+                  collapsed={!!collapsedGroups[group.label]}
+                  onToggle={() => toggleGroup(group.label)}
+                  count={group.items.length}
+                />
+                {!collapsedGroups[group.label] &&
+                  group.items.map((session) => (
+                    <SessionHistoryItem
+                      key={session.session_id}
+                      session={session}
+                      faberMeta={acpSessionMap.get(session.session_id)}
+                      onResumeInChat={onResumeInChat}
+                      onLaunchAsSession={onLaunchAsSession}
+                      isResuming={resumingId === session.session_id}
+                      isDisabled={resumingId !== null}
+                      isLoadSupported={isLoadSupported}
+                    />
+                  ))}
               </div>
             ))
           : hasData &&

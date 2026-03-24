@@ -2,13 +2,17 @@ import { invoke } from "@tauri-apps/api/core";
 import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
 import { readFile } from "@tauri-apps/plugin-fs";
 import {
+  Brain,
   FileText,
   FolderOpen,
   Hash,
   ImageIcon,
+  Layers,
+  List,
   ListChecks,
   Loader2,
   Paperclip,
+  Rows3,
   SendIcon,
   Sparkles,
   SquareIcon,
@@ -39,12 +43,16 @@ import {
 } from "@/components/ai-elements/prompt-input";
 
 import { Shimmer } from "@/components/ai-elements/shimmer";
+import { usePersistedBoolean, usePersistedString } from "../../hooks/usePersistedState";
 import { useAppStore } from "../../store/appStore";
+import { cn } from "@/lib/utils";
 import ConfigOptionsPopover from "./ConfigOptionsPopover";
 import ContextUsageIndicator from "./ContextUsageIndicator";
 import ModeSelector from "./ModeSelector";
 import ModelSelector from "./ModelSelector";
+import ThoughtLevelSelector from "./ThoughtLevelSelector";
 
+import type { ChatDisplayMode } from "./ChatPane";
 import type { AcpAvailableCommand, AcpMessageAttachment, AgentCapabilities, FileEntry } from "../../types";
 
 // ── Slash Commands ──
@@ -133,6 +141,10 @@ export default React.memo(function ChatInput({
     () => projects.find((p) => p.id === activeProjectId)?.path ?? null,
     [projects, activeProjectId],
   );
+
+  // ── Display options (persisted) ──
+  const [displayMode, setDisplayMode] = usePersistedString("chat_display_mode", "grouped") as [ChatDisplayMode, (v: ChatDisplayMode) => void, boolean];
+  const [showThinkingBlocks, setShowThinkingBlocks] = usePersistedBoolean("show_thinking_blocks", true);
 
   // ── Agent-provided slash commands ──
   const agentCommands = useAppStore(
@@ -622,12 +634,77 @@ export default React.memo(function ChatInput({
             )}
           </div>
 
-          {/* Mode + Model selectors + Context usage + Submit / Stop (right side) */}
+          {/* Mode + Model selectors + Display options + Context usage + Submit / Stop (right side) */}
           <div className="flex items-center gap-1.5">
             <ConfigOptionsPopover sessionId={sessionId} disabled={disabled} />
             <ModeSelector sessionId={sessionId} disabled={disabled} />
             <ModelSelector sessionId={sessionId} disabled={disabled} />
+            <ThoughtLevelSelector sessionId={sessionId} disabled={disabled} />
             <ContextUsageIndicator sessionId={sessionId} />
+
+            {/* Divider */}
+            <div className="w-px h-4 bg-border/40" />
+
+            {/* Display mode selector */}
+            <div className="inline-flex items-center rounded-md ring-1 ring-border/40 overflow-hidden">
+              <button
+                type="button"
+                onClick={() => setDisplayMode("linear")}
+                className={cn(
+                  "flex items-center justify-center size-7 transition-colors",
+                  displayMode === "linear"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                )}
+                title="Linear — each entry rendered individually"
+              >
+                <List size={13} />
+              </button>
+              <div className="w-px h-4 bg-border/40" />
+              <button
+                type="button"
+                onClick={() => setDisplayMode("grouped")}
+                className={cn(
+                  "flex items-center justify-center size-7 transition-colors",
+                  displayMode === "grouped"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                )}
+                title="Grouped — tool calls grouped between text segments"
+              >
+                <Rows3 size={13} />
+              </button>
+              <div className="w-px h-4 bg-border/40" />
+              <button
+                type="button"
+                onClick={() => setDisplayMode("single-response")}
+                className={cn(
+                  "flex items-center justify-center size-7 transition-colors",
+                  displayMode === "single-response"
+                    ? "bg-accent text-foreground"
+                    : "text-muted-foreground hover:text-foreground hover:bg-muted/50",
+                )}
+                title="Single response — one block per agent cycle"
+              >
+                <Layers size={13} />
+              </button>
+            </div>
+
+            {/* Thinking toggle */}
+            <button
+              type="button"
+              onClick={() => setShowThinkingBlocks(!showThinkingBlocks)}
+              className={cn(
+                "flex items-center justify-center size-7 rounded transition-colors",
+                showThinkingBlocks
+                  ? "bg-accent text-foreground"
+                  : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50",
+              )}
+              title={showThinkingBlocks ? "Hide thinking blocks" : "Show thinking blocks"}
+            >
+              <Brain size={13} />
+            </button>
+
             {promptPending ? (
               <PromptInputSubmit
                 status="streaming"

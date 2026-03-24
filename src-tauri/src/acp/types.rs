@@ -213,6 +213,7 @@ pub struct AcpUsageUpdatePayload {
 
 pub const EVENT_ACP_THOUGHT_CHUNK: &str = "acp-thought-chunk";
 pub const EVENT_ACP_MESSAGE_CHUNK: &str = "acp-message-chunk";
+pub const EVENT_ACP_USER_MESSAGE_CHUNK: &str = "acp-user-message-chunk";
 pub const EVENT_ACP_TOOL_CALL: &str = "acp-tool-call";
 pub const EVENT_ACP_TOOL_CALL_UPDATE: &str = "acp-tool-call-update";
 pub const EVENT_ACP_PLAN_UPDATE: &str = "acp-plan-update";

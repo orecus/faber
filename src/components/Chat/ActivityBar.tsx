@@ -144,7 +144,11 @@ export default React.memo(function ActivityBar({
 }: ActivityBarProps) {
   const planEntries = useAppStore((s) => s.acpPlans[sessionId]);
   const toolCalls = useAppStore(
-    (s) => s.acpToolCalls[sessionId] ?? EMPTY_TOOL_CALLS,
+    (s) => {
+      const entries = s.acpEntries[sessionId];
+      if (!entries) return EMPTY_TOOL_CALLS;
+      return entries.filter((e): e is import("../../types").AcpToolCallEntry => e.type === "tool-call");
+    },
   );
   const promptPending = useAppStore(
     (s) => s.acpPromptPending[sessionId] ?? false,

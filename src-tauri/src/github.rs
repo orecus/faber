@@ -522,6 +522,8 @@ fn prepare_single_issue(
         created: today,
         depends_on: vec![],
         labels,
+        task_type: None,
+        epic_id: None,
         agent: None,
         model: None,
         branch: None,
@@ -1732,6 +1734,6 @@ mod tests {
         };
 
         let task = import_single_issue(&conn, &pid, &tasks_dir, &issue, "o/r").unwrap();
-        assert_eq!(task.priority, crate::db::models::Priority::P0);
+        assert_eq!(task.priority, "P0");
     }
 }

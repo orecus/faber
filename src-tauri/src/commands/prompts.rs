@@ -42,9 +42,9 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             id: "task-launch".into(),
             label: "Task Launch".into(),
             icon: "play".into(),
-            prompt: "Let's start working on task {{task_id}}. \
+            prompt: "Start working on task {{task_id}}. \
                      Use the `get_task` MCP tool to fetch the task details, \
-                     then return a short summary and ask the user if they are ready to start. \
+                     then begin implementing immediately. \
                      {{worktree_hint}}"
                 .into(),
             category: PromptCategory::Session,
@@ -90,19 +90,30 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             icon: "zap".into(),
             prompt: "You are running in continuous mode ({{mode}}). \
                      Use the `get_task` MCP tool to fetch task {{task_id}} details, \
-                     then begin working on it autonomously.\n\n\
-                     IMPORTANT: Only call `report_complete` when you have FULLY completed \
-                     the task — all code written, tested, and verified. Calling `report_complete` \
-                     marks the task as done and immediately advances to the next task in the queue. \
-                     Do NOT call it prematurely (e.g. after just reading the task, or before verifying \
-                     your changes work). If you need user input or clarification, use `report_waiting`. \
-                     If you hit a hard blocker (build failure, missing dependency, etc.), use `report_error`."
+                     then begin working on it autonomously."
                 .into(),
             category: PromptCategory::Session,
             session_mode: Some("continuous".into()),
             quick_action: false,
             builtin: true,
             sort_order: 3,
+        },
+        PromptTemplate {
+            id: "epic-breakdown".into(),
+            label: "Epic Breakdown".into(),
+            icon: "ungroup".into(),
+            prompt: "Epic {{task_id}} needs to be broken down into concrete child tasks. \
+                     Start by using the `get_task` MCP tool to fetch the epic details. \
+                     Analyze the epic's scope and body, then decompose it into smaller, \
+                     actionable child tasks using the `create_task` MCP tool — \
+                     make sure to set `epic_id` to \"{{task_id}}\" for each child task. \
+                     Present the breakdown plan to the user before creating tasks."
+                .into(),
+            category: PromptCategory::Session,
+            session_mode: Some("breakdown".into()),
+            quick_action: false,
+            builtin: true,
+            sort_order: 4,
         },
         // Action prompts (deletable, restorable via reset)
         PromptTemplate {
@@ -190,7 +201,7 @@ fn save_templates(conn: &Connection, templates: &[PromptTemplate]) -> Result<(),
 
 /// Validate that all required session templates are present.
 fn validate_templates(templates: &[PromptTemplate]) -> Result<(), AppError> {
-    let required_session_modes = ["task", "task-continue", "research", "continuous"];
+    let required_session_modes = ["task", "task-continue", "research", "continuous", "breakdown"];
     for mode in &required_session_modes {
         let found = templates.iter().any(|t| {
             t.category == PromptCategory::Session
@@ -265,7 +276,7 @@ mod tests {
     #[test]
     fn builtin_templates_has_all_session_modes() {
         let templates = builtin_templates();
-        let modes = ["task", "task-continue", "research", "continuous"];
+        let modes = ["task", "task-continue", "research", "continuous", "breakdown"];
         for mode in &modes {
             assert!(
                 templates.iter().any(|t| t.session_mode.as_deref() == Some(mode)),
@@ -304,7 +315,7 @@ mod tests {
 
         // First load should seed defaults
         let templates = load_templates(&conn).unwrap();
-        assert_eq!(templates.len(), 7);
+        assert_eq!(templates.len(), 8);
 
         // Modify and save
         let mut modified = templates.clone();
@@ -348,7 +359,7 @@ mod tests {
             .iter()
             .filter(|t| t.category == PromptCategory::Session)
             .count();
-        assert_eq!(session_count, 4);
+        assert_eq!(session_count, 5);
     }
 
     #[test]

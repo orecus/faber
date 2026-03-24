@@ -31,6 +31,8 @@ interface BranchSelectProps {
   triggerClassName?: string;
   /** "badge" for toolbar use, "select" for form fields */
   triggerVariant?: "badge" | "select";
+  /** Open dropdown above the trigger instead of below */
+  dropUp?: boolean;
 }
 
 export default function BranchSelect({
@@ -42,6 +44,7 @@ export default function BranchSelect({
   onBranchChanged,
   triggerClassName,
   triggerVariant = "badge",
+  dropUp,
 }: BranchSelectProps) {
   const [open, setOpen] = useState(false);
   const [branches, setBranches] = useState<BranchList | null>(null);
@@ -224,7 +227,7 @@ export default function BranchSelect({
       {/* Dropdown panel */}
       {open && (
         <div
-          className={`absolute ${triggerVariant === "select" ? "left-0 right-0" : "left-0 w-[280px]"} top-full mt-1 z-50 rounded-md border border-border bg-popover shadow-lg ring-1 ring-foreground/10 overflow-hidden animate-in fade-in-0 zoom-in-95 slide-in-from-top-2 duration-100`}
+          className={`absolute ${triggerVariant === "select" ? "left-0 right-0" : "left-0 w-[280px]"} ${dropUp ? "bottom-full mb-1 slide-in-from-bottom-2" : "top-full mt-1 slide-in-from-top-2"} z-50 rounded-md border border-border bg-popover shadow-lg ring-1 ring-foreground/10 overflow-hidden animate-in fade-in-0 zoom-in-95 duration-100`}
         >
           {/* Search */}
           <div className="flex items-center gap-1.5 border-b border-border px-2.5 py-1.5">

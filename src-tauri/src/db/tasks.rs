@@ -1,26 +1,28 @@
 use rusqlite::{params, Connection};
 
-use super::models::{NewTask, Task, TaskStatus};
+use super::models::{NewTask, Task, TaskStatus, TaskType};
 
 pub fn upsert(conn: &Connection, new: &NewTask) -> Result<Task, rusqlite::Error> {
     let status = new.status.unwrap_or(TaskStatus::Backlog).as_str().to_string();
     let priority = new
         .priority
-        .unwrap_or(super::models::Priority::P2)
-        .as_str()
-        .to_string();
+        .clone()
+        .unwrap_or_else(|| "P2".to_string());
+    let task_type = new.task_type.unwrap_or(TaskType::Task).as_str().to_string();
     let depends_on = serde_json::to_string(&new.depends_on).unwrap_or_else(|_| "[]".to_string());
     let labels = serde_json::to_string(&new.labels).unwrap_or_else(|_| "[]".to_string());
 
     conn.execute(
-        "INSERT INTO tasks (id, project_id, task_file_path, title, status, priority, agent, model,
-                            branch, worktree_path, github_issue, depends_on, labels, github_pr, body)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15)
+        "INSERT INTO tasks (id, project_id, task_file_path, title, status, priority, task_type, epic_id,
+                            agent, model, branch, worktree_path, github_issue, depends_on, labels, github_pr, body)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17)
          ON CONFLICT(id, project_id) DO UPDATE SET
             task_file_path = excluded.task_file_path,
             title          = excluded.title,
             status         = excluded.status,
             priority       = excluded.priority,
+            task_type      = excluded.task_type,
+            epic_id        = excluded.epic_id,
             agent          = excluded.agent,
             model          = excluded.model,
             branch         = excluded.branch,
@@ -38,6 +40,8 @@ pub fn upsert(conn: &Connection, new: &NewTask) -> Result<Task, rusqlite::Error>
             new.title,
             status,
             priority,
+            task_type,
+            new.epic_id,
             new.agent,
             new.model,
             new.branch,
@@ -54,8 +58,8 @@ pub fn upsert(conn: &Connection, new: &NewTask) -> Result<Task, rusqlite::Error>
 
 pub fn get(conn: &Connection, id: &str, project_id: &str) -> Result<Option<Task>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, task_file_path, title, status, priority, agent, model,
-                branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, body
+        "SELECT id, project_id, task_file_path, title, status, priority, task_type, epic_id,
+                agent, model, branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, body
          FROM tasks WHERE id = ?1 AND project_id = ?2",
     )?;
     let mut rows = stmt.query_map(params![id, project_id], row_to_task)?;
@@ -64,8 +68,8 @@ pub fn get(conn: &Connection, id: &str, project_id: &str) -> Result<Option<Task>
 
 pub fn list_by_project(conn: &Connection, project_id: &str) -> Result<Vec<Task>, rusqlite::Error> {
     let mut stmt = conn.prepare(
-        "SELECT id, project_id, task_file_path, title, status, priority, agent, model,
-                branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, body
+        "SELECT id, project_id, task_file_path, title, status, priority, task_type, epic_id,
+                agent, model, branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, body
          FROM tasks WHERE project_id = ?1 ORDER BY created_at",
     )?;
     let rows = stmt.query_map(params![project_id], row_to_task)?;
@@ -111,6 +115,41 @@ pub fn update_github_pr(
     Ok(count > 0)
 }
 
+#[allow(dead_code)]
+pub fn update_epic_id(
+    conn: &Connection,
+    id: &str,
+    project_id: &str,
+    epic_id: Option<&str>,
+) -> Result<bool, rusqlite::Error> {
+    let count = conn.execute(
+        "UPDATE tasks SET epic_id = ?1, updated_at = datetime('now') WHERE id = ?2 AND project_id = ?3",
+        params![epic_id, id, project_id],
+    )?;
+    Ok(count > 0)
+}
+
+pub fn list_by_epic(conn: &Connection, project_id: &str, epic_id: &str) -> Result<Vec<Task>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, task_file_path, title, status, priority, task_type, epic_id,
+                agent, model, branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, body
+         FROM tasks WHERE project_id = ?1 AND epic_id = ?2 ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map(params![project_id, epic_id], row_to_task)?;
+    rows.collect()
+}
+
+#[allow(dead_code)]
+pub fn list_epics(conn: &Connection, project_id: &str) -> Result<Vec<Task>, rusqlite::Error> {
+    let mut stmt = conn.prepare(
+        "SELECT id, project_id, task_file_path, title, status, priority, task_type, epic_id,
+                agent, model, branch, worktree_path, github_issue, depends_on, labels, created_at, updated_at, github_pr, body
+         FROM tasks WHERE project_id = ?1 AND task_type = 'epic' ORDER BY created_at",
+    )?;
+    let rows = stmt.query_map(params![project_id], row_to_task)?;
+    rows.collect()
+}
+
 pub fn delete(conn: &Connection, id: &str, project_id: &str) -> Result<bool, rusqlite::Error> {
     let count = conn.execute(
         "DELETE FROM tasks WHERE id = ?1 AND project_id = ?2",
@@ -127,9 +166,10 @@ fn parse_json_array(s: Option<String>) -> Vec<String> {
 fn row_to_task(row: &rusqlite::Row) -> Result<Task, rusqlite::Error> {
     let status_str: String = row.get(4)?;
     let priority_str: String = row.get(5)?;
-    let depends_on_raw: Option<String> = row.get(11)?;
-    let labels_raw: Option<String> = row.get(12)?;
-    let body_raw: Option<String> = row.get(16)?;
+    let task_type_str: String = row.get(6)?;
+    let depends_on_raw: Option<String> = row.get(13)?;
+    let labels_raw: Option<String> = row.get(14)?;
+    let body_raw: Option<String> = row.get(18)?;
 
     Ok(Task {
         id: row.get(0)?,
@@ -139,20 +179,22 @@ fn row_to_task(row: &rusqlite::Row) -> Result<Task, rusqlite::Error> {
         status: status_str.parse().map_err(|e: String| {
             rusqlite::Error::FromSqlConversionFailure(4, rusqlite::types::Type::Text, Box::from(e))
         })?,
-        priority: priority_str.parse().map_err(|e: String| {
-            rusqlite::Error::FromSqlConversionFailure(5, rusqlite::types::Type::Text, Box::from(e))
+        priority: priority_str,
+        task_type: task_type_str.parse().map_err(|e: String| {
+            rusqlite::Error::FromSqlConversionFailure(6, rusqlite::types::Type::Text, Box::from(e))
         })?,
-        agent: row.get(6)?,
-        model: row.get(7)?,
-        branch: row.get(8)?,
-        worktree_path: row.get(9)?,
-        github_issue: row.get(10)?,
+        epic_id: row.get(7)?,
+        agent: row.get(8)?,
+        model: row.get(9)?,
+        branch: row.get(10)?,
+        worktree_path: row.get(11)?,
+        github_issue: row.get(12)?,
         depends_on: parse_json_array(depends_on_raw),
         labels: parse_json_array(labels_raw),
         body: body_raw.unwrap_or_default(),
-        created_at: row.get(13)?,
-        updated_at: row.get(14)?,
-        github_pr: row.get(15)?,
+        created_at: row.get(15)?,
+        updated_at: row.get(16)?,
+        github_pr: row.get(17)?,
     })
 }
 
@@ -160,7 +202,7 @@ fn row_to_task(row: &rusqlite::Row) -> Result<Task, rusqlite::Error> {
 mod tests {
     use super::*;
     use crate::db;
-    use crate::db::models::{NewProject, Priority};
+    use crate::db::models::NewProject;
     use crate::db::projects;
 
     fn setup() -> Connection {
@@ -193,6 +235,8 @@ mod tests {
             title: "Test task".into(),
             status: None,
             priority: None,
+            task_type: None,
+            epic_id: None,
             agent: None,
             model: None,
             branch: None,
@@ -212,7 +256,7 @@ mod tests {
         let t = upsert(&conn, &new_task(&pid)).unwrap();
         assert_eq!(t.id, "T-001");
         assert_eq!(t.status, TaskStatus::Backlog);
-        assert_eq!(t.priority, Priority::P2);
+        assert_eq!(t.priority, "P2");
         assert_eq!(t.labels, vec!["backend"]);
 
         // Upsert with updated title

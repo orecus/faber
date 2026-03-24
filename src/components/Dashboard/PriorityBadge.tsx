@@ -1,24 +1,20 @@
 import type { Priority } from "../../types";
+import { useAppStore } from "../../store/appStore";
+import { DEFAULT_PRIORITIES } from "../../lib/priorities";
+import { getPriorityLabel, getPriorityTextClass } from "../../lib/priorities";
 import { Badge } from "../ui/badge";
 
-const PRIORITY_COLORS: Record<Priority, string> = {
-  P0: "text-destructive",
-  P1: "text-warning",
-  P2: "text-muted-foreground",
-};
-
-const PRIORITY_LABELS: Record<Priority, string> = {
-  P0: "P0 — Critical",
-  P1: "P1 — High",
-  P2: "P2 — Normal",
-};
-
 export default function PriorityBadge({ priority }: { priority: Priority }) {
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
+
   return (
     <Badge
       variant="secondary"
-      title={PRIORITY_LABELS[priority]}
-      className={`h-auto py-px px-1.5 text-[10px] font-bold tracking-wide rounded-[var(--radius-element)] bg-accent ${PRIORITY_COLORS[priority]}`}
+      title={getPriorityLabel(priority, priorities)}
+      className={`h-auto py-px px-1.5 text-[10px] font-bold tracking-wide rounded-[var(--radius-element)] bg-accent ${getPriorityTextClass(priority, priorities)}`}
     >
       {priority}
     </Badge>

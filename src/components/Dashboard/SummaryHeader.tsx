@@ -65,6 +65,8 @@ const SummaryHeader = memo(function SummaryHeader({
         }),
     ).length;
 
+    const epicCount = tasks.filter((t) => t.task_type === "epic").length;
+
     return {
       total: tasks.length,
       active: inProgressTasks.length,
@@ -72,6 +74,7 @@ const SummaryHeader = memo(function SummaryHeader({
       ready: readyTasks.length,
       blocked: blockedCount,
       linkedIssues,
+      epics: epicCount,
     };
   }, [tasks]);
 
@@ -90,6 +93,12 @@ const SummaryHeader = memo(function SummaryHeader({
         <Stat label="ready" value={stats.ready} />
         <span className="text-border">·</span>
         <Stat label="done" value={stats.done} />
+        {stats.epics > 0 && (
+          <>
+            <span className="text-border">·</span>
+            <Stat label="epics" value={stats.epics} />
+          </>
+        )}
         {stats.blocked > 0 && (
           <>
             <span className="text-border">·</span>

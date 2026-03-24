@@ -101,6 +101,49 @@ pub trait AgentAdapter: Send + Sync {
     /// List of known supported models.
     fn supported_models(&self) -> &[&str];
 
+    /// Dynamically detect available models by running the agent's CLI.
+    /// Returns model IDs discovered at runtime. Falls back to `supported_models()`
+    /// if the CLI query fails or is not supported.
+    fn detect_models(&self) -> Vec<String> {
+        self.supported_models().iter().map(|s| s.to_string()).collect()
+    }
+
+    /// Detect ACP config options that the agent doesn't advertise via ACP.
+    ///
+    /// Returns synthesized `AcpConfigOption`s for model, thought_level, etc.
+    /// by querying the agent's CLI. Called when the ACP session doesn't provide
+    /// its own config options. Default: builds a model option from `detect_models()`.
+    fn detect_config_options(&self) -> Vec<crate::acp::types::AcpConfigOption> {
+        use crate::acp::types::{AcpConfigOption, AcpConfigSelectOption};
+
+        let models = self.detect_models();
+        if models.is_empty() {
+            return vec![];
+        }
+
+        let default = self.default_model()
+            .map(String::from)
+            .unwrap_or_else(|| models[0].clone());
+        let options: Vec<AcpConfigSelectOption> = models
+            .iter()
+            .map(|m| AcpConfigSelectOption {
+                value: m.clone(),
+                name: m.clone(),
+                description: None,
+            })
+            .collect();
+
+        vec![AcpConfigOption {
+            id: "model".to_string(),
+            name: "Model".to_string(),
+            description: None,
+            category: Some("model".to_string()),
+            current_value: default,
+            options,
+            groups: vec![],
+        }]
+    }
+
     /// Whether this agent supports ACP (Agent Client Protocol).
     /// Agents that return `true` can be launched via structured JSON-RPC
     /// over stdio instead of the PTY + MCP approach.
@@ -241,6 +284,43 @@ pub fn list_agent_info() -> Vec<AgentInfo> {
 }
 
 // ── Helpers ──
+
+/// Resolve a command name to its full executable path.
+///
+/// On Windows, npm-installed CLIs are `.cmd` batch files that can't be spawned
+/// directly via `Command::new("opencode")`. This function uses `where.exe` to
+/// find the full path (e.g. `C:\Users\...\opencode.cmd`) which Windows can
+/// execute directly. On non-Windows platforms, returns the command as-is.
+pub(crate) fn resolve_command(command: &str) -> String {
+    #[cfg(windows)]
+    {
+        let output = cmd_no_window("where.exe")
+            .arg(command)
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .output();
+
+        if let Ok(output) = output {
+            if output.status.success() {
+                let stdout = String::from_utf8_lossy(&output.stdout);
+                let lines: Vec<&str> = stdout.lines().map(|l| l.trim()).filter(|l| !l.is_empty()).collect();
+                // Prefer .cmd/.bat/.exe — the extensionless file is often a POSIX shim
+                let preferred = lines.iter().find(|l| {
+                    let lower = l.to_lowercase();
+                    lower.ends_with(".cmd") || lower.ends_with(".bat") || lower.ends_with(".exe")
+                });
+                if let Some(resolved) = preferred.or(lines.first()) {
+                    return resolved.to_string();
+                }
+            }
+        }
+        command.to_string()
+    }
+    #[cfg(not(windows))]
+    {
+        command.to_string()
+    }
+}
 
 /// Check if a command is available in PATH.
 pub(crate) fn is_command_in_path(command: &str) -> bool {

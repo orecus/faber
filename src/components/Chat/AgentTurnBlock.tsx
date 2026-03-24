@@ -12,6 +12,7 @@ import {
   FileDiff,
   FileText,
   Globe,
+  Layers,
   Loader2,
   MessageCircle,
   Pencil,
@@ -54,8 +55,9 @@ import { cn } from "@/lib/utils";
 import ContextCrease from "./ContextCrease";
 import ChatMessage from "./ChatMessage";
 import { parseToolMeta, getFaberToolName } from "./ToolCallCard";
+import type { ParsedToolMeta } from "./ToolCallCard";
 
-import type { AcpChatMessage, AcpThinkingBlock, AcpToolCallState } from "../../types";
+import type { AcpAgentText, AcpThinkingEntry, AcpToolCallEntry, AcpToolCallState } from "../../types";
 
 // ── Faber MCP tool classification ──
 // getFaberToolName is imported from ToolCallCard.tsx (shared between both files)
@@ -156,7 +158,8 @@ function classifyToolCalls(toolCalls: AcpToolCallState[]): ClassifiedTools {
         if (error) result.errors.push({ error, details });
         break;
       }
-      case "report_complete": {
+      case "report_complete":
+      case "report_researched": {
         const summary = params.summary as string | undefined;
         if (summary) result.completion = { summary };
         break;
@@ -224,16 +227,27 @@ function getStepIcon(tc: AcpToolCallState): LucideIcon {
   return STEP_ICONS[tc.kind] ?? STEP_ICONS.other;
 }
 
-function getStepLabel(tc: AcpToolCallState): string {
+function getStepLabel(tc: AcpToolCallState): React.ReactNode {
   const m = parseToolMeta(tc);
   switch (tc.kind) {
     case "read": return m.label;
     case "edit": {
       const pfx = m.isNewFile ? "Create " : "Edit ";
-      const st: string[] = [];
-      if (m.linesAdded) st.push(`+${m.linesAdded}`);
-      if (m.linesRemoved) st.push(`−${m.linesRemoved}`);
-      return pfx + m.label + (st.length ? ` (${st.join(" ")})` : "");
+      const hasStats = (m.linesAdded && m.linesAdded > 0) || (m.linesRemoved && m.linesRemoved > 0);
+      return (
+        <>
+          {pfx}{m.label}
+          {hasStats && (
+            <span className="ml-1">
+              {"("}
+              {m.linesAdded ? <span className={m.isNewFile ? "text-success" : "text-warning"}>+{m.linesAdded}</span> : null}
+              {m.linesAdded && m.linesRemoved ? " " : null}
+              {m.linesRemoved ? <span className="text-destructive">−{m.linesRemoved}</span> : null}
+              {")"}
+            </span>
+          )}
+        </>
+      );
     }
     case "delete": return `Delete ${m.label}`;
     case "execute": return m.command ? `$ ${truncate(m.command, 70)}` : m.label;
@@ -243,8 +257,64 @@ function getStepLabel(tc: AcpToolCallState): string {
     }
     case "think": return "Thinking";
     case "fetch": return m.url ? truncate(m.url, 60) : m.label;
-    default: return truncate(m.label, 60);
+    default: return formatOtherStepLabel(tc, m);
   }
+}
+
+/** Format the label for "other" kind tool calls, extracting useful info from params. */
+function formatOtherStepLabel(tc: AcpToolCallState, m: ParsedToolMeta): string {
+  const id = tc.tool_call_id.toLowerCase();
+  // Try to parse params from the title
+  let params: Record<string, unknown> = {};
+  try { params = JSON.parse(tc.title); } catch { /* not JSON */ }
+
+  // Skill tool — show which skill is invoked
+  if (id.includes("skill") || tc.title.includes("Skill")) {
+    const skill = params.skill ?? params.name;
+    if (typeof skill === "string") {
+      const args = typeof params.args === "string" ? ` ${truncate(params.args, 40)}` : "";
+      return `Skill: ${skill}${args}`;
+    }
+  }
+
+  // ToolSearch — show the query
+  if (id.includes("toolsearch") || id.includes("tool_search")) {
+    const query = params.query;
+    if (typeof query === "string") {
+      return `ToolSearch: ${truncate(query, 50)}`;
+    }
+  }
+
+  // WebSearch — show the query
+  if (id.includes("websearch") || id.includes("web_search")) {
+    const query = params.query ?? params.q;
+    if (typeof query === "string") {
+      return `Web search: ${truncate(query, 50)}`;
+    }
+  }
+
+  // WebFetch — show the URL
+  if (id.includes("webfetch") || id.includes("web_fetch")) {
+    const url = params.url;
+    if (typeof url === "string") {
+      return `Fetch: ${truncate(url, 55)}`;
+    }
+  }
+
+  // TodoWrite — show the action
+  if (id.includes("todowrite") || id.includes("todo_write")) {
+    return "Updating task list";
+  }
+
+  // Agent — show the description
+  if (id.includes("agent") && !id.includes("faber")) {
+    const desc = params.description ?? params.prompt;
+    if (typeof desc === "string") {
+      return `Agent: ${truncate(desc, 50)}`;
+    }
+  }
+
+  return truncate(m.label, 60);
 }
 
 // ── Step content renderer ──
@@ -329,7 +399,7 @@ function CollapsibleToolStep({ tc, sessionId, hasNext }: {
 
 // ── Collapsed tool calls summary ──
 
-/** Renders a single turn item (tool call, thinking block, or narration). */
+/** Renders a single turn item (tool call, thinking block, or intermediate agent text). */
 function renderTurnItem(
   item: TurnItem,
   hasNext: boolean,
@@ -345,11 +415,11 @@ function renderTurnItem(
       />
     );
   }
-  if (item.type === "narration") {
-    const msg = item.data;
+  if (item.type === "agent-text") {
+    const entry = item.data;
     return (
       <ChainOfThoughtStep
-        key={msg.id}
+        key={entry.id}
         icon={MessageCircle}
         status="complete"
         className={cn(
@@ -357,8 +427,8 @@ function renderTurnItem(
           !hasNext && "[&>div:first-child>div:last-child]:hidden",
         )}
         label={
-          <span className="text-xs text-muted-foreground italic leading-relaxed">
-            {msg.text}
+          <span className="text-xs text-dim-foreground italic leading-relaxed">
+            {entry.text}
           </span>
         }
       />
@@ -407,7 +477,7 @@ function CollapsedToolCallsSummary({
 }) {
   return (
     <ChainOfThoughtStep
-      icon={Wrench}
+      icon={Layers}
       status={runningCount > 0 ? "active" : "complete"}
       className="pb-1.5 [&>div:first-child]:min-h-8"
       label={
@@ -697,52 +767,75 @@ function TaskUpdatedIndicator({ updates, hasNext }: { updates: ClassifiedTools["
 
 /** A merged item in the turn's chronological timeline. */
 type TurnItem =
-  | { type: "tool"; data: AcpToolCallState }
-  | { type: "thinking"; data: AcpThinkingBlock }
-  | { type: "narration"; data: AcpChatMessage };
+  | { type: "tool"; data: AcpToolCallEntry }
+  | { type: "thinking"; data: AcpThinkingEntry }
+  | { type: "agent-text"; data: AcpAgentText };
 
 interface AgentTurnBlockProps {
-  toolCalls: AcpToolCallState[];
-  thinkingBlocks?: AcpThinkingBlock[];
-  agentMessage: AcpChatMessage | null;
-  /** Narration messages to render inline between tool steps (Option B mode). */
-  narrations?: AcpChatMessage[];
+  /** Flat entries for this turn (agent-text, tool-call, thinking — already in chronological order). */
+  entries: (AcpAgentText | AcpToolCallEntry | AcpThinkingEntry)[];
   isStreaming?: boolean;
   sessionId: string;
+  /** Whether to show thinking blocks in the turn. Defaults to true. */
+  showThinking?: boolean;
 }
 
 // ── Main Component ──
 
 export default React.memo(function AgentTurnBlock({
-  toolCalls,
-  thinkingBlocks = [],
-  agentMessage,
-  narrations = [],
+  entries,
   isStreaming = false,
   sessionId,
+  showThinking = true,
 }: AgentTurnBlockProps) {
   const [copied, setCopied] = useState(false);
 
+  // Extract tool calls for classification
+  const toolCalls = useMemo(
+    () => entries.filter((e): e is AcpToolCallEntry => e.type === "tool-call"),
+    [entries],
+  );
+
+  // Find the last agent-text entry (the "response" shown at the bottom)
+  const lastAgentText = useMemo(() => {
+    for (let i = entries.length - 1; i >= 0; i--) {
+      if (entries[i].type === "agent-text") return entries[i] as AcpAgentText;
+    }
+    return null;
+  }, [entries]);
+
   const handleCopy = useCallback(() => {
-    if (!agentMessage) return;
-    navigator.clipboard.writeText(agentMessage.text);
+    if (!lastAgentText) return;
+    navigator.clipboard.writeText(lastAgentText.text);
     setCopied(true);
     setTimeout(() => setCopied(false), 1500);
-  }, [agentMessage]);
+  }, [lastAgentText]);
 
   // Classify all tool calls
   const classified = useMemo(() => classifyToolCalls(toolCalls), [toolCalls]);
 
-  // Merge regular tool call steps, thinking blocks, and narrations — sorted chronologically
+  // Build turn items: regular tool steps, thinking, and intermediate agent-text entries
+  // The last agent-text is rendered separately as the response.
   const turnItems = useMemo<TurnItem[]>(() => {
-    const items: TurnItem[] = [
-      ...classified.steps.map((tc) => ({ type: "tool" as const, data: tc })),
-      ...thinkingBlocks.map((tb) => ({ type: "thinking" as const, data: tb })),
-      ...narrations.map((msg) => ({ type: "narration" as const, data: msg })),
-    ];
-    items.sort((a, b) => a.data.timestamp - b.data.timestamp);
+    const items: TurnItem[] = [];
+    for (const entry of entries) {
+      if (entry.type === "tool-call") {
+        // Only include non-hidden, non-faber steps
+        const faberName = getFaberToolName(entry);
+        if (faberName && HIDDEN_TOOLS.has(faberName)) continue;
+        // Check if this is a classified step (not a faber MCP tool)
+        if (classified.steps.includes(entry)) {
+          items.push({ type: "tool", data: entry });
+        }
+      } else if (entry.type === "thinking") {
+        if (showThinking) items.push({ type: "thinking", data: entry });
+      } else if (entry.type === "agent-text" && entry !== lastAgentText) {
+        // Intermediate agent-text entries (narration between tool calls)
+        items.push({ type: "agent-text", data: entry });
+      }
+    }
     return items;
-  }, [classified.steps, thinkingBlocks, narrations]);
+  }, [entries, classified.steps, lastAgentText, showThinking]);
 
   const hasSteps = turnItems.length > 0;
   const hasMcpVisuals = classified.filesChanged.length > 0 || classified.errors.length > 0
@@ -751,14 +844,20 @@ export default React.memo(function AgentTurnBlock({
   const hasAnything = hasSteps || hasMcpVisuals;
 
   // Nothing to render
-  if (!hasAnything && !agentMessage) return null;
+  if (!hasAnything && !lastAgentText) return null;
 
   // No steps and no MCP visuals — plain assistant message
-  if (!hasAnything && agentMessage) {
-    return <ChatMessage message={agentMessage} isStreaming={isStreaming} />;
+  if (!hasAnything && lastAgentText) {
+    return (
+      <ChatMessage
+        message={{ id: lastAgentText.id, role: "agent", text: lastAgentText.text, timestamp: lastAgentText.timestamp, isError: lastAgentText.isError }}
+        isStreaming={isStreaming && lastAgentText.streaming}
+      />
+    );
   }
 
-  const hasResponse = agentMessage && agentMessage.text.length > 0;
+  const hasResponse = lastAgentText && lastAgentText.text.length > 0;
+  const responseStreaming = isStreaming && lastAgentText?.streaming;
 
   // Count remaining visual elements after tool/thinking steps
   const mcpElementCount = (classified.filesChanged.length > 0 ? 1 : 0)
@@ -776,27 +875,22 @@ export default React.memo(function AgentTurnBlock({
         <ProgressIndicator progress={classified.progress} />
 
         <ChainOfThought defaultOpen className="space-y-0">
-          {/* Interleaved tool calls and thinking blocks (chronological) */}
+          {/* Interleaved tool calls, thinking blocks, and intermediate text (chronological) */}
           {turnItems.length <= COLLAPSE_THRESHOLD ? (
-            // Few enough items — render all directly
             turnItems.map((item, i) => {
               const isLast = i === turnItems.length - 1;
               const hasNext = !isLast || hasAfterSteps;
               return renderTurnItem(item, hasNext, sessionId);
             })
           ) : (
-            // Too many items — show head, collapsed middle, tail
             <>
-              {/* Head items (first N) */}
               {turnItems.slice(0, VISIBLE_HEAD).map((item) =>
                 renderTurnItem(item, true, sessionId),
               )}
-
-              {/* Collapsed middle */}
               {(() => {
                 const middleItems = turnItems.slice(VISIBLE_HEAD, turnItems.length - VISIBLE_TAIL);
                 const runningCount = middleItems.filter(
-                  (item) => item.type === "tool" && (item.data as AcpToolCallState).status === "in_progress",
+                  (item) => item.type === "tool" && item.data.status === "in_progress",
                 ).length;
                 return (
                   <CollapsedToolCallsSummary
@@ -808,8 +902,6 @@ export default React.memo(function AgentTurnBlock({
                   />
                 );
               })()}
-
-              {/* Tail items (last N) */}
               {turnItems.slice(turnItems.length - VISIBLE_TAIL).map((item, i) => {
                 const isLast = i === VISIBLE_TAIL - 1;
                 const hasNext = !isLast || hasAfterSteps;
@@ -823,36 +915,31 @@ export default React.memo(function AgentTurnBlock({
             <FilesChangedIndicator files={classified.filesChanged} />
           )}
 
-          {/* Tasks created */}
           <TaskCreatedIndicator tasks={classified.tasksCreated}
             hasNext={classified.taskUpdates.length > 0 || classified.errors.length > 0 || !!classified.waiting || !!classified.completion || !!hasResponse} />
 
-          {/* Task updates */}
           <TaskUpdatedIndicator updates={classified.taskUpdates}
             hasNext={classified.errors.length > 0 || !!classified.waiting || !!classified.completion || !!hasResponse} />
 
-          {/* Error callouts */}
           <ErrorIndicator errors={classified.errors}
             hasNext={!!classified.waiting || !!classified.completion || !!hasResponse} />
 
-          {/* Waiting prompt */}
           <WaitingIndicator waiting={classified.waiting}
             hasNext={!!classified.completion || !!hasResponse} />
 
-          {/* Completion summary */}
           <CompletionIndicator completion={classified.completion}
             hasNext={!!hasResponse} />
 
-          {/* Response step */}
+          {/* Response — the last agent-text entry */}
           {hasResponse && (
             <ChainOfThoughtStep
               icon={MessageCircle}
-              status={isStreaming ? "active" : "complete"}
+              status={responseStreaming ? "active" : "complete"}
               className="[&>div:first-child>div:last-child]:hidden text-foreground"
               label={
                 <div className="min-w-0 rounded-lg bg-card px-4 py-3">
-                  <MessageResponse mode={isStreaming ? "streaming" : "static"}>
-                    {agentMessage.text}
+                  <MessageResponse mode={responseStreaming ? "streaming" : "static"}>
+                    {lastAgentText.text}
                   </MessageResponse>
                 </div>
               }

@@ -1,13 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Search, X } from "lucide-react";
-import type { Priority, TaskStatus } from "../../types";
+import type { TaskStatus } from "../../types";
 import type { FilterState, FilterAction } from "../../hooks/useDashboardFilters";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
+import { useAppStore } from "../../store/appStore";
+import { DEFAULT_PRIORITIES, getPriorityCssVar } from "../../lib/priorities";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { gradientHexColors } from "../ui/orecus.io/lib/color-utils";
 import { Separator } from "../ui/separator";
-
-const PRIORITIES: Priority[] = ["P0", "P1", "P2"];
 
 const STATUSES: { value: TaskStatus; label: string }[] = [
   { value: "backlog", label: "Backlog" },
@@ -17,18 +17,13 @@ const STATUSES: { value: TaskStatus; label: string }[] = [
   { value: "done", label: "Done" },
 ];
 
-const PRIORITY_COLORS: Record<Priority, string> = {
-  P0: "var(--destructive)",
-  P1: "var(--warning)",
-  P2: "var(--muted-foreground)",
-};
-
 interface FilterBarProps {
   filters: FilterState;
   dispatchFilter: (action: FilterAction) => void;
   hasActiveFilters: boolean;
   allLabels: string[];
   allAgents: string[];
+  allEpics?: { id: string; title: string }[];
   searchInputRef?: React.RefObject<HTMLInputElement | null>;
 }
 
@@ -65,10 +60,15 @@ export default function FilterBar({
   hasActiveFilters,
   allLabels,
   allAgents,
+  allEpics = [],
   searchInputRef,
 }: FilterBarProps) {
   const accentColor = useProjectAccentColor();
   const accentHex = gradientHexColors[accentColor]?.start ?? "var(--primary)";
+  const activeProjectId = useAppStore((s) => s.activeProjectId);
+  const priorities = useAppStore((s) =>
+    activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
+  );
 
   // Debounced search input
   const [localSearch, setLocalSearch] = useState(filters.searchQuery);
@@ -128,13 +128,13 @@ export default function FilterBar({
       <span className="text-[11px] text-muted-foreground mr-0.5">
         Priority:
       </span>
-      {PRIORITIES.map((p) => (
+      {priorities.map((p) => (
         <ToggleChip
-          key={p}
-          label={p}
-          active={filters.priorities.has(p)}
-          color={PRIORITY_COLORS[p]}
-          onClick={() => dispatchFilter({ type: "TOGGLE_PRIORITY", priority: p })}
+          key={p.id}
+          label={p.id}
+          active={filters.priorities.has(p.id)}
+          color={getPriorityCssVar(p.id, priorities)}
+          onClick={() => dispatchFilter({ type: "TOGGLE_PRIORITY", priority: p.id })}
         />
       ))}
 
@@ -186,6 +186,25 @@ export default function FilterBar({
               active={filters.agents.has(agent)}
               color={accentHex}
               onClick={() => dispatchFilter({ type: "TOGGLE_AGENT", agent })}
+            />
+          ))}
+        </>
+      )}
+
+      {/* Epic toggles */}
+      {allEpics.length > 0 && (
+        <>
+          <Separator orientation="vertical" className="mx-1 h-4" />
+          <span className="text-[11px] text-muted-foreground mr-0.5">
+            Epic:
+          </span>
+          {allEpics.map((epic) => (
+            <ToggleChip
+              key={epic.id}
+              label={`${epic.id} ${epic.title}`}
+              active={filters.epics.has(epic.id)}
+              color={accentHex}
+              onClick={() => dispatchFilter({ type: "TOGGLE_EPIC", epicId: epic.id })}
             />
           ))}
         </>
