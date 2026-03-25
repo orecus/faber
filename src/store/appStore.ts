@@ -1361,15 +1361,19 @@ export const useAppStore = create<AppState>()(
           const sorted = [...projects].sort((a, b) => a.name.localeCompare(b.name));
           const allIds = sorted.map((p) => p.id);
 
-          // Restore persisted open projects, falling back to all
-          let openProjectIds = allIds;
+          // Restore persisted open projects, or open all on first launch
+          let openProjectIds: string[];
           if (savedOpenIds) {
             try {
               const parsed: string[] = JSON.parse(savedOpenIds);
-              // Filter to only valid project IDs
-              const valid = parsed.filter((id) => allIds.includes(id));
-              if (valid.length > 0) openProjectIds = valid;
-            } catch { /* fall back to all */ }
+              openProjectIds = parsed.filter((id) => allIds.includes(id));
+            } catch {
+              openProjectIds = allIds;
+            }
+          } else {
+            // No saved state (first launch) — auto-open all projects
+            // (if only 1 project exists, it skips the welcome screen automatically)
+            openProjectIds = allIds;
           }
 
           set({
