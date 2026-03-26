@@ -7,6 +7,7 @@ import {
   Check,
   ChevronDown,
   ChevronRight,
+  ChevronUp,
   Code2,
   Download,
   ExternalLink,
@@ -29,10 +30,12 @@ import {
   X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import ConfirmDialog from "../Review/ConfirmDialog";
 
 import { open } from "@tauri-apps/plugin-shell";
 import { Streamdown } from "streamdown";
 import { useTheme } from "../../contexts/ThemeContext";
+import { highlightMatch } from "../../lib/highlightMatch";
 import {
   streamdownControls,
   streamdownPlugins,
@@ -40,6 +43,7 @@ import {
 } from "../../lib/markdown";
 import { useAppStore } from "../../store/appStore";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
+import { CardSkeleton } from "../ui/orecus.io/cards/card/skeleton";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 
 // ── Types matching Rust backend ──
@@ -269,6 +273,7 @@ const PluginCard = React.memo(function PluginCard({
   onInstall,
   onUninstall,
   actionLoading,
+  searchQuery,
 }: {
   plugin: AvailablePlugin | InstalledPlugin;
   isInstalled: boolean;
@@ -278,6 +283,7 @@ const PluginCard = React.memo(function PluginCard({
   onInstall: () => void;
   onUninstall: () => void;
   actionLoading: string | null;
+  searchQuery?: string;
 }) {
   const key = `${plugin.name}@${plugin.marketplace}`;
   const installKey = `install:${key}`;
@@ -316,7 +322,7 @@ const PluginCard = React.memo(function PluginCard({
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
             <span className="text-[13px] font-medium text-foreground truncate">
-              {plugin.name}
+              {searchQuery ? highlightMatch(plugin.name, searchQuery) : plugin.name}
             </span>
             {isInstalled && (
               <Check size={12} className="text-success shrink-0" />
@@ -336,7 +342,7 @@ const PluginCard = React.memo(function PluginCard({
 
         {/* Action button — only show on hover or when loading */}
         <div
-          className={`shrink-0 ${isInstalling || isUninstalling ? "opacity-100" : "opacity-0 group-hover:opacity-100"} transition-opacity`}
+          className={`shrink-0 ${isInstalling || isUninstalling ? "opacity-100" : "opacity-30 group-hover:opacity-100 group-focus-within:opacity-100"} transition-opacity`}
           onClick={(e) => e.stopPropagation()}
         >
           {isInstalled ? (
@@ -378,7 +384,7 @@ const PluginCard = React.memo(function PluginCard({
       {/* Description */}
       {plugin.description && (
         <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2">
-          {plugin.description}
+          {searchQuery ? highlightMatch(plugin.description, searchQuery) : plugin.description}
         </p>
       )}
 
@@ -424,6 +430,7 @@ function PluginDetailDrawer({
 }) {
   const [readme, setReadme] = useState<string | null>(null);
   const [readmeLoading, setReadmeLoading] = useState(false);
+  const [showScrollTop, setShowScrollTop] = useState(false);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const isInstalled = selected.kind === "installed";
@@ -594,7 +601,11 @@ function PluginDetailDrawer({
       </div>
 
       {/* README */}
-      <div ref={panelRef} className="flex-1 min-h-0 overflow-y-auto">
+      <div
+        ref={panelRef}
+        className="relative flex-1 min-h-0 overflow-y-auto"
+        onScroll={(e) => setShowScrollTop(e.currentTarget.scrollTop > 200)}
+      >
         {readmeLoading && (
           <div className="flex items-center justify-center py-12">
             <Loader2 className="size-5 animate-spin text-muted-foreground" />
@@ -627,6 +638,16 @@ function PluginDetailDrawer({
               View on GitHub <ExternalLink size={10} />
             </button>
           </div>
+        )}
+
+        {showScrollTop && (
+          <button
+            onClick={() => panelRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
+            className="sticky bottom-3 float-right mr-3 flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-foreground bg-card/90 backdrop-blur ring-1 ring-border/40 shadow-md hover:ring-primary/30 transition-all"
+          >
+            <ChevronUp size={12} />
+            Top
+          </button>
         )}
       </div>
     </div>
@@ -685,7 +706,7 @@ function MarketplaceSources({
               </div>
               <button
                 onClick={() => onRemove(m.name)}
-                className="opacity-0 group-hover:opacity-60 hover:!opacity-100 text-destructive/60 hover:text-destructive transition-opacity"
+                className="opacity-30 group-hover:opacity-60 group-focus-within:opacity-60 hover:!opacity-100 text-destructive/60 hover:text-destructive transition-opacity"
                 title="Remove"
               >
                 <Unplug size={11} />
@@ -775,6 +796,8 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
   const [actionLoading, setActionLoading] = useState<string | null>(null);
   const [addMktLoading, setAddMktLoading] = useState(false);
   const [refreshMktLoading, setRefreshMktLoading] = useState(false);
+  const [pendingUninstall, setPendingUninstall] = useState<{ name: string; marketplace: string; scope: string } | null>(null);
+  const [pendingRemoveMkt, setPendingRemoveMkt] = useState<string | null>(null);
 
   const searchInputRef = useRef<HTMLInputElement>(null);
 
@@ -936,12 +959,15 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
   // ── Action handlers ──
 
   const withBackground = useCallback(
-    async (label: string, fn: () => Promise<void>) => {
+    async (label: string, fn: () => Promise<void>, successMessage?: string) => {
       const { addBackgroundTask, removeBackgroundTask } = useAppStore.getState();
       addBackgroundTask(label);
       try {
         await fn();
         await loadPlugins();
+        if (successMessage) {
+          useAppStore.getState().flashSuccess(successMessage);
+        }
       } catch (e) {
         console.error(`${label} failed:`, e);
         useAppStore.getState().flashError(`${label} failed: ${formatError(e)}`);
@@ -961,7 +987,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
           pluginName: `${name}@${marketplace}`,
           scope: "user",
         });
-      });
+      }, `Installed ${name}`);
       setActionLoading(null);
     },
     [withBackground],
@@ -976,7 +1002,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
           pluginName: `${name}@${marketplace}`,
           scope,
         });
-      });
+      }, `Uninstalled ${name}`);
       setActionLoading(null);
     },
     [withBackground],
@@ -991,11 +1017,22 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
           pluginName: `${name}@${marketplace}`,
           scope,
         });
-      });
+      }, `Updated ${name}`);
       setActionLoading(null);
     },
     [withBackground],
   );
+
+  const requestUninstall = useCallback(
+    (name: string, marketplace: string, scope: string) => {
+      setPendingUninstall({ name, marketplace, scope });
+    },
+    [],
+  );
+
+  const requestRemoveMarketplace = useCallback((name: string) => {
+    setPendingRemoveMkt(name);
+  }, []);
 
   const handleAddMarketplace = useCallback(
     async (source: string) => {
@@ -1029,8 +1066,12 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      <div className={`flex-1 min-h-0 overflow-hidden rounded-lg ring-1 ring-border/40 p-4 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+        <div className="grid grid-cols-[repeat(auto-fill,minmax(260px,1fr))] gap-3">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <CardSkeleton key={i} type={isGlass ? "normal" : "solid"} hasHeader lines={2} />
+          ))}
+        </div>
       </div>
     );
   }
@@ -1173,13 +1214,14 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
                   }}
                   onInstall={() => handleInstall(plugin.name, plugin.marketplace)}
                   onUninstall={() =>
-                    handleUninstall(
+                    requestUninstall(
                       plugin.name,
                       plugin.marketplace,
                       installedData?.scope ?? "user",
                     )
                   }
                   actionLoading={actionLoading}
+                  searchQuery={searchQuery}
                 />
               ))}
             </div>
@@ -1190,7 +1232,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
         <MarketplaceSources
           marketplaces={data?.marketplaces ?? []}
           onAdd={handleAddMarketplace}
-          onRemove={handleRemoveMarketplace}
+          onRemove={requestRemoveMarketplace}
           onRefresh={handleRefreshMarketplaces}
           addLoading={addMktLoading}
           refreshLoading={refreshMktLoading}
@@ -1204,11 +1246,41 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
             selected={selected}
             onClose={() => setSelected(null)}
             onInstall={handleInstall}
-            onUninstall={handleUninstall}
+            onUninstall={requestUninstall}
             onUpdate={handleUpdate}
             actionLoading={actionLoading}
           />
         </div>
+      )}
+
+      {pendingUninstall && (
+        <ConfirmDialog
+          variant="danger"
+          title="Uninstall plugin?"
+          message={`This will uninstall "${pendingUninstall.name}" and remove its skills, agents, and hooks from your environment.`}
+          confirmLabel="Uninstall"
+          onConfirm={() => {
+            const { name, marketplace, scope } = pendingUninstall;
+            setPendingUninstall(null);
+            handleUninstall(name, marketplace, scope);
+          }}
+          onCancel={() => setPendingUninstall(null)}
+        />
+      )}
+
+      {pendingRemoveMkt && (
+        <ConfirmDialog
+          variant="danger"
+          title="Remove marketplace?"
+          message={`This will remove the "${pendingRemoveMkt}" marketplace source. Plugins already installed from it will remain, but you won't see new updates.`}
+          confirmLabel="Remove"
+          onConfirm={() => {
+            const name = pendingRemoveMkt;
+            setPendingRemoveMkt(null);
+            handleRemoveMarketplace(name);
+          }}
+          onCancel={() => setPendingRemoveMkt(null)}
+        />
       )}
     </div>
   );

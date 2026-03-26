@@ -9,6 +9,7 @@ import React, { useCallback } from "react";
 
 import { getFileIcon } from "./fileIcons";
 import { useAppStore } from "../../store/appStore";
+import FileContextMenu from "./FileContextMenu";
 import type { FileEntry } from "../../types";
 
 interface FileTreeItemProps {
@@ -20,6 +21,8 @@ interface FileTreeItemProps {
   gitStatus?: string;
   onToggle: () => void;
   onSelect: () => void;
+  /** When true, show the relative path below the filename (used in search results). */
+  showRelativePath?: boolean;
 }
 
 /** Map git status to a Tailwind text color class for files. */
@@ -65,6 +68,7 @@ const FileTreeItem = React.memo(function FileTreeItem({
   gitStatus,
   onToggle,
   onSelect,
+  showRelativePath,
 }: FileTreeItemProps) {
   const FileIcon = getFileIcon(entry.extension);
   const addBackgroundTask = useAppStore((s) => s.addBackgroundTask);
@@ -92,58 +96,72 @@ const FileTreeItem = React.memo(function FileTreeItem({
   const nameColorClass = statusColor || "";
 
   return (
-    <div
-      onClick={handleClick}
-      className={`flex items-center gap-1.5 h-[26px] pr-2 text-xs cursor-pointer transition-colors ${
-        isSelected
-          ? "bg-accent text-foreground"
-          : "text-dim-foreground hover:bg-accent/50"
-      }`}
-      style={{ paddingLeft: `${depth * 16 + 8}px` }}
-      title={entry.is_dir ? entry.path : `Click to open ${entry.name}`}
+    <FileContextMenu
+      fullPath={fullPath}
+      relativePath={entry.path}
+      isDir={entry.is_dir}
     >
-      {entry.is_dir ? (
-        <>
-          <span className="shrink-0 w-3 flex items-center justify-center text-muted-foreground">
-            {isExpanded ? (
-              <ChevronDown size={12} />
-            ) : (
-              <ChevronRight size={12} />
+      {({ onContextMenu }) => (
+        <div
+          onClick={handleClick}
+          onContextMenu={onContextMenu}
+          className={`flex items-center gap-1.5 h-[26px] pr-2 text-xs cursor-pointer transition-colors ${
+            isSelected
+              ? "bg-accent text-foreground"
+              : "text-dim-foreground hover:bg-accent/50"
+          }`}
+          style={{ paddingLeft: `${depth * 16 + 8}px` }}
+          title={entry.is_dir ? entry.path : `Click to open ${entry.name}`}
+        >
+          {entry.is_dir ? (
+            <>
+              <span className="shrink-0 w-3 flex items-center justify-center text-muted-foreground">
+                {isExpanded ? (
+                  <ChevronDown size={12} />
+                ) : (
+                  <ChevronRight size={12} />
+                )}
+              </span>
+              <span className="shrink-0 text-muted-foreground">
+                {isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />}
+              </span>
+            </>
+          ) : (
+            <>
+              <span className="shrink-0 w-3" />
+              <span className="shrink-0 text-muted-foreground">
+                <FileIcon size={14} />
+              </span>
+            </>
+          )}
+          <span className={`truncate min-w-0 flex-1 ${nameColorClass}`}>
+            {entry.name}
+            {showRelativePath && entry.path.includes("/") && (
+              <span className="ml-1.5 text-muted-foreground opacity-70">
+                {entry.path.slice(0, entry.path.lastIndexOf("/"))}
+              </span>
             )}
           </span>
-          <span className="shrink-0 text-muted-foreground">
-            {isExpanded ? <FolderOpen size={14} /> : <Folder size={14} />}
-          </span>
-        </>
-      ) : (
-        <>
-          <span className="shrink-0 w-3" />
-          <span className="shrink-0 text-muted-foreground">
-            <FileIcon size={14} />
-          </span>
-        </>
-      )}
-      <span className={`truncate min-w-0 flex-1 ${nameColorClass}`}>
-        {entry.name}
-      </span>
 
-      {/* Git status dot indicator for directories */}
-      {entry.is_dir && gitStatus && (
-        <span
-          className={`shrink-0 w-1.5 h-1.5 rounded-full ${
-            gitStatus === "added" || gitStatus === "untracked"
-              ? "bg-success"
-              : gitStatus === "modified"
-                ? "bg-warning"
-                : gitStatus === "deleted"
-                  ? "bg-destructive"
-                  : gitStatus === "renamed"
-                    ? "bg-primary"
-                    : ""
-          }`}
-        />
+          {/* Git status dot indicator for directories */}
+          {entry.is_dir && gitStatus && (
+            <span
+              className={`shrink-0 w-1.5 h-1.5 rounded-full ${
+                gitStatus === "added" || gitStatus === "untracked"
+                  ? "bg-success"
+                  : gitStatus === "modified"
+                    ? "bg-warning"
+                    : gitStatus === "deleted"
+                      ? "bg-destructive"
+                      : gitStatus === "renamed"
+                        ? "bg-primary"
+                        : ""
+              }`}
+            />
+          )}
+        </div>
       )}
-    </div>
+    </FileContextMenu>
   );
 });
 

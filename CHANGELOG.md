@@ -5,6 +5,34 @@ All notable changes to Faber will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.9.2] - 2026-03-xx WIP
+
+### Added
+
+- **Settings View** — Dedicated full-screen settings page with master-detail layout replacing the old sidebar modals. Eight organized tabs split into App-scoped (General, Terminal, Agents, Prompts) and Project-scoped (Project, Git & Worktrees, ACP Permissions, GitHub) sections. Open with **Ctrl+,** or from the command palette
+- **Status Bar** — New bottom bar showing MCP status and port, GitHub auth status, top agent usage percentage, context-sensitive keyboard shortcuts, and app version
+- **File Search** — File browser now preloads a project file index in the background and supports client-side filtering with highlighted search matches. Re-indexes automatically when files change
+- **File Context Menu** — Right-click any file in the tree for quick actions: copy relative path, copy absolute path, reveal in file explorer, or open in an external editor (auto-detects VS Code, Cursor, Zed, Windsurf, Fleet, Sublime, Vim, Neovim)
+- **Success Toasts** — Green flash notifications (3-second auto-dismiss) for confirming actions like ACP adapter installs and session renames
+- **Editor Detection** — Backend probes PATH for 8 known editors and exposes `detect_editors` / `open_in_editor` IPC commands
+- **Project File Indexing** — New `index_project_files` Rust command recursively indexes project files (skipping hidden dirs, node_modules, target, .git) for fast client-side search
+
+### Changed
+
+- **Settings Architecture** — Moved all settings from sidebar dialog modals into the new dedicated Settings view. Sidebar gear icon and Ctrl+, both navigate to the settings page. Git & Worktrees settings (branch naming, instruction files) now have their own tab instead of being buried in the Project tab
+- **ToggleRow Component** — Replaced repetitive inline Checkbox + label patterns across settings tabs with a shared `ToggleRow` component using the Switch primitive
+- **ACP Adapter Updates** — Install command now pins to the exact registry version (e.g., `npm install -g @package@0.24.1`), invalidates npm and registry caches after install, and extracts user-friendly error messages from npm stderr instead of dumping raw output
+- **Agent Registry Logging** — Enhanced diagnostic logging throughout the registry (debug for cache hits, info for version checks) with improved error handling for non-semver formats and npm non-zero exit codes
+- **Focus-Within Accessibility** — Action buttons on task cards, chat messages, dependency graph rows, quick action bar, and task body now appear on focus-within (not just hover) for keyboard accessibility
+- **Session Grid Resize Handles** — Column and row resize handles now show centered dot indicators on hover for better discoverability
+- **Session Pane** — Removed reorder arrows (drag-and-drop is the primary method); added brief "Saved" indicator after session rename; wider rename input field
+- **Permission Dialog Urgency** — Timeout bar is thicker and the urgent state (last 30 seconds) now pulses with an animation
+- **Command Palette** — Added "Go to Settings" navigation command
+
+### Fixed
+
+- **ACP Adapter Install on Windows** — npm install now hides the console window (CREATE_NO_WINDOW flag) to prevent a flash of a terminal window
+
 ## [0.9.1] - 2026-03-xx WIP
 
 ### Added

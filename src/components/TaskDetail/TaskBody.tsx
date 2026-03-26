@@ -62,7 +62,7 @@ export default function TaskBody({ body, onChange, onSave }: TaskBodyProps) {
       {/* Edit button overlay */}
       <button
         onClick={() => setEditing(true)}
-        className="cursor-pointer absolute right-2 top-1 z-10 flex items-center gap-1.5 rounded-md bg-accent/80 px-2 py-1 text-[11px] text-muted-foreground opacity-0 backdrop-blur-sm transition-all hover:bg-accent hover:text-foreground group-hover/body:opacity-100"
+        className="cursor-pointer absolute right-2 top-1 z-10 flex items-center gap-1.5 rounded-md bg-accent/80 px-2 py-1 text-[11px] text-muted-foreground opacity-30 backdrop-blur-sm transition-all hover:bg-accent hover:text-foreground group-hover/body:opacity-100 group-focus-within/body:opacity-100"
       >
         <Pencil className="size-3" />
         Edit

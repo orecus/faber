@@ -155,6 +155,7 @@ interface AppState {
 
   backgroundTasks: string[];
   errorFlash: string | null;
+  successFlash: string | null;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   rightSidebarOpen: boolean;
@@ -240,6 +241,7 @@ interface AppState {
   addBackgroundTask: (label: string) => void;
   removeBackgroundTask: (label: string) => void;
   flashError: (message: string) => void;
+  flashSuccess: (message: string) => void;
 
   // Research → Implementation flow
   /** Session IDs of research sessions that have completed (for showing the "Continue to Implementation" bar). */
@@ -349,6 +351,7 @@ export const useAppStore = create<AppState>()(
     agentSessionListFetchedAt: {},
     backgroundTasks: [],
     errorFlash: null,
+    successFlash: null,
     sidebarCollapsed: false,
     sidebarWidth: 260,
     rightSidebarOpen: false,
@@ -997,6 +1000,11 @@ export const useAppStore = create<AppState>()(
       setTimeout(() => set({ errorFlash: null }), 4000);
     },
 
+    flashSuccess: (message) => {
+      set({ successFlash: message });
+      setTimeout(() => set({ successFlash: null }), 3000);
+    },
+
     // ── Research → Implementation flow ──
 
     researchCompleteSessionIds: [],
@@ -1499,6 +1507,10 @@ export const useAppStore = create<AppState>()(
         if ((e.ctrlKey || e.metaKey) && e.key === "b") {
           e.preventDefault();
           get().toggleRightSidebar();
+        }
+        if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+          e.preventDefault();
+          get().setActiveView("settings");
         }
         if (e.key === "Escape" && get().commandPaletteOpen) {
           get().closeCommandPalette();

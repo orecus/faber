@@ -1,4 +1,4 @@
-import { useMemo, useState, useCallback } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import {
   DndContext,
@@ -147,23 +147,6 @@ export default function SessionsView() {
     [visibleSessions, reorderSession],
   );
 
-  // Arrow move handlers
-  const handleMoveLeft = useCallback(
-    (sessionId: string) => {
-      const idx = visibleSessions.findIndex((s) => s.id === sessionId);
-      if (idx > 0) reorderSession(sessionId, idx - 1);
-    },
-    [visibleSessions, reorderSession],
-  );
-
-  const handleMoveRight = useCallback(
-    (sessionId: string) => {
-      const idx = visibleSessions.findIndex((s) => s.id === sessionId);
-      if (idx < visibleSessions.length - 1) reorderSession(sessionId, idx + 1);
-    },
-    [visibleSessions, reorderSession],
-  );
-
   // Relaunch a stopped/ended session with the same config
   const handleRelaunch = useCallback(
     async (sessionId: string) => {
@@ -217,6 +200,52 @@ export default function SessionsView() {
     setLaunchTaskForSession(null);
   }, [setLaunchTaskForSession]);
 
+  // ── Keyboard navigation between panes ──
+  const activeView = useAppStore((s) => s.activeView);
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      // Only handle when sessions view is active
+      if (activeView !== "sessions") return;
+      // Skip when typing in an input/textarea/contenteditable
+      const el = document.activeElement;
+      if (
+        el instanceof HTMLInputElement ||
+        el instanceof HTMLTextAreaElement ||
+        (el instanceof HTMLElement && el.isContentEditable)
+      ) return;
+
+      // Tab / Shift+Tab — cycle focus between panes
+      if (e.key === "Tab" && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (visibleSessions.length <= 1) return;
+        e.preventDefault();
+        const ids = visibleSessions.map((s) => s.id);
+        const currentIdx = ids.indexOf(gridLayout.focusedPaneId ?? "");
+        let nextIdx: number;
+        if (e.shiftKey) {
+          nextIdx = currentIdx <= 0 ? ids.length - 1 : currentIdx - 1;
+        } else {
+          nextIdx = currentIdx >= ids.length - 1 ? 0 : currentIdx + 1;
+        }
+        setGridLayout({ focusedPaneId: ids[nextIdx] });
+        return;
+      }
+
+      // Ctrl+Shift+S — stop the focused session
+      if (e.key === "S" && e.ctrlKey && e.shiftKey && !e.altKey && !e.metaKey) {
+        e.preventDefault();
+        const focusedId = gridLayout.focusedPaneId;
+        if (focusedId && visibleSessions.some((s) => s.id === focusedId)) {
+          handleStop(focusedId);
+        }
+        return;
+      }
+    };
+
+    document.addEventListener("keydown", handler);
+    return () => document.removeEventListener("keydown", handler);
+  }, [activeView, visibleSessions, gridLayout.focusedPaneId, setGridLayout, handleStop]);
+
   const hasContinuousRun = !!(activeProjectId && continuousMode[activeProjectId]);
 
   return (
@@ -242,7 +271,7 @@ export default function SessionsView() {
           onDragEnd={handleDragEnd}
         >
           <SessionGrid layout={gridLayout} onLayoutChange={handleLayoutChange}>
-            {visibleSessions.map((session, index) => (
+            {visibleSessions.map((session) => (
               <SessionPane
                 key={session.id}
                 session={session}
@@ -252,10 +281,6 @@ export default function SessionsView() {
                 onDismiss={handleDismiss}
                 onStop={handleStop}
                 onRelaunch={handleRelaunch}
-                index={index}
-                totalCount={visibleSessions.length}
-                onMoveLeft={handleMoveLeft}
-                onMoveRight={handleMoveRight}
                 dragDisabled={isDragDisabled}
               />
             ))}

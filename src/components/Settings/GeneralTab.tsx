@@ -15,10 +15,16 @@ import { type Theme, useTheme } from "../../contexts/ThemeContext";
 import { usePersistedBoolean } from "../../hooks/usePersistedState";
 import { updateNotificationSettings } from "../../lib/notifications";
 import { useUpdateStore } from "../../store/updateStore";
-import { Checkbox } from "../ui/checkbox";
 import { Card, CardContent } from "../ui/orecus.io/cards/card";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
-import { sectionHeadingClass, inputClass } from "./shared";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "../ui/select";
+import { sectionHeadingClass, inputClass, ToggleRow } from "./shared";
 
 type GeneralTabId = "appearance" | "notifications" | "updates" | "system";
 
@@ -138,43 +144,24 @@ function AppearancePanel() {
           </div>
 
           {/* Glass effect toggle */}
-          <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
-            <Checkbox
-              checked={isGlass}
-              onCheckedChange={(checked) => handleGlassToggle(checked === true)}
-              className="mt-0.5"
-            />
-            <div>
-              <div className="text-[13px] font-medium text-foreground">
-                Glass effect
-              </div>
-              <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-                Apply frosted glass blur to panels and sidebars.
-              </div>
-            </div>
-          </label>
+          <ToggleRow
+            label="Glass effect"
+            description="Apply frosted glass blur to panels and sidebars."
+            checked={isGlass}
+            onChange={handleGlassToggle}
+          />
         </div>
       </section>
 
       {/* Display */}
       <section>
         <div className={sectionHeadingClass}>Display</div>
-        <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
-          <Checkbox
-            checked={showIcons}
-            onCheckedChange={(checked) => setShowIcons(checked === true)}
-            className="mt-0.5"
-          />
-          <div>
-            <div className="text-[13px] font-medium text-foreground">
-              Show project icons in tabs
-            </div>
-            <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-              Display auto-detected or custom SVG icons next to project names in
-              the tab bar.
-            </div>
-          </div>
-        </label>
+        <ToggleRow
+          label="Show project icons in tabs"
+          description="Display auto-detected or custom SVG icons next to project names in the tab bar."
+          checked={showIcons}
+          onChange={setShowIcons}
+        />
       </section>
     </div>
   );
@@ -221,48 +208,27 @@ function NotificationsPanel() {
       {/* Master toggle */}
       <section>
         <div className={sectionHeadingClass}>Notifications</div>
-        <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
-          <Checkbox
-            checked={enabled}
-            onCheckedChange={(checked) => setEnabled(checked === true)}
-            className="mt-0.5"
-          />
-          <div>
-            <div className="text-[13px] font-medium text-foreground">
-              Enable notifications
-            </div>
-            <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-              Send OS-native notifications for agent events. Notifications are
-              suppressed when the app is focused on the relevant terminal.
-            </div>
-          </div>
-        </label>
+        <ToggleRow
+          label="Enable notifications"
+          description="Send OS-native notifications for agent events. Notifications are suppressed when the app is focused on the relevant terminal."
+          checked={enabled}
+          onChange={setEnabled}
+        />
       </section>
 
       {/* Per-event toggles */}
       <section>
         <div className={sectionHeadingClass}>Event Types</div>
-        <div className="flex flex-col gap-2.5">
+        <div className="flex flex-col gap-1">
           {toggles.map((t) => (
-            <label
+            <ToggleRow
               key={t.key}
-              className={`flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer ${!enabled ? "opacity-50 pointer-events-none" : ""}`}
-            >
-              <Checkbox
-                checked={t.value}
-                onCheckedChange={(checked) => t.setter(checked === true)}
-                disabled={!enabled}
-                className="mt-0.5"
-              />
-              <div>
-                <div className="text-[13px] font-medium text-foreground">
-                  {t.label}
-                </div>
-                <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-                  {t.description}
-                </div>
-              </div>
-            </label>
+              label={t.label}
+              description={t.description}
+              checked={t.value}
+              onChange={t.setter}
+              disabled={!enabled}
+            />
           ))}
         </div>
       </section>
@@ -279,22 +245,12 @@ function AcpAutoCheckToggle() {
   );
 
   return (
-    <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
-      <Checkbox
-        checked={autoCheck}
-        onCheckedChange={(checked) => setAutoCheck(checked === true)}
-        className="mt-0.5"
-      />
-      <div>
-        <div className="text-[13px] font-medium text-foreground">
-          Check for ACP adapter updates
-        </div>
-        <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-          Automatically check for newer versions of installed ACP adapters on
-          app launch (at most once per hour).
-        </div>
-      </div>
-    </label>
+    <ToggleRow
+      label="Check for ACP adapter updates"
+      description="Automatically check for newer versions of installed ACP adapters on app launch (at most once per hour)."
+      checked={autoCheck}
+      onChange={setAutoCheck}
+    />
   );
 }
 
@@ -340,7 +296,7 @@ function UpdatesPanel() {
   return (
     <div className="flex flex-col gap-3">
       {/* Version + Check button */}
-      <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+      <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
         <div>
           <div className="text-[13px] font-medium text-foreground">
             Current version
@@ -369,37 +325,36 @@ function UpdatesPanel() {
       </div>
 
       {/* Auto-check toggle */}
-      <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
-        <Checkbox
-          checked={autoCheckEnabled}
-          onCheckedChange={(checked) => setAutoCheckEnabled(checked === true)}
-          className="mt-0.5"
-        />
-        <div>
-          <div className="text-[13px] font-medium text-foreground">
-            Automatically check for updates
-          </div>
-          <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-            Periodically check for new versions in the background.
-          </div>
-        </div>
-      </label>
+      <ToggleRow
+        label="Automatically check for updates"
+        description="Periodically check for new versions in the background."
+        checked={autoCheckEnabled}
+        onChange={setAutoCheckEnabled}
+      />
 
       {/* Check interval */}
       {autoCheckEnabled && (
-        <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+        <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
           <div className="text-[13px] text-foreground">Check frequency</div>
-          <select
-            value={checkIntervalHours}
-            onChange={(e) => setCheckIntervalHours(Number(e.target.value))}
-            className={`${inputClass} w-40`}
+          <Select
+            value={String(checkIntervalHours)}
+            onValueChange={(v) => v && setCheckIntervalHours(Number(v))}
+            items={CHECK_INTERVALS.map((opt) => ({
+              value: String(opt.value),
+              label: opt.label,
+            }))}
           >
-            {CHECK_INTERVALS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
+            <SelectTrigger className="w-40">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {CHECK_INTERVALS.map((opt) => (
+                <SelectItem key={opt.value} value={String(opt.value)}>
+                  {opt.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
       )}
 
@@ -419,7 +374,7 @@ function UpdatesPanel() {
       </button>
 
       {advancedOpen && (
-        <div className="flex flex-col gap-2 p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+        <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
           <div className="text-[11px] text-muted-foreground">
             Custom update endpoint URL
           </div>
@@ -458,7 +413,7 @@ function SystemPanel() {
 
   return (
     <div className="flex flex-col gap-3">
-      <div className="flex items-center justify-between p-2.5 rounded-[var(--radius-element)] bg-background border border-border">
+      <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
         <div>
           <div className="text-[13px] font-medium text-foreground">
             Log files

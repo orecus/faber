@@ -7,6 +7,7 @@ import {
   Search,
 } from "lucide-react";
 import { useCallback, useEffect, useRef, useState } from "react";
+import { highlightMatch } from "../../lib/highlightMatch";
 
 import { open } from "@tauri-apps/plugin-shell";
 
@@ -108,6 +109,7 @@ export default function SkillsTab({ projectId }: Props) {
           global,
         });
         setRefreshKey((k) => k + 1);
+        useAppStore.getState().flashSuccess(`Removed ${skillName}`);
       } catch (e) {
         console.error("Skill remove failed:", e);
         useAppStore.getState().flashError(`Remove failed: ${formatError(e)}`);
@@ -180,7 +182,7 @@ export default function SkillsTab({ projectId }: Props) {
                         className="text-sm font-medium text-foreground hover:text-primary truncate transition-colors inline-flex items-center gap-1"
                         title={`View on skills.sh`}
                       >
-                        {skill.name}
+                        {highlightMatch(skill.name, query)}
                         <ExternalLink
                           size={11}
                           className="opacity-50 shrink-0"
@@ -194,7 +196,7 @@ export default function SkillsTab({ projectId }: Props) {
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
                       <span className="text-[10px] text-dim-foreground truncate">
-                        {skill.source}
+                        {highlightMatch(skill.source, query)}
                       </span>
                     </div>
                   </div>

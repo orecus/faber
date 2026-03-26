@@ -1,11 +1,9 @@
 import {
   AlertCircle,
-  Bot,
   Bug,
   CheckCircle2,
   ChevronDown,
   ChevronRight,
-  CircleHelp,
   CirclePause,
   CirclePlay,
   ClipboardList,
@@ -19,11 +17,8 @@ import {
   Lightbulb,
   Loader2,
   MessageCircle,
-  MessageSquare,
   Plus,
   Settings,
-  Shield,
-  SlidersHorizontal,
   TerminalSquare,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -35,14 +30,7 @@ import { useProjectIcon } from "../../hooks/useProjectIcon";
 import { AgentIcon } from "../../lib/agentIcons";
 import { useAppStore } from "../../store/appStore";
 import { pickProjectFolder } from "../../utils/pickProjectFolder";
-import { AcpPermissionsTab } from "../Settings/AcpPermissionsTab";
-import { AgentsTab } from "../Settings/AgentsTab";
-import { GeneralTab } from "../Settings/GeneralTab";
-
 import { ManageProjectsTab } from "../Settings/ProjectsTab";
-import { ProjectSettingsDialog } from "../Settings/ProjectSettingsDialog";
-import { PromptsTab } from "../Settings/PromptsTab";
-import { TerminalTab } from "../Settings/TerminalTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import {
   DropdownMenu,
@@ -56,149 +44,13 @@ import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { gradientHexColors } from "../ui/orecus.io/lib/color-utils";
 import { FaberLogo } from "../ui/FaberLogo";
 import SidebarResizeHandle from "./SidebarResizeHandle";
-import SidebarStatusPanel from "./SidebarStatusPanel";
-import UsagePanel from "./UsagePanel";
 
-import type { LucideIcon } from "lucide-react";
 import type { ChangedFile, McpSessionState, SessionStatus, WorktreeInfo } from "../../types";
 import type { ThemeColor } from "../ui/orecus.io/lib/color-utils";
 
 // Stable empty arrays to prevent unnecessary re-renders from selector
 const EMPTY_SESSIONS: never[] = [];
 const EMPTY_WORKTREES: WorktreeInfo[] = [];
-
-// ── Settings Bar ──
-
-type SettingsDialogId =
-  | "general"
-  | "terminal"
-  | "agents"
-  | "prompts"
-  | "manage-projects"
-  | "acp-permissions";
-
-const SETTINGS_ITEMS: {
-  id: SettingsDialogId;
-  icon: LucideIcon;
-  title: string;
-  tooltip: string;
-  maxWidth: string;
-}[] = [
-  {
-    id: "general",
-    icon: SlidersHorizontal,
-    title: "General Settings",
-    tooltip: "General",
-    maxWidth: "sm:max-w-xl",
-  },
-  {
-    id: "terminal",
-    icon: TerminalSquare,
-    title: "Terminal Settings",
-    tooltip: "Terminal",
-    maxWidth: "sm:max-w-md",
-  },
-  {
-    id: "agents",
-    icon: Bot,
-    title: "Agent Configuration",
-    tooltip: "Agents",
-    maxWidth: "sm:max-w-2xl",
-  },
-  {
-    id: "prompts",
-    icon: MessageSquare,
-    title: "Prompt Templates & Quick Actions",
-    tooltip: "Prompts",
-    maxWidth: "sm:max-w-2xl",
-  },
-  {
-    id: "acp-permissions",
-    icon: Shield,
-    title: "ACP Permissions",
-    tooltip: "ACP Permissions",
-    maxWidth: "sm:max-w-2xl",
-  },
-];
-
-// Dialog config for items not in the settings bar (opened externally)
-const EXTRA_DIALOG_CONFIG: Record<string, { title: string; maxWidth: string }> =
-  {
-    "manage-projects": { title: "Manage Projects", maxWidth: "sm:max-w-xl" },
-  };
-
-function SettingsBar({
-  openDialog,
-  setOpenDialog,
-}: {
-  openDialog: SettingsDialogId | null;
-  setOpenDialog: (id: SettingsDialogId | null) => void;
-}) {
-  const agents = useAppStore((s) => s.agents);
-  const setActiveView = useAppStore((s) => s.setActiveView);
-  const config = openDialog
-    ? (SETTINGS_ITEMS.find((i) => i.id === openDialog) ??
-      (EXTRA_DIALOG_CONFIG[openDialog]
-        ? { ...EXTRA_DIALOG_CONFIG[openDialog], id: openDialog }
-        : null))
-    : null;
-
-  return (
-    <>
-      <div className="flex items-center justify-center gap-0.5 px-2 py-1">
-        {SETTINGS_ITEMS.map((item) => {
-          const Icon = item.icon;
-          return (
-            <Button
-              key={item.id}
-              variant="ghost"
-              size="icon-sm"
-              hoverEffect="none"
-              clickEffect="none"
-              title={item.tooltip}
-              onClick={() => setOpenDialog(item.id)}
-            >
-              <Icon size={14} />
-            </Button>
-          );
-        })}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          hoverEffect="none"
-          clickEffect="none"
-          title="Help & Docs"
-          onClick={() => setActiveView("help")}
-        >
-          <CircleHelp size={14} />
-        </Button>
-      </div>
-
-      {openDialog && config && (
-        <Dialog
-          open
-          onOpenChange={(open) => {
-            if (!open) setOpenDialog(null);
-          }}
-        >
-          <DialogContent className={config.maxWidth}>
-            <DialogHeader>
-              <DialogTitle>{config.title}</DialogTitle>
-            </DialogHeader>
-            <div className="max-h-[70vh] overflow-y-auto -mx-6 px-6">
-              {openDialog === "general" && <GeneralTab />}
-              {openDialog === "terminal" && <TerminalTab />}
-              {openDialog === "agents" && <AgentsTab agents={agents} />}
-              {openDialog === "prompts" && <PromptsTab />}
-              {openDialog === "manage-projects" && <ManageProjectsTab />}
-              {openDialog === "acp-permissions" && <AcpPermissionsTab />}
-            </div>
-          </DialogContent>
-        </Dialog>
-      )}
-    </>
-  );
-}
 
 // ── Helpers ──
 
@@ -400,7 +252,7 @@ const ProjectSessionList = React.memo(function ProjectSessionList({
 
   return (
     <>
-      <div className="px-1 pt-2 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+      <div className="px-1 pt-2.5 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
         Sessions
       </div>
       <div className="text-dim-foreground">
@@ -444,12 +296,12 @@ const ProjectWorktreeList = React.memo(function ProjectWorktreeList({
 
   return (
     <>
-      <div className="px-1 pt-2 pb-1 text-[11px] uppercase tracking-wide text-muted-foreground">
+      <div className="px-1 pt-2.5 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
         Worktrees
       </div>
       <div className="pb-1">
         {nonMainWorktrees.length === 0 ? (
-          <div className="flex items-center gap-1.5 px-1 py-1 text-xs text-muted-foreground/60">
+          <div className="flex items-center gap-1.5 px-1 h-7 text-xs text-muted-foreground/60">
             <GitFork size={12} />
             <span>No worktrees</span>
           </div>
@@ -464,7 +316,7 @@ const ProjectWorktreeList = React.memo(function ProjectWorktreeList({
                   onSelect();
                   navigateToReview(w.path);
                 }}
-                className={`flex items-center gap-1.5 px-1 py-1 text-xs rounded-[var(--radius-element)] cursor-pointer hover:bg-accent ${isActiveWorktree ? "bg-accent text-foreground" : "text-dim-foreground"}`}
+                className={`flex items-center gap-1.5 px-1 h-7 text-xs rounded-[var(--radius-element)] cursor-pointer hover:bg-accent ${isActiveWorktree ? "bg-accent text-foreground" : "text-dim-foreground"}`}
               >
                 <GitFork
                   size={12}
@@ -557,7 +409,7 @@ const ProjectItem = React.memo(function ProjectItem({
       {/* Project header */}
       <div
         onClick={onSelect}
-        className={`group flex items-center gap-1.5 px-2 h-8 cursor-pointer ${
+        className={`group flex items-center gap-1.5 px-2 h-8 cursor-pointer transition-colors duration-150 ${
           isActive ? "bg-accent/50" : "hover:bg-accent/30"
         }`}
       >
@@ -591,7 +443,7 @@ const ProjectItem = React.memo(function ProjectItem({
             render={
               <span
                 onClick={(e) => e.stopPropagation()}
-                className="cursor-pointer text-muted-foreground hover:text-foreground opacity-0 group-hover:opacity-100 transition-opacity shrink-0 inline-flex items-center justify-center size-5 rounded-sm hover:bg-accent/50"
+                className="cursor-pointer text-muted-foreground hover:text-foreground opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0 inline-flex items-center justify-center size-5 rounded-sm hover:bg-accent/50"
               />
             }
           >
@@ -645,21 +497,12 @@ export default function Sidebar() {
   const openProjectIds = useAppStore((s) => s.openProjectIds);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const setActiveProject = useAppStore((s) => s.setActiveProject);
+  const setActiveView = useAppStore((s) => s.setActiveView);
   const closeProject = useAppStore((s) => s.closeProject);
   const addProjectFromPath = useAppStore((s) => s.addProjectFromPath);
-  const agents = useAppStore((s) => s.agents);
   const [showIcons] = usePersistedBoolean("show_project_icons", true);
-  const [settingsDialog, setSettingsDialog] = useState<SettingsDialogId | null>(
-    null,
-  );
-  const [projectSettingsId, setProjectSettingsId] = useState<string | null>(null);
+  const [manageProjectsOpen, setManageProjectsOpen] = useState(false);
   const [showCreateProject, setShowCreateProject] = useState(false);
-  const [version, setVersion] = useState("");
-
-  useEffect(() => {
-    invoke<string>("get_app_version").then(setVersion).catch(() => {});
-  }, []);
-
   const openProjects = useMemo(
     () => projects.filter((p) => openProjectIds.includes(p.id)),
     [projects, openProjectIds],
@@ -672,6 +515,15 @@ export default function Sidebar() {
   const handleCloseProject = useCallback(
     (id: string) => closeProject(id),
     [closeProject],
+  );
+
+  const handleOpenProjectSettings = useCallback(
+    (projectId: string) => {
+      // Ensure the project is active, then navigate to project settings
+      setActiveProject(projectId);
+      setActiveView("settings");
+    },
+    [setActiveProject, setActiveView],
   );
 
   async function handleAddProject() {
@@ -694,16 +546,13 @@ export default function Sidebar() {
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <FaberLogo className="size-3.5 shrink-0 text-primary" />
           <span className="text-[11px] font-medium text-foreground">Faber</span>
-          {version && (
-            <span className="text-[10px] text-muted-foreground">v{version}</span>
-          )}
         </div>
         <Button
           variant="ghost"
           size="icon-sm"
           hoverEffect="none"
           clickEffect="none"
-          onClick={() => setSettingsDialog("manage-projects")}
+          onClick={() => setManageProjectsOpen(true)}
           title="Manage projects"
         >
           <Settings size={13} />
@@ -739,16 +588,21 @@ export default function Sidebar() {
         <CreateProjectDialog onDismiss={() => setShowCreateProject(false)} />
       )}
 
-      {projectSettingsId && (
-        <ProjectSettingsDialog
-          projectId={projectSettingsId}
-          agents={agents}
-          onDismiss={() => setProjectSettingsId(null)}
-        />
+      {manageProjectsOpen && (
+        <Dialog open onOpenChange={(open) => { if (!open) setManageProjectsOpen(false); }}>
+          <DialogContent className="sm:max-w-xl">
+            <DialogHeader>
+              <DialogTitle>Manage Projects</DialogTitle>
+            </DialogHeader>
+            <div className="max-h-[70vh] overflow-y-auto -mx-6 px-6">
+              <ManageProjectsTab />
+            </div>
+          </DialogContent>
+        </Dialog>
       )}
 
       {/* ── Scrollable project list ── */}
-      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/40">
+      <div className="flex-1 min-h-0 overflow-y-auto divide-y divide-border/60">
         {openProjects.map((project) => (
           <ProjectItem
             key={project.id}
@@ -757,19 +611,9 @@ export default function Sidebar() {
             showIcons={showIcons}
             onSelect={() => handleSelectProject(project.id)}
             onClose={() => handleCloseProject(project.id)}
-            onOpenSettings={() => setProjectSettingsId(project.id)}
+            onOpenSettings={() => handleOpenProjectSettings(project.id)}
           />
         ))}
-      </div>
-
-      {/* ── Bottom: settings + status ── */}
-      <div className="mt-auto shrink-0 border-t border-border">
-        <SettingsBar
-          openDialog={settingsDialog}
-          setOpenDialog={setSettingsDialog}
-        />
-        <UsagePanel />
-        <SidebarStatusPanel />
       </div>
 
       <SidebarResizeHandle />

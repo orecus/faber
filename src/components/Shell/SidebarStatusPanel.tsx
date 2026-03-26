@@ -115,7 +115,7 @@ export default function SidebarStatusPanel() {
             ) : (
               <Copy
                 size={12}
-                className="opacity-0 group-hover/row:opacity-100 transition-opacity text-muted-foreground"
+                className="opacity-30 group-hover/row:opacity-100 group-focus-within/row:opacity-100 transition-opacity text-muted-foreground"
               />
             )
           }

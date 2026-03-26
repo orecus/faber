@@ -949,7 +949,7 @@ export default React.memo(function AgentTurnBlock({
       </MessageContent>
 
       {hasResponse && (
-        <MessageActions className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+        <MessageActions className="opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ml-auto">
           <MessageAction tooltip="Copy message" onClick={handleCopy}>
             {copied ? <Check size={14} className="text-success" /> : <Copy size={14} />}
           </MessageAction>

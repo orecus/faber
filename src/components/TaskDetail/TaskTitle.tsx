@@ -83,7 +83,7 @@ export default function TaskTitle({ title, onChange, compact }: TaskTitleProps) 
       <span className={`flex-1 font-semibold text-foreground ${compact ? "truncate text-[13px] leading-none" : "text-lg leading-snug"}`}>
         {title}
       </span>
-      <Pencil className={`shrink-0 text-muted-foreground opacity-0 transition-opacity group-hover/title:opacity-100 ${compact ? "size-3" : "mt-1 size-3.5"}`} />
+      <Pencil className={`shrink-0 text-muted-foreground opacity-30 transition-opacity group-hover/title:opacity-100 group-focus-within/title:opacity-100 ${compact ? "size-3" : "mt-1 size-3.5"}`} />
     </button>
   );
 }

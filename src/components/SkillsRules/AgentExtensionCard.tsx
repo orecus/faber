@@ -5,7 +5,6 @@ import {
   Download,
   ExternalLink,
   Globe,
-  RotateCcw,
   Terminal,
   X,
 } from "lucide-react";
@@ -25,8 +24,6 @@ interface AgentExtensionCardProps {
   agent: AgentInfo;
   installing: boolean;
   onInstallAdapter: (name: string, isUpdate: boolean) => void;
-  /** Whether this agent was just updated in the current session. */
-  justUpdated: boolean;
   /** Registry entry for this agent (if fetched). */
   registryEntry?: AcpRegistryEntry;
 }
@@ -35,7 +32,6 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
   agent,
   installing,
   onInstallAdapter,
-  justUpdated,
   registryEntry,
 }: AgentExtensionCardProps) {
   const { isGlass } = useTheme();
@@ -111,38 +107,29 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
               {agent.default_model}
             </span>
           )}
-          {justUpdated && registryEntry ? (
-            <span className="flex items-center gap-1 rounded-md bg-success/15 px-2 py-0.5 font-mono text-[11px] text-success">
-              <Check size={9} strokeWidth={2.5} />
+          {registryEntry?.installed_version && (
+            <span
+              className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[11px] ${
+                registryEntry.update_available
+                  ? "bg-muted/60 text-muted-foreground line-through decoration-muted-foreground/40"
+                  : "bg-primary/10 text-primary/80"
+              }`}
+            >
+              <Globe size={9} className="opacity-60" />
+              v{registryEntry.installed_version}
+            </span>
+          )}
+          {registryEntry?.update_available && (
+            <span className="flex items-center gap-1 rounded-md bg-warning/15 px-2 py-0.5 font-mono text-[11px] text-warning">
+              <ArrowUpCircle size={9} />
               v{registryEntry.registry_version}
             </span>
-          ) : (
-            <>
-              {registryEntry?.installed_version && (
-                <span
-                  className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[11px] ${
-                    registryEntry.update_available
-                      ? "bg-muted/60 text-muted-foreground line-through decoration-muted-foreground/40"
-                      : "bg-primary/10 text-primary/80"
-                  }`}
-                >
-                  <Globe size={9} className="opacity-60" />
-                  v{registryEntry.installed_version}
-                </span>
-              )}
-              {registryEntry?.update_available && (
-                <span className="flex items-center gap-1 rounded-md bg-warning/15 px-2 py-0.5 font-mono text-[11px] text-warning">
-                  <ArrowUpCircle size={9} />
-                  v{registryEntry.registry_version}
-                </span>
-              )}
-              {registryEntry && !registryEntry.installed_version && (
-                <span className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary/80">
-                  <Globe size={9} className="opacity-60" />
-                  v{registryEntry.registry_version}
-                </span>
-              )}
-            </>
+          )}
+          {registryEntry && !registryEntry.installed_version && (
+            <span className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary/80">
+              <Globe size={9} className="opacity-60" />
+              v{registryEntry.registry_version}
+            </span>
           )}
         </div>
 
@@ -246,32 +233,25 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
             </div>
 
             <div className="flex items-center gap-1.5">
-              {/* Update available / just updated */}
-              {justUpdated ? (
-                <span className="flex items-center gap-1.5 rounded-full bg-success/15 px-2.5 py-1 text-[11px] font-medium text-success">
-                  <RotateCcw size={11} />
-                  Restart app to apply
-                </span>
-              ) : (
-                registryEntry?.update_available && agent.acp_installed && (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    hoverEffect="none"
-                    clickEffect="scale"
-                    onClick={() => onInstallAdapter(agent.name, true)}
-                    disabled={installing}
-                    loading={installing}
-                    leftIcon={!installing ? <ArrowUpCircle size={12} /> : undefined}
-                    className="h-7 px-2.5 text-[11px] border-warning/40 text-warning hover:bg-warning/10 hover:text-warning cursor-pointer"
-                  >
-                    Update to v{registryEntry.registry_version}
-                  </Button>
-                )
+              {/* Update available */}
+              {registryEntry?.update_available && agent.acp_installed && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  hoverEffect="none"
+                  clickEffect="scale"
+                  onClick={() => onInstallAdapter(agent.name, true)}
+                  disabled={installing}
+                  loading={installing}
+                  leftIcon={!installing ? <ArrowUpCircle size={12} /> : undefined}
+                  className="h-7 px-2.5 text-[11px] border-warning/40 text-warning hover:bg-warning/10 hover:text-warning cursor-pointer"
+                >
+                  Update to v{registryEntry.registry_version}
+                </Button>
               )}
 
               {/* Install adapter button */}
-              {needsAdapter && !agent.acp_installed && !justUpdated && (
+              {needsAdapter && !agent.acp_installed && (
                 <Button
                   variant="outline"
                   size="sm"

@@ -67,7 +67,7 @@ export default React.memo(function QuickActionBar({
   if (!isActive || !isAgent || actions.length === 0) return null;
 
   return (
-    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[5] flex items-center gap-1 px-1.5 py-1 rounded-lg bg-popover/80 backdrop-blur-sm ring-1 ring-border/30 shadow-lg opacity-0 group-hover/pane:opacity-100 transition-opacity duration-200 pointer-events-none group-hover/pane:pointer-events-auto">
+    <div className="absolute bottom-3 left-1/2 -translate-x-1/2 z-[5] flex items-center gap-1 px-1.5 py-1 rounded-lg bg-popover/80 backdrop-blur-sm ring-1 ring-border/30 shadow-lg opacity-0 group-hover/pane:opacity-100 group-focus-within/pane:opacity-100 transition-opacity duration-200 pointer-events-none group-hover/pane:pointer-events-auto group-focus-within/pane:pointer-events-auto">
       {actions.map((action) => {
         const Icon = getIcon(action.icon);
         return (

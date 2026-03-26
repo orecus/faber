@@ -200,7 +200,7 @@ export default React.memo(function TaskCard({ task, linkedSession, onClick, onSt
         <div className="flex-1" />
         {/* Action buttons — inline, visible on hover */}
         {!isDragOverlay && !isSessionActive && (
-          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+          <div className="flex items-center gap-0.5 opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
             {task.status === "in-review" && linkedSession && onViewSession && (
               <Button
                 variant="ghost"

@@ -147,13 +147,13 @@ const PermissionCard = React.memo(function PermissionCard({
       } bg-card`}
     >
       {/* Timeout progress bar — prominent strip at top */}
-      <div className="absolute top-0 inset-x-0 h-[3px] bg-border/20">
+      <div className="absolute top-0 inset-x-0 h-1 bg-border/20">
         <div
           className={`h-full transition-all duration-1000 linear ${
             isExpired
               ? "bg-muted/40"
               : isUrgent
-                ? "bg-destructive"
+                ? "bg-destructive animate-pulse"
                 : "bg-primary/60"
           }`}
           style={{ width: `${progress}%` }}

@@ -37,7 +37,6 @@ export default function AgentsExtensionTab({
   );
   const [refreshing, setRefreshing] = useState(false);
   const [installError, setInstallError] = useState<string | null>(null);
-  const [updatedAgents, setUpdatedAgents] = useState<Set<string>>(new Set());
 
   const installedCount = useMemo(
     () => agents.filter((a) => a.installed).length,
@@ -104,20 +103,27 @@ export default function AgentsExtensionTab({
     setInstallingAdapter(agentName);
     setInstallError(null);
     try {
+      // When updating, pin to the exact registry version so npm installs that specific version
+      const targetVersion = isUpdate
+        ? registryByAgent.get(agentName)?.registry_version
+        : undefined;
       const updated = await invoke<AgentInfo[]>("install_acp_adapter", {
         agentName,
+        targetVersion,
       });
       useAppStore.getState().setAgents(updated);
-      if (isUpdate) {
-        setUpdatedAgents((prev) => new Set(prev).add(agentName));
-      }
+      useAppStore.getState().flashSuccess(isUpdate ? `Updated ${agentName} adapter` : `Installed ${agentName} adapter`);
+
+      // Re-fetch registry so update_available is recalculated with the new version
+      // (backend caches were invalidated by install_acp_adapter)
+      await fetchAcpRegistry(true);
     } catch (err) {
       setInstallError(formatError(err));
       setTimeout(() => setInstallError(null), 6000);
     } finally {
       setInstallingAdapter(null);
     }
-  }, []);
+  }, [fetchAcpRegistry, registryByAgent]);
 
   return (
     <div className="flex flex-1 flex-col overflow-y-auto p-4">
@@ -198,7 +204,6 @@ export default function AgentsExtensionTab({
             agent={agent}
             installing={installingAdapter === agent.name}
             onInstallAdapter={handleInstallAdapter}
-            justUpdated={updatedAgents.has(agent.name)}
             registryEntry={registryByAgent.get(agent.name)}
           />
         ))}

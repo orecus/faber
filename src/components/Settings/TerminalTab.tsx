@@ -1,6 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { Loader2, RefreshCw } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+
 import {
   usePersistedNumber,
   usePersistedString,
@@ -37,14 +38,20 @@ const EMBEDDED_FONT = "JetBrains Mono";
 function buildFontList(detected: AvailableFont[]): FontEntry[] {
   const entries: FontEntry[] = [
     // Embedded font is always available
-    { name: EMBEDDED_FONT, family: `'${EMBEDDED_FONT}', monospace`, category: "embedded" },
+    {
+      name: EMBEDDED_FONT,
+      family: `'${EMBEDDED_FONT}', monospace`,
+      category: "embedded",
+    },
   ];
 
   for (const font of detected) {
     // Skip the embedded font (already added)
     if (font.family === EMBEDDED_FONT) continue;
 
-    const category: FontEntry["category"] = font.is_nerd_font ? "nerd" : "system";
+    const category: FontEntry["category"] = font.is_nerd_font
+      ? "nerd"
+      : "system";
     entries.push({
       name: font.family,
       family: `'${font.family}', monospace`,
@@ -126,10 +133,22 @@ function SettingsSlider({
 export function TerminalTab() {
   const shells = useAppStore((s) => s.shells);
 
-  const [terminalShell, setTerminalShell] = usePersistedString("terminal_shell", "");
-  const [fontFamily, setFontFamily] = usePersistedString("terminal_font_family", DEFAULTS.fontFamily);
-  const [fontSize, setFontSize] = usePersistedNumber("terminal_font_size", DEFAULTS.fontSize);
-  const [lineHeight, setLineHeight] = usePersistedNumber("terminal_line_height", DEFAULTS.lineHeight);
+  const [terminalShell, setTerminalShell] = usePersistedString(
+    "terminal_shell",
+    "",
+  );
+  const [fontFamily, setFontFamily] = usePersistedString(
+    "terminal_font_family",
+    DEFAULTS.fontFamily,
+  );
+  const [fontSize, setFontSize] = usePersistedNumber(
+    "terminal_font_size",
+    DEFAULTS.fontSize,
+  );
+  const [lineHeight, setLineHeight] = usePersistedNumber(
+    "terminal_line_height",
+    DEFAULTS.lineHeight,
+  );
   const [zoom, setZoom] = usePersistedNumber("terminal_zoom", DEFAULTS.zoom);
 
   const [fontFilter, setFontFilter] = useState("");
@@ -137,7 +156,11 @@ export function TerminalTab() {
 
   // Detect which fonts are actually installed via the Rust backend
   const [fontList, setFontList] = useState<FontEntry[]>([
-    { name: EMBEDDED_FONT, family: `'${EMBEDDED_FONT}', monospace`, category: "embedded" },
+    {
+      name: EMBEDDED_FONT,
+      family: `'${EMBEDDED_FONT}', monospace`,
+      category: "embedded",
+    },
   ]);
   const [fontsLoading, setFontsLoading] = useState(true);
 
@@ -229,7 +252,8 @@ export function TerminalTab() {
           </SelectContent>
         </Select>
         <div className="text-[11px] text-muted-foreground mt-1.5">
-          Takes effect on new sessions. Existing sessions keep their current shell.
+          Takes effect on new sessions. Existing sessions keep their current
+          shell.
         </div>
       </section>
 
@@ -250,7 +274,7 @@ export function TerminalTab() {
             )}
           </button>
         </div>
-        <div className="rounded-[var(--radius-container)] border border-border overflow-hidden">
+        <div className="rounded-lg ring-1 ring-border/30 overflow-hidden bg-card">
           {/* Search / filter */}
           <div className="border-b border-border px-3 py-2">
             <input

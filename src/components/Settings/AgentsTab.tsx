@@ -4,13 +4,11 @@ import { useCallback, useEffect, useState } from "react";
 
 import { AgentIcon } from "../../lib/agentIcons";
 import { Badge } from "../ui/badge";
-import { Checkbox } from "../ui/checkbox";
 import {
   InputGroup,
   InputGroupAddon,
   InputGroupInput,
 } from "../ui/input-group";
-import { Card, CardContent } from "../ui/orecus.io/cards/card";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import {
   type ThemeColor,
@@ -23,7 +21,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "../ui/select";
-import { sectionHeadingClass } from "./shared";
+import { sectionHeadingClass, ToggleRow } from "./shared";
 
 import type { AgentInfo } from "../../types";
 
@@ -37,19 +35,19 @@ const PERMISSION_FLAGS: Record<
     flag: "--dangerously-skip-permissions",
     label: "Skip Permission Prompts",
     description:
-      "Adds --dangerously-skip-permissions flag. The CLI will not ask for confirmation before running commands.",
+      "The CLI will not ask for confirmation before running commands.",
   },
   codex: {
     flag: "--dangerously-bypass-approvals-and-sandbox",
     label: "Bypass Approvals & Sandbox",
     description:
-      "Adds --dangerously-bypass-approvals-and-sandbox flag. The CLI will execute all actions without confirmation or sandboxing.",
+      "The CLI will execute all actions without confirmation or sandboxing.",
   },
   gemini: {
     flag: "--yolo",
     label: "YOLO Mode",
     description:
-      "Adds --yolo flag. The CLI will execute all actions without confirmation.",
+      "The CLI will execute all actions without confirmation.",
   },
 };
 
@@ -114,7 +112,6 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
           if (permFlag && config.flags.includes(permFlag)) {
             setSkipPerms(true);
           }
-          // Custom flags = all flags except the known permission flag
           const custom = config.flags.filter((f) => f !== permFlag);
           if (custom.length > 0) setCustomFlags(custom.join(" "));
         }
@@ -160,74 +157,67 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
   if (!loaded) return null;
 
   return (
-    <Card
-      type="normal"
-      radius="lg"
-      border
-      accentBar="top"
-      accentBarVariant="solid"
-      accentColor={accentColor}
-    >
-      {/* Card header */}
-      <CardContent
+    <div className="rounded-lg bg-muted/20 ring-1 ring-border/30 overflow-hidden">
+      {/* Header */}
+      <button
         onClick={() => agent.installed && setExpanded(!expanded)}
-        className={`group flex items-center justify-between ${agent.installed ? "cursor-pointer" : ""}`}
+        className={`w-full flex items-center gap-3 px-3.5 py-2.5 text-left transition-colors ${
+          agent.installed ? "cursor-pointer hover:bg-accent/30" : ""
+        }`}
       >
-        <div className="flex items-center gap-3">
-          <div
-            className="flex items-center justify-center size-8 rounded-md shrink-0 transition-colors duration-150"
-            style={{ backgroundColor: `${accentHex}18` }}
-          >
-            <AgentIcon agent={agent.name} size={18} className="shrink-0" />
-          </div>
-          <div className="flex flex-col min-w-0">
-            <div className="flex items-center gap-2">
-              <span className="text-[13px] font-medium text-foreground">
-                {agent.display_name}
-              </span>
-              <div
-                className={`size-1.5 rounded-full shrink-0 ${agent.installed ? "bg-success" : "bg-destructive"}`}
-              />
-            </div>
-            <span className="text-[11px] text-muted-foreground font-mono truncate">
-              {agent.command}
-            </span>
-          </div>
+        {/* Agent icon with accent tint */}
+        <div
+          className="flex items-center justify-center size-8 rounded-md shrink-0"
+          style={{ backgroundColor: `${accentHex}15` }}
+        >
+          <AgentIcon agent={agent.name} size={17} className="shrink-0" />
         </div>
-        <div className="flex items-center gap-2.5">
-          <Badge
-            variant={agent.installed ? "secondary" : "destructive"}
-            className={`text-[11px] font-medium ${agent.installed ? "bg-emerald-500/10 text-success" : ""}`}
-          >
+
+        {/* Name + command */}
+        <div className="flex flex-col flex-1 min-w-0">
+          <span className="text-[13px] font-medium text-foreground">
+            {agent.display_name}
+          </span>
+          <span className="text-[11px] text-muted-foreground font-mono truncate">
+            {agent.command}
+          </span>
+        </div>
+
+        {/* Status + actions */}
+        <div className="flex items-center gap-2 shrink-0">
+          <span
+            className={`size-1.5 rounded-full shrink-0 ${agent.installed ? "bg-success" : "bg-destructive"}`}
+          />
+          <span className={`text-[11px] ${agent.installed ? "text-success" : "text-destructive"}`}>
             {agent.installed ? "Detected" : "Not found"}
-          </Badge>
-          {agent.installed && (
-            <ChevronDown
-              size={14}
-              className="text-muted-foreground transition-transform duration-150 shrink-0"
-              style={{
-                transform: expanded ? "rotate(180deg)" : "rotate(0deg)",
-              }}
-            />
-          )}
+          </span>
+
           {!agent.installed && agent.cli_install_url && (
             <a
               href={agent.cli_install_url}
               target="_blank"
               rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
               className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
             >
               <Download size={10} />
               Install
             </a>
           )}
+
+          {agent.installed && (
+            <ChevronDown
+              size={14}
+              className={`text-muted-foreground transition-transform duration-150 shrink-0 ${expanded ? "rotate-180" : ""}`}
+            />
+          )}
         </div>
-      </CardContent>
+      </button>
 
       {/* CLI install hint — shown when agent is NOT installed */}
       {!agent.installed && agent.cli_install_hint && (
-        <div className="border-t border-border/50 px-6 py-3">
-          <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
+        <div className="border-t border-border/30 px-3.5 py-2.5">
+          <div className="flex items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1.5">
             <Terminal size={12} className="shrink-0 text-muted-foreground" />
             <code className="flex-1 select-all text-[11px] text-dim-foreground font-mono">
               {agent.cli_install_hint}
@@ -247,49 +237,40 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
         </div>
       )}
 
-      {/* Card body — only shown when expanded */}
+      {/* Expanded body */}
       {expanded && agent.installed && (
-        <div className="border-t border-border px-6 py-4 flex flex-col gap-5">
-          {/* Permissions section */}
+        <div className="border-t border-border/30 px-3.5 py-3 flex flex-col gap-4">
+          {/* Permissions toggle */}
           {permInfo && (
-            <section>
-              <div className="flex items-baseline gap-2 mb-2.5">
-                <span className={`${sectionHeadingClass} mb-0`}>
+            <div>
+              <div className="flex items-center gap-2 mb-1">
+                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
                   Permissions
                 </span>
                 <Badge
                   variant="destructive"
-                  className="text-[10px] uppercase tracking-wide"
+                  className="text-[9px] uppercase tracking-wide px-1.5 py-0"
                 >
                   Security
                 </Badge>
               </div>
-              <label className="flex items-start gap-2.5 p-2.5 rounded-[var(--radius-element)] bg-background border border-border cursor-pointer">
-                <Checkbox
-                  checked={skipPerms}
-                  onCheckedChange={(checked) =>
-                    handleSkipPermsChange(checked === true)
-                  }
-                  className="mt-0.5"
-                />
-                <div>
-                  <div className="text-[13px] font-medium text-foreground">
-                    {permInfo.label}
-                  </div>
-                  <div className="text-[11px] text-muted-foreground mt-1 leading-[1.4]">
-                    {permInfo.description}
-                  </div>
-                </div>
-              </label>
-            </section>
+              <ToggleRow
+                label={permInfo.label}
+                description={permInfo.description}
+                checked={skipPerms}
+                onChange={handleSkipPermsChange}
+              />
+            </div>
           )}
 
-          {/* Custom flags section */}
-          <section>
-            <div className={`${sectionHeadingClass} mb-2.5`}>Custom Flags</div>
+          {/* Custom flags */}
+          <div>
+            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground block mb-1.5">
+              Custom Flags
+            </span>
             <InputGroup>
               <InputGroupAddon align="inline-start">
-                <Flag className="size-4" />
+                <Flag className="size-3.5" />
               </InputGroupAddon>
               <InputGroupInput
                 type="text"
@@ -298,48 +279,32 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
                 placeholder={"e.g., --verbose --model opus"}
               />
             </InputGroup>
-            <div className="text-[11px] text-muted-foreground mt-1.5">
-              Additional flags to pass to the {agent.display_name} CLI. Separate
-              multiple flags with spaces.
+            <div className="text-[10px] text-muted-foreground mt-1">
+              Additional flags appended to every {agent.display_name} session.
             </div>
-          </section>
+          </div>
 
-          {/* Command preview section */}
-          <section>
-            <div className={`${sectionHeadingClass} mb-2.5`}>
-              Command Preview
-            </div>
-            <InputGroup className="cursor-default">
-              <InputGroupAddon align="inline-start">
-                <TerminalSquare className="size-4" />
-              </InputGroupAddon>
-              <InputGroupInput
-                readOnly
-                value={commandPreview}
-                className="font-mono cursor-default"
-              />
-            </InputGroup>
-            <div className="text-[11px] text-muted-foreground mt-1.5">
-              This is the base command used when launching a new session. The
-              session prompt and project-specific overrides will be appended
-              automatically.
-            </div>
-          </section>
-
-          {/* Reset button */}
-          <div className="flex justify-end">
+          {/* Command preview + reset */}
+          <div className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-2">
+            <TerminalSquare size={13} className="shrink-0 text-muted-foreground" />
+            <code className="flex-1 text-[11px] font-mono text-dim-foreground truncate select-all">
+              {commandPreview}
+            </code>
             <Button
               variant="ghost"
-              size="sm"
+              size="icon-xs"
+              hoverEffect="none"
+              clickEffect="none"
               onClick={handleReset}
-              leftIcon={<RotateCcw className="size-3.5" />}
+              title={`Reset ${agent.display_name} config`}
+              className="shrink-0 text-muted-foreground hover:text-foreground"
             >
-              Reset {agent.display_name}
+              <RotateCcw size={12} />
             </Button>
           </div>
         </div>
       )}
-    </Card>
+    </div>
   );
 }
 
@@ -355,7 +320,6 @@ export function AgentsTab({ agents }: { agents: AgentInfo[] }) {
         if (v) {
           setDefaultAgent(v);
         } else if (firstInstalled) {
-          // No persisted setting — auto-select first detected CLI and persist it
           setDefaultAgent(firstInstalled);
           invoke("set_setting", {
             key: "default_agent",
@@ -408,7 +372,7 @@ export function AgentsTab({ agents }: { agents: AgentInfo[] }) {
       {/* Agent cards */}
       <section>
         <div className={sectionHeadingClass}>Agent Configuration</div>
-        <div className="flex flex-col gap-3 p-1">
+        <div className="flex flex-col gap-2">
           {agents.map((agent) => (
             <AgentCard key={agent.name} agent={agent} />
           ))}

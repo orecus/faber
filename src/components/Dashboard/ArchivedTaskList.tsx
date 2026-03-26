@@ -98,7 +98,7 @@ export default function ArchivedTaskList({
               </span>
 
               {/* Actions — visible on hover */}
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              <div className="flex items-center gap-0.5 opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                 <Button
                   variant="ghost"
                   size="icon-xs"

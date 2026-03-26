@@ -1,4 +1,4 @@
-import { AlertTriangle, Loader2 } from "lucide-react";
+import { AlertTriangle, CheckCircle2, Loader2 } from "lucide-react";
 import { memo, useMemo } from "react";
 
 import { TooltipProvider } from "@/components/ui/tooltip";
@@ -13,6 +13,7 @@ import GitHubView from "../GitHub/GitHubView";
 import HelpView from "../Help/HelpView";
 import ReviewView from "../Review/ReviewView";
 import SessionsView from "../Sessions/SessionsView";
+import SettingsView from "../Settings/SettingsView";
 import SkillsRulesView from "../SkillsRules/SkillsRulesView";
 import TaskDetailView from "../TaskDetail/TaskDetailView";
 import UpdateNotification from "../Update/UpdateNotification";
@@ -20,6 +21,7 @@ import ApplicationBar from "./ApplicationBar";
 import ErrorBoundary from "./ErrorBoundary";
 import RightSidebar from "./RightSidebar";
 import Sidebar from "./Sidebar";
+import StatusBar from "./StatusBar";
 import WelcomeScreen from "./WelcomeScreen";
 
 import type { ReactNode } from "react";
@@ -51,6 +53,8 @@ const ViewRouter = memo(function ViewRouter({
     otherView = <SkillsRulesView />;
   } else if (activeView === "help") {
     otherView = <HelpView />;
+  } else if (activeView === "settings") {
+    otherView = <SettingsView />;
   }
 
   return (
@@ -70,23 +74,32 @@ const ViewRouter = memo(function ViewRouter({
 function FloatingStatusToast() {
   const backgroundTasks = useAppStore((s) => s.backgroundTasks);
   const errorFlash = useAppStore((s) => s.errorFlash);
+  const successFlash = useAppStore((s) => s.successFlash);
   const isBusy = backgroundTasks.length > 0;
   const currentTask = backgroundTasks[backgroundTasks.length - 1];
-  const isVisible = isBusy || errorFlash;
+  const isVisible = isBusy || errorFlash || successFlash;
+
+  const variant = errorFlash
+    ? "error"
+    : successFlash
+      ? "success"
+      : "default";
 
   return (
     <div
       className={`fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2 px-4 py-2 rounded-full backdrop-blur-md ring-1 shadow-lg transition-all duration-300 ease-out ${
-        errorFlash
+        variant === "error"
           ? "bg-destructive/90 ring-destructive/50"
-          : "bg-card/90 ring-border/50"
+          : variant === "success"
+            ? "bg-success/90 ring-success/50"
+            : "bg-card/90 ring-border/50"
       } ${
         isVisible
           ? "translate-y-0 opacity-100"
           : "translate-y-4 opacity-0 pointer-events-none"
       }`}
     >
-      {errorFlash ? (
+      {variant === "error" ? (
         <>
           <AlertTriangle
             size={14}
@@ -94,6 +107,13 @@ function FloatingStatusToast() {
           />
           <span className="text-xs text-destructive-foreground whitespace-nowrap">
             {errorFlash}
+          </span>
+        </>
+      ) : variant === "success" ? (
+        <>
+          <CheckCircle2 size={14} className="text-foreground shrink-0" />
+          <span className="text-xs text-foreground whitespace-nowrap">
+            {successFlash}
           </span>
         </>
       ) : (
@@ -132,11 +152,11 @@ export default function AppShell() {
   const gridStyle = useMemo(
     () => ({
       display: "grid" as const,
-      gridTemplateRows: "auto 1fr",
+      gridTemplateRows: "auto 1fr auto",
       gridTemplateColumns: `${leftCol} 1fr ${rightCol}`,
       gridTemplateAreas: rightSidebarOpen
-        ? `"sidebar topbar rightsidebar" "sidebar content rightsidebar"`
-        : `"sidebar topbar ." "sidebar content ."`,
+        ? `"sidebar topbar rightsidebar" "sidebar content rightsidebar" "statusbar statusbar statusbar"`
+        : `"sidebar topbar ." "sidebar content ." "statusbar statusbar statusbar"`,
       height: "100vh",
       overflow: "hidden" as const,
     }),
@@ -161,6 +181,7 @@ export default function AppShell() {
             <ViewRouter activeView={activeView} />
           </ErrorBoundary>
           {rightSidebarOpen && <RightSidebar />}
+          <StatusBar />
         </TooltipProvider>
       </div>
 

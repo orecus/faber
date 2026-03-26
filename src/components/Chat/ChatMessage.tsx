@@ -60,7 +60,7 @@ export default React.memo(function ChatMessage({
         <div className="flex items-center gap-1 ml-auto">
           {/* Edit & resend — inline beside the bubble */}
           {onEditResend && (
-            <div className="opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+            <div className="opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
               <MessageAction
                 tooltip="Edit & resend"
                 onClick={handleEditResend}
@@ -130,7 +130,7 @@ export default React.memo(function ChatMessage({
 
       {/* Actions — hover-visible */}
       {message.text.length > 0 && (
-        <MessageActions className="opacity-0 group-hover:opacity-100 transition-opacity ml-auto">
+        <MessageActions className="opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity ml-auto">
           <MessageAction
             tooltip="Copy message"
             onClick={handleCopy}

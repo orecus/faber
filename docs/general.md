@@ -70,7 +70,7 @@ Faber runs a local MCP (Model Context Protocol) server that agents use to report
 
 ## Views
 
-Navigate between views using the top bar tabs or the command palette.
+Navigate between views using the top bar tabs, the command palette, or keyboard shortcuts.
 
 ### Dashboard (Tasks)
 
@@ -120,10 +120,11 @@ The Tree view is especially useful when you have many tasks with dependency rela
 
 A multi-pane terminal grid showing all active agent sessions. Features:
 
-- Resize the grid layout (1×1, 2×1, 2×2, 3×2, etc.)
+- Resize the grid layout (1×1, 2×1, 2×2, 3×2, etc.) — resize handles show dot indicators on hover
 - Maximize a single pane to full size
 - Drag-and-drop panes to reorder
 - Each pane shows the agent name and MCP status overlay
+- Rename sessions inline — a brief "Saved" confirmation appears after renaming
 - **Quick Action Bar** — hover over an active agent session to reveal floating action buttons (Commit, Fix Errors, Summarize, etc.) that send one-click prompts to the agent. Configure actions in Settings > Prompts.
 - Terminal output is buffered so you can switch views and come back without losing output
 
@@ -158,6 +159,7 @@ Press **Ctrl+K** (or **Cmd+K** on macOS) to open the command palette. It provide
 - **Go to Sessions** — Switch to the session grid
 - **Go to GitHub** — Switch to the GitHub view
 - **Go to Review** — Switch to the review/diff view
+- **Go to Settings** — Open the settings page (also available via **Ctrl+,**)
 
 ### Projects
 
@@ -179,18 +181,33 @@ All active sessions are listed. Select one to focus its pane in the session grid
 
 The palette shows your **recent commands** when the search field is empty. Use the arrow keys to navigate and Enter to select.
 
+## Status Bar
+
+A thin bar at the bottom of the app window provides at-a-glance system information:
+
+- **MCP Status** — Shows the MCP server port. Click to copy the sidecar binary path.
+- **GitHub Auth** — Shows authentication status. Warning icons appear for missing auth or insufficient token scopes.
+- **Agent Usage** — Displays the top utilization percentage across all agents.
+- **Keyboard Shortcuts** — Context-sensitive hints for the current view (e.g., Ctrl+K for command palette, Ctrl+, for settings).
+- **App Version** — Current Faber version number.
+
 ## Settings
 
-Open settings from the gear icon in the sidebar. Settings are organized into tabs:
+Open settings with **Ctrl+,** (or **Cmd+,** on macOS), the gear icon in the sidebar, the status bar settings button, or from the command palette. Settings open as a dedicated full-screen view with a navigation sidebar on the left and content area on the right. Press **Escape** to close and return to your previous view.
 
-### General
+Settings are organized into **App** (global) and **Project** (per-project) sections:
+
+### App Settings
+
+#### General
 
 - **Color Mode** — Switch between Dark and Light themes
 - **Glass Effect** — Toggle the translucent glass UI style (not available on macOS)
 - **Show Project Icons** — Show or hide project icons in the sidebar
+- **Notifications** — Master toggle plus per-event toggles (Session Complete, Session Error, Input Needed). Clicking a notification takes you directly to the relevant session.
 - **Updates** — Check for app updates, enable auto-checking, and set the check frequency (hourly to daily). An advanced option lets you point to a custom update endpoint.
 
-### Terminal
+#### Terminal
 
 - **Default Shell** — Choose which shell to use for sessions (system default or a specific installed shell)
 - **Font Family** — Pick a terminal font from embedded fonts (JetBrains Mono), installed Nerd Fonts, or system fonts
@@ -199,16 +216,7 @@ Open settings from the gear icon in the sidebar. Settings are organized into tab
 - **Line Height** — Adjust line spacing (1.0–2.0)
 - **Reset to Defaults** — Restore all terminal settings to their defaults
 
-### Notifications
-
-- **Enable Notifications** — Master toggle for all OS notifications
-- **Session Complete** — Notify when an agent finishes its work
-- **Session Error** — Notify when an agent encounters an error
-- **Input Needed** — Notify when an agent is waiting for your input
-
-Clicking a notification takes you directly to the relevant session.
-
-### Agents
+#### Agents
 
 - **Default Agent** — Choose which AI agent to use by default (Claude Code, Codex CLI, Gemini CLI, OpenCode, or Cursor)
 - **Per-agent settings** (for installed agents):
@@ -216,7 +224,7 @@ Clicking a notification takes you directly to the relevant session.
   - **Custom Flags** — Add extra CLI flags to the agent command
   - **Command Preview** — See the exact command that will be executed
 
-### Prompts
+#### Prompts
 
 Manage prompt templates and quick actions:
 
@@ -224,15 +232,27 @@ Manage prompt templates and quick actions:
 - **Quick Actions** — Action buttons that appear on active session panes when you hover over them. Click a quick action to send the prompt directly to the agent. Built-in actions include "Commit", "Fix Errors", and "Summarize". You can add, edit, and delete custom actions with configurable labels, icons, and prompts.
 - **Reset to Defaults** — Restore all templates and actions to their built-in defaults.
 
-### Projects
+### Project Settings
 
-Per-project configuration:
+#### Project
 
 - **Project Icon** — Set an SVG icon for the project
 - **Tab Color** — Choose a color for the project's sidebar tab
 - **Default Agent / Model** — Override the global default for this project
-- **Branch Naming Pattern** — Customize the worktree branch format using `{{task_id}}` and `{{task_slug}}` variables
-- **Instruction File** — Point to a custom instruction file (relative to project root) for agent system prompts
+- **Default Transport** — Choose PTY (terminal) or ACP (chat) as the default session transport
 - **Priorities** — Define custom priority levels for the project. Each priority has an ID (stored in task files), a display label, a color (from the ThemeColor palette), and a sort order. Add, remove, and reorder priorities as needed. Defaults to P0/P1/P2 for new projects.
 - **GitHub Sync** — Configure automatic syncing between task statuses and GitHub issues/PRs (see the [GitHub Workflow](github_workflow) guide for details)
 - **Delete Project** — Remove the project from Faber (does not delete files on disk)
+
+#### Git & Worktrees
+
+- **Branch Naming Pattern** — Customize the worktree branch format using `{{task_id}}` and `{{task_slug}}` variables
+- **Instruction File** — Point to a custom instruction file (relative to project root) for agent system prompts
+
+#### ACP Permissions
+
+See the [ACP Permissions](acp_permissions) guide for details on configuring permission rules, trust mode, and timeout policies.
+
+#### GitHub
+
+GitHub CLI authentication status and configuration. See the [GitHub Workflow](github_workflow) guide for details.

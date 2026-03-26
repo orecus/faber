@@ -25,56 +25,9 @@ import {
   SelectValue,
 } from "../ui/select";
 import { Separator } from "../ui/separator";
-import { sectionHeadingClass } from "./shared";
+import { sectionHeadingClass, ToggleRow } from "./shared";
 
 import type { GhAuthStatus, GitHubLabelFull, GitHubLabelMapping, TaskStatus } from "../../types";
-
-// ── Toggle Row ──
-
-function ToggleRow({
-  label,
-  description,
-  checked,
-  onChange,
-  disabled,
-}: {
-  label: string;
-  description?: string;
-  checked: boolean;
-  onChange: (checked: boolean) => void;
-  disabled?: boolean;
-}) {
-  return (
-    <label
-      className={`flex items-center justify-between gap-3 py-1.5 ${disabled ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
-    >
-      <div className="flex flex-col min-w-0">
-        <span className="text-[13px] text-foreground">{label}</span>
-        {description && (
-          <span className="text-[11px] text-muted-foreground mt-0.5">
-            {description}
-          </span>
-        )}
-      </div>
-      <button
-        type="button"
-        role="switch"
-        aria-checked={checked}
-        disabled={disabled}
-        onClick={() => onChange(!checked)}
-        className={`relative inline-flex h-5 w-9 shrink-0 rounded-full border-2 border-transparent transition-colors duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary ${
-          checked ? "bg-primary" : "bg-muted"
-        }`}
-      >
-        <span
-          className={`pointer-events-none inline-block size-4 rounded-full bg-background shadow-sm transition-transform duration-200 ${
-            checked ? "translate-x-4" : "translate-x-0"
-          }`}
-        />
-      </button>
-    </label>
-  );
-}
 
 // ── Auth Status Card ──
 

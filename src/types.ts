@@ -14,7 +14,7 @@ export interface PriorityLevel {
 export type SessionMode = "task" | "vibe" | "shell" | "research" | "chat" | "breakdown";
 export type SessionTransport = "pty" | "acp";
 export type SessionStatus = "starting" | "running" | "paused" | "stopped" | "finished" | "error";
-export type ViewId = "dashboard" | "sessions" | "chat" | "task-detail" | "review" | "github" | "skills-rules" | "help";
+export type ViewId = "dashboard" | "sessions" | "chat" | "task-detail" | "review" | "github" | "skills-rules" | "help" | "settings";
 
 export interface Project {
   id: string;

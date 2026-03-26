@@ -274,7 +274,7 @@ function TreeRow({
         </div>
 
         {/* Action buttons */}
-        <div className="w-14 shrink-0 flex items-center justify-end gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+        <div className="w-14 shrink-0 flex items-center justify-end gap-0.5 opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity">
           {!isActive && (task.status === "backlog" || task.status === "ready") && onResearchSession && (
             <Button
               variant="ghost"

@@ -107,7 +107,7 @@ const UsagePanel = React.memo(function UsagePanel() {
               e.stopPropagation();
               handleRefresh();
             }}
-            className="shrink-0 opacity-0 group-hover/usage:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
+            className="shrink-0 opacity-30 group-hover/usage:opacity-100 group-focus-within/usage:opacity-100 transition-opacity text-muted-foreground hover:text-foreground cursor-pointer"
           />
         )}
       </div>

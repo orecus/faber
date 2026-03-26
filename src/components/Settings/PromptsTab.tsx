@@ -72,7 +72,7 @@ function IconPicker({
             className={`flex items-center justify-center size-8 rounded-[var(--radius-element)] border transition-colors cursor-pointer ${
               isSelected
                 ? "border-primary bg-primary/10 text-primary"
-                : "border-border bg-background text-muted-foreground hover:text-foreground hover:border-foreground/30"
+                : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-foreground/30"
             }`}
           >
             <Icon size={15} />
@@ -121,7 +121,7 @@ function SessionPromptRow({ template, onSave }: { template: PromptTemplate; onSa
   }, []);
 
   return (
-    <div className="rounded-[var(--radius-element)] border border-border bg-background overflow-hidden">
+    <div className="rounded-lg bg-muted/20 ring-1 ring-border/30 overflow-hidden">
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-accent/40 transition-colors"
@@ -222,7 +222,7 @@ function QuickActionRow({
   }, [template, editedLabel, editedPrompt, editedIcon, editedQuickAction, onSave]);
 
   return (
-    <div className="rounded-[var(--radius-element)] border border-border bg-background overflow-hidden">
+    <div className="rounded-lg bg-muted/20 ring-1 ring-border/30 overflow-hidden">
       <div className="flex items-center gap-3 px-3 py-2.5">
         <button
           onClick={() => setExpanded(!expanded)}
@@ -285,7 +285,7 @@ function QuickActionRow({
             <input
               value={editedLabel}
               onChange={(e) => { setEditedLabel(e.target.value); setDirty(true); }}
-              className="w-full px-2.5 py-1.5 text-[13px] bg-background border border-border rounded-[var(--radius-element)] text-foreground outline-none"
+              className="w-full px-2.5 py-1.5 text-[13px] bg-transparent border border-border rounded-md text-foreground outline-none transition-[color,box-shadow] focus:ring-2 focus:ring-ring/50 focus:border-ring"
             />
           </div>
 
@@ -366,7 +366,7 @@ function AddActionForm({ onAdd }: { onAdd: (t: Omit<PromptTemplate, "sort_order"
   }
 
   return (
-    <div className="rounded-[var(--radius-element)] border border-border bg-background p-3 flex flex-col gap-3">
+    <div className="rounded-lg bg-muted/20 ring-1 ring-border/30 p-3 flex flex-col gap-3">
       {/* Label */}
       <div>
         <label className="text-[11px] text-muted-foreground mb-1 block">Label</label>
@@ -374,7 +374,7 @@ function AddActionForm({ onAdd }: { onAdd: (t: Omit<PromptTemplate, "sort_order"
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="e.g., Run Tests"
-          className="w-full px-2.5 py-1.5 text-[13px] bg-background border border-border rounded-[var(--radius-element)] text-foreground outline-none"
+          className="w-full px-2.5 py-1.5 text-[13px] bg-transparent border border-border rounded-md text-foreground outline-none transition-[color,box-shadow] focus:ring-2 focus:ring-ring/50 focus:border-ring"
         />
       </div>
 
