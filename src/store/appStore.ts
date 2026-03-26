@@ -1332,6 +1332,17 @@ export const useAppStore = create<AppState>()(
       }, 300_000);
       cleanups.push(() => clearInterval(usageInterval));
 
+      // Poll branch names every 15s so external git operations are reflected
+      const branchInterval = setInterval(() => {
+        get().refreshProjectBranches();
+      }, 15_000);
+      cleanups.push(() => clearInterval(branchInterval));
+
+      // Refresh branches immediately when window regains focus
+      const handleFocus = () => get().refreshProjectBranches();
+      window.addEventListener("focus", handleFocus);
+      cleanups.push(() => window.removeEventListener("focus", handleFocus));
+
       // Check GitHub CLI auth status (tracked as background task)
       addBackgroundTask("Checking GitHub auth");
       invoke<GhAuthStatus>("check_gh_auth")
@@ -1528,6 +1539,8 @@ export const useAppStore = create<AppState>()(
             if (pid) {
               refreshProject(pid);
             }
+            // Refresh branch names — session start/stop may involve branch operations
+            get().refreshProjectBranches();
             // For ACP sessions with an initial prompt (task/research), set
             // promptPending so the chat UI shows a thinking indicator immediately.
             // Chat and vibe sessions start without a prompt — they wait for user input.
