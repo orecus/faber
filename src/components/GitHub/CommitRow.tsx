@@ -52,16 +52,27 @@ function CommitRowInner({
       {/* Graph dot area */}
       <div className="shrink-0 relative" style={{ width: graphWidth }}>
         <svg width={graphWidth} height={ROW_HEIGHT} className="block">
-          {/* Merge inner circle */}
+          {/* Merge inner circle — thicker stroke + slight fill for dark theme contrast */}
           {isMerge && (
-            <circle
-              cx={cx}
-              cy={cy}
-              r={dotRadius}
-              fill="var(--background)"
-              stroke={railColor}
-              strokeWidth={2.5}
-            />
+            <>
+              <circle
+                cx={cx}
+                cy={cy}
+                r={dotRadius + 1}
+                fill="none"
+                stroke={railColor}
+                strokeWidth={2}
+                opacity={0.3}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={dotRadius}
+                fill="var(--background)"
+                stroke={railColor}
+                strokeWidth={3}
+              />
+            </>
           )}
           {/* Main dot */}
           {!isMerge && (
@@ -76,7 +87,7 @@ function CommitRowInner({
               fill="none"
               stroke="var(--foreground)"
               strokeWidth={1.5}
-              opacity={0.8}
+              opacity={0.9}
             />
           )}
         </svg>
@@ -113,7 +124,7 @@ function CommitRowInner({
         {isMerge && (
           <GitMerge
             size={11}
-            className="text-muted-foreground shrink-0"
+            className="text-dim-foreground shrink-0"
           />
         )}
         <span className="text-xs font-mono text-muted-foreground w-[52px] text-right">

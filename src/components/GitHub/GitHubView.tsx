@@ -9,6 +9,7 @@ import {
   Github,
   Loader2,
   RefreshCw,
+  RotateCw,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -32,6 +33,8 @@ import { useGitHubData } from "./useGitHubData";
 
 type GitHubTab = "changes" | "commits" | "pull-requests" | "issues";
 
+const DEFAULT_DETAIL_WIDTH = 350;
+
 export default function GitHubView() {
   const { isGlass } = useTheme();
   const accentColor = useProjectAccentColor();
@@ -40,6 +43,7 @@ export default function GitHubView() {
   const setProjectInfo = useAppStore((s) => s.setProjectInfo);
   const setActiveView = useAppStore((s) => s.setActiveView);
   const [activeTab, setActiveTab] = useState<GitHubTab>("changes");
+  const [commitDetailWidth, setCommitDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
 
   const handleOpenSettings = useCallback(() => setActiveView("settings"), [setActiveView]);
 
@@ -179,7 +183,7 @@ export default function GitHubView() {
       >
         <Github className="mb-3 size-10 opacity-30" />
         <p className="text-sm">Select a project to view git history</p>
-        <p className="mt-1 text-xs opacity-60">
+        <p className="mt-1 text-xs text-muted-foreground">
           Open a project tab to get started
         </p>
       </div>
@@ -217,7 +221,7 @@ export default function GitHubView() {
           <Tabs.Tab value="issues" icon={<CircleDot size={13} />}>
             <span className="flex items-center gap-1">
               Issues
-              <Github size={10} className="opacity-40" />
+              <Github size={10} className="opacity-30" />
             </span>
           </Tabs.Tab>
           <Tabs.Tab
@@ -226,7 +230,7 @@ export default function GitHubView() {
           >
             <span className="flex items-center gap-1">
               Pull Requests
-              <Github size={10} className="opacity-40" />
+              <Github size={10} className="opacity-30" />
             </span>
           </Tabs.Tab>
         </Tabs>
@@ -328,8 +332,15 @@ export default function GitHubView() {
 
             {/* Error banner */}
             {error && (
-              <div className="px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
-                {error}
+              <div className="flex items-center gap-2 px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
+                <span className="flex-1">{error}</span>
+                <button
+                  onClick={refresh}
+                  className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-destructive/15 transition-colors"
+                >
+                  <RotateCw size={10} />
+                  Retry
+                </button>
               </div>
             )}
 
@@ -353,6 +364,8 @@ export default function GitHubView() {
                   detail={selectedDetail}
                   node={selectedNode}
                   loading={!selectedDetail}
+                  panelWidth={commitDetailWidth}
+                  onResize={setCommitDetailWidth}
                   onClose={() => selectCommit(null)}
                 />
               )}

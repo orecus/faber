@@ -14,11 +14,14 @@ import type { CommitDetail } from "../../types";
 import { RAIL_COLORS } from "../../lib/graphLayout";
 import type { GraphNode } from "../../lib/graphLayout";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import DetailPanelResizeHandle from "./DetailPanelResizeHandle";
 
 interface CommitDetailPanelProps {
   detail: CommitDetail | null;
   node: GraphNode | null;
   loading: boolean;
+  panelWidth: number;
+  onResize: (width: number) => void;
   onClose: () => void;
 }
 
@@ -81,6 +84,8 @@ export default function CommitDetailPanel({
   detail,
   node,
   loading,
+  panelWidth,
+  onResize,
   onClose,
 }: CommitDetailPanelProps) {
   const { isGlass } = useTheme();
@@ -97,7 +102,11 @@ export default function CommitDetailPanel({
   const railColor = node?.railColor ?? RAIL_COLORS[0];
 
   return (
-    <div className={`w-[350px] shrink-0 flex flex-col border-l border-border overflow-hidden ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+    <div
+      className={`relative shrink-0 flex flex-col border-l border-border overflow-hidden ${glassStyles[isGlass ? "normal" : "solid"]}`}
+      style={{ width: panelWidth }}
+    >
+      <DetailPanelResizeHandle onResize={onResize} />
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <span className="text-xs font-medium text-foreground">

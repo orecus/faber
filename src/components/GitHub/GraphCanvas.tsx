@@ -43,7 +43,9 @@ function GraphCanvasInner({
           ? node.railColor
           : RAIL_COLORS[conn.parentColumn % RAIL_COLORS.length];
 
-      if (conn.connectionType === "straight") {
+      const isMerge = conn.connectionType !== "straight";
+
+      if (!isMerge) {
         paths.push(
           <line
             key={`${node.commit.hash}-${conn.parentHash}-s`}
@@ -70,7 +72,7 @@ function GraphCanvasInner({
             d={d}
             fill="none"
             stroke={color}
-            strokeWidth={2}
+            strokeWidth={2.5}
             strokeOpacity={conn.isOffScreen ? 0.5 : 1}
             strokeDasharray={conn.isOffScreen ? "4 2" : undefined}
           />,

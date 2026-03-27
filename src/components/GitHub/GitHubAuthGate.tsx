@@ -66,7 +66,7 @@ export default function GitHubAuthGate({
   if (authBroken) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center text-muted-foreground">
-        <AlertTriangle className="mb-3 size-10 opacity-40 text-warning" />
+        <AlertTriangle className="mb-3 size-10 opacity-30 text-warning" />
         <p className="text-sm font-medium text-foreground">
           GitHub authentication issue
         </p>

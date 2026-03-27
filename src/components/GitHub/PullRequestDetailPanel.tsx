@@ -16,12 +16,15 @@ import { useTheme } from "../../contexts/ThemeContext";
 import type { GitHubPRDetail } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import DetailPanelResizeHandle from "./DetailPanelResizeHandle";
 
 interface PullRequestDetailPanelProps {
   detail: GitHubPRDetail | null;
   loading: boolean;
   merging: boolean;
   closing: boolean;
+  panelWidth: number;
+  onResize: (width: number) => void;
   onClose: () => void;
   onMerge: (number: number, method: string) => Promise<void>;
   onClosePR: (number: number) => Promise<void>;
@@ -94,6 +97,8 @@ export default function PullRequestDetailPanel({
   loading,
   merging,
   closing,
+  panelWidth,
+  onResize,
   onClose,
   onMerge,
   onClosePR,
@@ -135,8 +140,10 @@ export default function PullRequestDetailPanel({
 
   return (
     <div
-      className={`w-[350px] shrink-0 flex flex-col border-l border-border overflow-hidden ${glassStyles[isGlass ? "normal" : "solid"]}`}
+      className={`relative shrink-0 flex flex-col border-l border-border overflow-hidden ${glassStyles[isGlass ? "normal" : "solid"]}`}
+      style={{ width: panelWidth }}
     >
+      <DetailPanelResizeHandle onResize={onResize} />
       {/* Header */}
       <div className="flex items-center justify-between px-3 py-2 border-b border-border">
         <span className="text-xs font-medium text-foreground">
