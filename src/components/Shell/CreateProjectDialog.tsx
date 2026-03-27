@@ -171,7 +171,7 @@ export default function CreateProjectDialog({
             className={nameError ? "border-destructive" : ""}
           />
           {nameError && (
-            <p className="mt-1 text-[11px] text-destructive">{nameError}</p>
+            <p className="mt-1 text-xs text-destructive">{nameError}</p>
           )}
         </div>
 
@@ -204,14 +204,14 @@ export default function CreateProjectDialog({
         {/* Path preview */}
         {pathPreview && (
           <div className={`rounded-md px-3 py-2 ${pathWarning ? "bg-destructive/10" : "bg-muted/50"}`}>
-            <p className="text-[10px] text-muted-foreground mb-0.5">
+            <p className="text-2xs text-muted-foreground mb-0.5">
               Will be created at
             </p>
             <p className="text-xs text-dim-foreground font-mono truncate">
               {pathPreview}
             </p>
             {pathWarning && (
-              <p className="mt-1 text-[11px] text-destructive">{pathWarning}</p>
+              <p className="mt-1 text-xs text-destructive">{pathWarning}</p>
             )}
           </div>
         )}

@@ -65,8 +65,8 @@ const VIEW_KEY_COMMANDS: Record<ViewId, KeyCommand[]> = {
 
 function Kbd({ keys, label }: KeyCommand) {
   return (
-    <span className="inline-flex items-center gap-1 text-[10px] text-muted-foreground select-none">
-      <kbd className="px-1 py-px rounded bg-accent/60 font-mono text-[10px] text-dim-foreground">
+    <span className="inline-flex items-center gap-1 text-2xs text-muted-foreground select-none">
+      <kbd className="px-1 py-px rounded bg-accent/60 font-mono text-2xs text-dim-foreground">
         {keys}
       </kbd>
       <span>{label}</span>
@@ -84,7 +84,7 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
   if (agent.needs_auth) {
     return (
       <div className="px-1 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-dim-foreground mb-1">
+        <div className="flex items-center gap-1.5 text-xs text-dim-foreground mb-1">
           <AgentIcon
             agent={agent.agent_name}
             size={13}
@@ -92,9 +92,9 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
           />
           <span className="truncate">{agent.display_name}</span>
         </div>
-        <div className="px-3 text-[10px] text-muted-foreground">
+        <div className="px-3 text-2xs text-muted-foreground">
           Run{" "}
-          <code className="px-1 py-px rounded bg-accent/60 text-[10px]">
+          <code className="px-1 py-px rounded bg-accent/60 text-2xs">
             claude
           </code>{" "}
           to authenticate
@@ -106,7 +106,7 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
   if (agent.error) {
     return (
       <div className="px-1 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-dim-foreground mb-1">
+        <div className="flex items-center gap-1.5 text-xs text-dim-foreground mb-1">
           <AgentIcon
             agent={agent.agent_name}
             size={13}
@@ -114,7 +114,7 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
           />
           <span className="truncate">{agent.display_name}</span>
         </div>
-        <div className="flex items-center gap-1 px-3 text-[10px] text-destructive">
+        <div className="flex items-center gap-1 px-3 text-2xs text-destructive">
           <AlertTriangle size={10} className="shrink-0" />
           <span className="truncate">{agent.error}</span>
         </div>
@@ -126,7 +126,7 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
 
   return (
     <div className="py-1">
-      <div className="flex items-center gap-1.5 px-1 text-[11px] text-dim-foreground mb-0.5">
+      <div className="flex items-center gap-1.5 px-1 text-xs text-dim-foreground mb-0.5">
         <AgentIcon
           agent={agent.agent_name}
           size={13}
@@ -183,7 +183,7 @@ const UsageIndicator = React.memo(function UsageIndicator() {
 
   return (
     <Popover>
-      <PopoverTrigger className="inline-flex items-center gap-1.5 px-2 h-full text-[11px] text-dim-foreground cursor-pointer hover:bg-accent/40 rounded-sm transition-colors">
+      <PopoverTrigger className="inline-flex items-center gap-1.5 px-2 h-full text-xs text-dim-foreground cursor-pointer hover:bg-accent/40 rounded-sm transition-colors">
         {agentUsageLoading ? (
           <Loader2 size={12} className="animate-spin text-muted-foreground" />
         ) : (
@@ -198,7 +198,7 @@ const UsageIndicator = React.memo(function UsageIndicator() {
         className="w-64 p-0"
       >
         <div className="flex items-center justify-between px-3 py-2 border-b border-border">
-          <span className="text-[11px] font-medium text-foreground">
+          <span className="text-xs font-medium text-foreground">
             Agent Usage
           </span>
           <button
@@ -253,7 +253,7 @@ const McpStatus = React.memo(function McpStatus() {
     <button
       onClick={handleCopy}
       title={mcpOnline ? "Click to copy MCP sidecar path" : "MCP offline"}
-      className="group/mcp inline-flex items-center gap-1.5 px-2 h-full text-[11px] text-dim-foreground hover:bg-accent/40 rounded-sm transition-colors"
+      className="group/mcp inline-flex items-center gap-1.5 px-2 h-full text-xs text-dim-foreground hover:bg-accent/40 rounded-sm transition-colors"
     >
       <Radio
         size={12}
@@ -302,7 +302,7 @@ const GitHubStatus = React.memo(function GitHubStatus() {
     // All good — show subtle checkmark
     return (
       <span
-        className="inline-flex items-center gap-1.5 px-2 h-full text-[11px] text-dim-foreground"
+        className="inline-flex items-center gap-1.5 px-2 h-full text-xs text-dim-foreground"
         title={`GitHub: ${ghAuthStatus.username ?? "authenticated"}`}
       >
         <Check size={12} className="text-success" />
@@ -330,7 +330,7 @@ const GitHubStatus = React.memo(function GitHubStatus() {
 
   return (
     <span
-      className={`inline-flex items-center gap-1.5 px-2 h-full text-[11px] ${colorClass}`}
+      className={`inline-flex items-center gap-1.5 px-2 h-full text-xs ${colorClass}`}
       title={tooltip}
     >
       <AlertTriangle size={12} />
@@ -398,12 +398,12 @@ export default function StatusBar() {
           title="Settings (Ctrl+,)"
         >
           <Settings size={13} />
-          <span className="text-[11px]">Settings</span>
+          <span className="text-xs">Settings</span>
         </button>
 
         {/* Version */}
         {version && (
-          <span className="text-[10px] text-muted-foreground tabular-nums">
+          <span className="text-2xs text-muted-foreground tabular-nums">
             v{version}
           </span>
         )}

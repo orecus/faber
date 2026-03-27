@@ -253,7 +253,7 @@ export function AcpPermissionsTab() {
     <div className="space-y-6">
       {/* ── How It Works ── */}
       <div className="rounded-lg bg-muted/20 ring-1 ring-border/30 px-3.5 py-2.5">
-        <p className="text-[11px] text-muted-foreground leading-relaxed">
+        <p className="text-xs text-muted-foreground leading-relaxed">
           When an ACP agent requests file or terminal access, permissions are evaluated in order:{" "}
           <span className="text-dim-foreground font-medium">Trust mode override</span> (autonomous sessions only)
           {" \u2192 "}
@@ -271,15 +271,15 @@ export function AcpPermissionsTab() {
           {rules.length > 0 && (
             <button
               onClick={resetRules}
-              className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-destructive transition-colors"
+              className="flex items-center gap-1 text-xs text-muted-foreground hover:text-destructive transition-colors"
             >
               <RotateCcw size={11} />
               Reset all
             </button>
           )}
         </div>
-        <p className="text-[11px] text-muted-foreground mb-3">
-          Rules with patterns (e.g. <code className="text-[10px] bg-muted/50 px-1 py-0.5 rounded">src/**</code>)
+        <p className="text-xs text-muted-foreground mb-3">
+          Rules with patterns (e.g. <code className="text-2xs bg-muted/50 px-1 py-0.5 rounded">src/**</code>)
           take priority over capability-wide rules. First match wins.
         </p>
 
@@ -299,13 +299,13 @@ export function AcpPermissionsTab() {
                 >
                   <div className="flex items-center gap-2 min-w-0">
                     <CapIcon size={14} className="text-muted-foreground shrink-0" />
-                    <span className="text-[13px] font-medium truncate">
+                    <span className="text-sm font-medium truncate">
                       {capCfg?.label ?? rule.capability}
                     </span>
-                    <code className="text-[11px] text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[240px]">
+                    <code className="text-xs text-muted-foreground bg-muted/50 px-1.5 py-0.5 rounded truncate max-w-[240px]">
                       {pattern || "*"}
                     </code>
-                    <Badge variant="outline" className={`text-[10px] ${actionCfg.color}`}>
+                    <Badge variant="outline" className={`text-2xs ${actionCfg.color}`}>
                       {actionCfg.label}
                     </Badge>
                   </div>
@@ -320,7 +320,7 @@ export function AcpPermissionsTab() {
             })}
           </div>
         ) : (
-          <p className="text-[11px] text-muted-foreground/60 mb-3">
+          <p className="text-xs text-muted-foreground/60 mb-3">
             No rules configured. The default policy will be used for all requests.
           </p>
         )}
@@ -328,11 +328,11 @@ export function AcpPermissionsTab() {
         {/* Add rule form */}
         <div className="grid grid-cols-[auto_1fr_auto_auto] gap-x-2 gap-y-1">
           {/* Row 1: labels */}
-          <span className="text-[11px] text-muted-foreground">Capability</span>
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">Capability</span>
+          <span className="text-xs text-muted-foreground">
             {patternConfig.label} <span className="text-muted-foreground/40">(optional)</span>
           </span>
-          <span className="text-[11px] text-muted-foreground">Action</span>
+          <span className="text-xs text-muted-foreground">Action</span>
           <span />
 
           {/* Row 2: controls */}
@@ -404,7 +404,7 @@ export function AcpPermissionsTab() {
       {/* ── Default Policy ── */}
       <section>
         <h3 className={sectionHeadingClass}>Default Policy</h3>
-        <p className="text-[11px] text-muted-foreground mb-2">
+        <p className="text-xs text-muted-foreground mb-2">
           Fallback action when no rule matches a permission request.
         </p>
         <Select
@@ -430,7 +430,7 @@ export function AcpPermissionsTab() {
       {/* ── Autonomous Sessions (Trust Mode) ── */}
       <section>
         <h3 className={sectionHeadingClass}>Autonomous Sessions</h3>
-        <p className="text-[11px] text-muted-foreground mb-2">
+        <p className="text-xs text-muted-foreground mb-2">
           Override policy for sessions launched automatically by continuous mode.
           This takes priority over rules and the default policy.
         </p>
@@ -451,7 +451,7 @@ export function AcpPermissionsTab() {
           </SelectContent>
         </Select>
         {/* Description for selected option */}
-        <p className="text-[10px] text-muted-foreground/70 mt-1.5">
+        <p className="text-2xs text-muted-foreground/70 mt-1.5">
           {TRUST_MODE_OPTIONS.find((o) => o.value === trustModePolicy)?.description}
         </p>
       </section>
@@ -459,7 +459,7 @@ export function AcpPermissionsTab() {
       {/* ── Permission Timeout ── */}
       <section>
         <h3 className={sectionHeadingClass}>Prompt Timeout</h3>
-        <p className="text-[11px] text-muted-foreground mb-2">
+        <p className="text-xs text-muted-foreground mb-2">
           When a permission dialog appears, how long to wait for your response before auto-denying.
         </p>
         <div className="flex items-center gap-2">
@@ -472,7 +472,7 @@ export function AcpPermissionsTab() {
             onChange={(e) => updatePermissionTimeout(parseInt(e.target.value, 10) || 120)}
             className={`${inputClass} w-24 h-8`}
           />
-          <span className="text-[11px] text-muted-foreground">seconds</span>
+          <span className="text-xs text-muted-foreground">seconds</span>
         </div>
       </section>
 
@@ -491,20 +491,20 @@ export function AcpPermissionsTab() {
               return (
                 <div
                   key={entry.id}
-                  className="flex items-center gap-2 px-2 py-1 text-[11px] text-muted-foreground rounded-md hover:bg-muted/30 transition-colors"
+                  className="flex items-center gap-2 px-2 py-1 text-xs text-muted-foreground rounded-md hover:bg-muted/30 transition-colors"
                 >
                   <span
                     className={`size-1.5 rounded-full shrink-0 ${
-                      isApproved ? "bg-green-500" : "bg-red-500"
+                      isApproved ? "bg-success" : "bg-destructive"
                     }`}
                   />
                   <span className="font-medium truncate w-[72px] shrink-0">
                     {capCfg?.label ?? entry.capability}
                   </span>
-                  <code className="truncate flex-1 text-[10px] text-muted-foreground/60 font-mono">
+                  <code className="truncate flex-1 text-2xs text-muted-foreground/60 font-mono">
                     {entry.detail || "\u2014"}
                   </code>
-                  <span className={`shrink-0 text-[10px] ${isApproved ? "text-green-500" : "text-red-500"}`}>
+                  <span className={`shrink-0 text-2xs ${isApproved ? "text-green-500" : "text-red-500"}`}>
                     {isAuto ? "auto-" : ""}
                     {isApproved ? "approved" : "denied"}
                   </span>
@@ -513,7 +513,7 @@ export function AcpPermissionsTab() {
             })}
           </div>
         ) : (
-          <p className="text-[11px] text-muted-foreground/60">
+          <p className="text-xs text-muted-foreground/60">
             No permission decisions recorded yet. Decisions will appear here once an ACP session runs.
           </p>
         )}

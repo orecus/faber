@@ -64,7 +64,7 @@ const SessionsToolbar = memo(function SessionsToolbar({
 
   return (
     <ViewLayout.Toolbar>
-      <span className="text-[13px] font-medium text-foreground mr-1">
+      <span className="text-sm font-medium text-foreground mr-1">
         Sessions
       </span>
 
@@ -85,6 +85,7 @@ const SessionsToolbar = memo(function SessionsToolbar({
         align="start"
         barRadius="md"
         tabRadius="md"
+        className="p-0"
       >
         {MODES.map((m) => {
           const Icon = m.icon;
@@ -103,7 +104,7 @@ const SessionsToolbar = memo(function SessionsToolbar({
       <Button
         variant="color"
         color={accentColor}
-        size="sm"
+        size="xs"
         disabled={!activeProjectId}
         onClick={onNewSession}
         leftIcon={<Plus className="size-3" />}
@@ -114,7 +115,7 @@ const SessionsToolbar = memo(function SessionsToolbar({
       </Button>
       <Button
         variant="outline"
-        size="sm"
+        size="xs"
         disabled={!activeProjectId}
         onClick={handleStartTerminal}
         leftIcon={<TerminalSquare className="size-3" />}

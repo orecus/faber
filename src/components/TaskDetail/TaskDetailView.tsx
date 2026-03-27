@@ -206,7 +206,7 @@ export default function TaskDetailView() {
           Back
         </Button>
 
-        <Badge variant="outline" className="font-mono text-[11px]">
+        <Badge variant="outline" className="font-mono text-xs">
           {isEpic && <Layers size={10} className="mr-1 inline" />}
           {activeTaskId}
         </Badge>
@@ -224,7 +224,7 @@ export default function TaskDetailView() {
         {formData.github_issue && (
           <button
             onClick={handleOpenIssue}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono bg-[color-mix(in_oklch,var(--primary)_10%,transparent)] text-primary hover:bg-[color-mix(in_oklch,var(--primary)_18%,transparent)] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-mono bg-primary/10 text-primary hover:bg-primary/18 transition-colors cursor-pointer"
             title="Open issue on GitHub"
           >
             <Github size={11} />

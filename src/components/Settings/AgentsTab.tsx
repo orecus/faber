@@ -175,10 +175,10 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
 
         {/* Name + command */}
         <div className="flex flex-col flex-1 min-w-0">
-          <span className="text-[13px] font-medium text-foreground">
+          <span className="text-sm font-medium text-foreground">
             {agent.display_name}
           </span>
-          <span className="text-[11px] text-muted-foreground font-mono truncate">
+          <span className="text-xs text-muted-foreground font-mono truncate">
             {agent.command}
           </span>
         </div>
@@ -188,7 +188,7 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
           <span
             className={`size-1.5 rounded-full shrink-0 ${agent.installed ? "bg-success" : "bg-destructive"}`}
           />
-          <span className={`text-[11px] ${agent.installed ? "text-success" : "text-destructive"}`}>
+          <span className={`text-xs ${agent.installed ? "text-success" : "text-destructive"}`}>
             {agent.installed ? "Detected" : "Not found"}
           </span>
 
@@ -198,7 +198,7 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
               target="_blank"
               rel="noopener noreferrer"
               onClick={(e) => e.stopPropagation()}
-              className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-medium text-primary transition-colors hover:bg-primary/20"
+              className="flex items-center gap-1 rounded-full bg-primary/10 px-2 py-0.5 text-xs font-medium text-primary transition-colors hover:bg-primary/20"
             >
               <Download size={10} />
               Install
@@ -219,7 +219,7 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
         <div className="border-t border-border/30 px-3.5 py-2.5">
           <div className="flex items-center gap-2 rounded-md bg-muted/40 px-2.5 py-1.5">
             <Terminal size={12} className="shrink-0 text-muted-foreground" />
-            <code className="flex-1 select-all text-[11px] text-dim-foreground font-mono">
+            <code className="flex-1 select-all text-xs text-dim-foreground font-mono">
               {agent.cli_install_hint}
             </code>
             {agent.cli_install_url && (
@@ -244,12 +244,12 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
           {permInfo && (
             <div>
               <div className="flex items-center gap-2 mb-1">
-                <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+                <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                   Permissions
                 </span>
                 <Badge
                   variant="destructive"
-                  className="text-[9px] uppercase tracking-wide px-1.5 py-0"
+                  className="text-2xs uppercase tracking-wide px-1.5 py-0"
                 >
                   Security
                 </Badge>
@@ -265,7 +265,7 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
 
           {/* Custom flags */}
           <div>
-            <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground block mb-1.5">
+            <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground block mb-1.5">
               Custom Flags
             </span>
             <InputGroup>
@@ -279,7 +279,7 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
                 placeholder={"e.g., --verbose --model opus"}
               />
             </InputGroup>
-            <div className="text-[10px] text-muted-foreground mt-1">
+            <div className="text-2xs text-muted-foreground mt-1">
               Additional flags appended to every {agent.display_name} session.
             </div>
           </div>
@@ -287,7 +287,7 @@ function AgentCard({ agent }: { agent: AgentInfo }) {
           {/* Command preview + reset */}
           <div className="flex items-center gap-2 rounded-md bg-muted/30 px-2.5 py-2">
             <TerminalSquare size={13} className="shrink-0 text-muted-foreground" />
-            <code className="flex-1 text-[11px] font-mono text-dim-foreground truncate select-all">
+            <code className="flex-1 text-xs font-mono text-dim-foreground truncate select-all">
               {commandPreview}
             </code>
             <Button

@@ -166,7 +166,7 @@ function TypeFilterChip({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md transition-colors whitespace-nowrap ${
+      className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors whitespace-nowrap ${
         active
           ? "bg-primary/15 text-primary ring-1 ring-primary/30"
           : "bg-accent/40 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
@@ -174,7 +174,7 @@ function TypeFilterChip({
     >
       {meta.icon}
       <span>{meta.label}</span>
-      <span className="text-[9px] opacity-60">{count}</span>
+      <span className="text-2xs opacity-60">{count}</span>
     </button>
   );
 }
@@ -216,7 +216,7 @@ function ComponentBadges({ c }: { c: PluginComponents }) {
       {items.map((label) => (
         <span
           key={label}
-          className="text-[10px] leading-tight px-1.5 py-[2px] rounded-[4px] bg-accent/60 text-muted-foreground"
+          className="text-2xs leading-tight px-1.5 py-[2px] rounded-[4px] bg-accent/60 text-muted-foreground"
         >
           {label}
         </span>
@@ -227,7 +227,7 @@ function ComponentBadges({ c }: { c: PluginComponents }) {
 
 function ScopeBadge({ scope }: { scope: string }) {
   return (
-    <span className="inline-flex items-center gap-[3px] text-[10px] px-1.5 py-[2px] rounded-[4px] bg-primary/10 text-primary/80">
+    <span className="inline-flex items-center gap-[3px] text-2xs px-1.5 py-[2px] rounded-[4px] bg-primary/10 text-primary/80">
       {scope === "user" ? <Globe size={9} /> : <Library size={9} />}
       {scope}
     </span>
@@ -249,7 +249,7 @@ function CategoryChip({
   return (
     <button
       onClick={onClick}
-      className={`inline-flex items-center gap-1 text-[11px] px-2 py-1 rounded-md transition-colors whitespace-nowrap ${
+      className={`inline-flex items-center gap-1 text-xs px-2 py-1 rounded-md transition-colors whitespace-nowrap ${
         active
           ? "bg-primary/15 text-primary ring-1 ring-primary/30"
           : "bg-accent/40 text-muted-foreground hover:bg-accent/70 hover:text-foreground"
@@ -257,7 +257,7 @@ function CategoryChip({
     >
       {meta.icon}
       <span>{meta.label}</span>
-      <span className="text-[9px] opacity-60">{count}</span>
+      <span className="text-2xs opacity-60">{count}</span>
     </button>
   );
 }
@@ -321,20 +321,20 @@ const PluginCard = React.memo(function PluginCard({
         </div>
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-1.5">
-            <span className="text-[13px] font-medium text-foreground truncate">
+            <span className="text-sm font-medium text-foreground truncate">
               {searchQuery ? highlightMatch(plugin.name, searchQuery) : plugin.name}
             </span>
             {isInstalled && (
               <Check size={12} className="text-success shrink-0" />
             )}
             {isBlocked && (
-              <span className="text-[9px] px-1 py-[1px] rounded bg-destructive/15 text-destructive font-medium shrink-0">
+              <span className="text-2xs px-1 py-[1px] rounded bg-destructive/15 text-destructive font-medium shrink-0">
                 blocked
               </span>
             )}
           </div>
           {plugin.authorName && (
-            <span className="text-[11px] text-muted-foreground/70">
+            <span className="text-xs text-muted-foreground/70">
               {plugin.authorName}
             </span>
           )}
@@ -383,7 +383,7 @@ const PluginCard = React.memo(function PluginCard({
 
       {/* Description */}
       {plugin.description && (
-        <p className="text-[11px] leading-relaxed text-muted-foreground line-clamp-2">
+        <p className="text-xs leading-relaxed text-muted-foreground line-clamp-2">
           {searchQuery ? highlightMatch(plugin.description, searchQuery) : plugin.description}
         </p>
       )}
@@ -392,7 +392,7 @@ const PluginCard = React.memo(function PluginCard({
       <div className="flex items-center gap-2 flex-wrap mt-auto">
         {(plugin as AvailablePlugin).extensionType &&
           (plugin as AvailablePlugin).extensionType !== "plugin" && (
-          <span className="text-[10px] leading-tight px-1.5 py-[2px] rounded-[4px] bg-primary/8 text-primary/70 font-medium">
+          <span className="text-2xs leading-tight px-1.5 py-[2px] rounded-[4px] bg-primary/8 text-primary/70 font-medium">
             {TYPE_META[(plugin as AvailablePlugin).extensionType]?.label ??
               (plugin as AvailablePlugin).extensionType}
           </span>
@@ -401,7 +401,7 @@ const PluginCard = React.memo(function PluginCard({
         <div className="flex-1" />
         {installedScope && <ScopeBadge scope={installedScope} />}
         {uniqueInstalls > 0 && (
-          <span className="text-[10px] text-muted-foreground/50 flex items-center gap-0.5">
+          <span className="text-2xs text-muted-foreground/50 flex items-center gap-0.5">
             <Download size={9} className="opacity-60" />
             {formatInstalls(uniqueInstalls)}
           </span>
@@ -464,7 +464,7 @@ function PluginDetailDrawer({
           >
             <ArrowLeft size={15} />
           </button>
-          <span className="text-[11px] text-muted-foreground uppercase tracking-wider font-medium">
+          <span className="text-xs text-muted-foreground uppercase tracking-wider font-medium">
             Extension Details
           </span>
         </div>
@@ -490,16 +490,16 @@ function PluginDetailDrawer({
 
             <div className="flex items-center gap-2 mt-2 flex-wrap">
               {p.authorName && (
-                <span className="text-[11px] text-dim-foreground">
+                <span className="text-xs text-dim-foreground">
                   {p.authorName}
                 </span>
               )}
-              <span className="text-[10px] text-muted-foreground/50">
+              <span className="text-2xs text-muted-foreground/50">
                 {p.marketplace}
               </span>
               {isInstalled && <ScopeBadge scope={(p as InstalledPlugin).scope} />}
               {!isInstalled && (p as AvailablePlugin).uniqueInstalls > 0 && (
-                <span className="text-[10px] text-muted-foreground/50 flex items-center gap-0.5">
+                <span className="text-2xs text-muted-foreground/50 flex items-center gap-0.5">
                   <Download size={9} />
                   {formatInstalls((p as AvailablePlugin).uniqueInstalls)}
                 </span>
@@ -513,7 +513,7 @@ function PluginDetailDrawer({
             {p.keywords.length > 0 && (
               <div className="flex flex-wrap gap-1 mt-1.5">
                 {p.keywords.map((kw) => (
-                  <span key={kw} className="text-[9px] px-1.5 py-[1px] rounded-full bg-accent/60 text-muted-foreground/70">
+                  <span key={kw} className="text-2xs px-1.5 py-[1px] rounded-full bg-accent/60 text-muted-foreground/70">
                     {kw}
                   </span>
                 ))}
@@ -566,7 +566,7 @@ function PluginDetailDrawer({
                 Uninstall
               </Button>
               <div className="flex-1" />
-              <span className="text-[10px] text-muted-foreground/50">
+              <span className="text-2xs text-muted-foreground/50">
                 Updated {formatDate((p as InstalledPlugin).lastUpdated)}
               </span>
             </>
@@ -633,7 +633,7 @@ function PluginDetailDrawer({
                   `https://github.com/${p.marketplace === "claude-plugins-official" ? "anthropics/claude-plugins-official" : p.marketplace}`,
                 )
               }
-              className="text-[11px] text-primary/70 hover:text-primary inline-flex items-center gap-1 transition-colors"
+              className="text-xs text-primary/70 hover:text-primary inline-flex items-center gap-1 transition-colors"
             >
               View on GitHub <ExternalLink size={10} />
             </button>
@@ -643,7 +643,7 @@ function PluginDetailDrawer({
         {showScrollTop && (
           <button
             onClick={() => panelRef.current?.scrollTo({ top: 0, behavior: "smooth" })}
-            className="sticky bottom-3 float-right mr-3 flex items-center gap-1 px-2.5 py-1.5 rounded-full text-[11px] font-medium text-foreground bg-card/90 backdrop-blur ring-1 ring-border/40 shadow-md hover:ring-primary/30 transition-all"
+            className="sticky bottom-3 float-right mr-3 flex items-center gap-1 px-2.5 py-1.5 rounded-full text-xs font-medium text-foreground bg-card/90 backdrop-blur ring-1 ring-border/40 shadow-md hover:ring-primary/30 transition-all"
           >
             <ChevronUp size={12} />
             Top
@@ -679,7 +679,7 @@ function MarketplaceSources({
     <div className="border-t border-border/30">
       <button
         type="button"
-        className="w-full px-3 py-2 flex items-center gap-2 text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors"
+        className="w-full px-3 py-2 flex items-center gap-2 text-xs text-muted-foreground hover:text-foreground hover:bg-accent/20 transition-colors"
         onClick={() => setExpanded((p) => !p)}
       >
         {expanded ? <ChevronDown size={11} /> : <ChevronRight size={11} />}
@@ -687,7 +687,7 @@ function MarketplaceSources({
         <span className="font-medium uppercase tracking-wider">
           Marketplace Sources
         </span>
-        <span className="text-[9px] opacity-50 bg-accent/40 px-1.5 py-0.5 rounded-full ml-auto">
+        <span className="text-2xs opacity-50 bg-accent/40 px-1.5 py-0.5 rounded-full ml-auto">
           {marketplaces.length}
         </span>
       </button>
@@ -701,8 +701,8 @@ function MarketplaceSources({
             >
               <Globe size={11} className="text-muted-foreground/50 shrink-0" />
               <div className="flex-1 min-w-0">
-                <div className="text-[11px] text-foreground truncate">{m.name}</div>
-                <div className="text-[10px] text-muted-foreground/40 truncate">{m.sourceRepo}</div>
+                <div className="text-xs text-foreground truncate">{m.name}</div>
+                <div className="text-2xs text-muted-foreground/40 truncate">{m.sourceRepo}</div>
               </div>
               <button
                 onClick={() => onRemove(m.name)}
@@ -733,7 +733,7 @@ function MarketplaceSources({
                     }
                   }}
                   placeholder="owner/repo or URL..."
-                  className="flex-1 min-w-0 bg-transparent text-[11px] text-foreground placeholder:text-muted-foreground/40 border border-border/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/40"
+                  className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/40 border border-border/60 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-primary/40"
                   autoFocus
                 />
                 <button
@@ -760,7 +760,7 @@ function MarketplaceSources({
               <>
                 <button
                   onClick={() => setAddInputOpen(true)}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1"
                 >
                   <Plus size={11} /> Add source
                 </button>
@@ -768,7 +768,7 @@ function MarketplaceSources({
                 <button
                   onClick={onRefresh}
                   disabled={refreshLoading}
-                  className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors px-2 py-1"
+                  className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 transition-colors px-2 py-1"
                 >
                   <RefreshCw size={11} className={refreshLoading ? "animate-spin" : ""} />
                   Refresh
@@ -1118,7 +1118,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 placeholder="Search extensions..."
-                className="flex-1 min-w-0 bg-transparent text-[12px] text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
+                className="flex-1 min-w-0 bg-transparent text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none"
               />
               {searchQuery && (
                 <button
@@ -1143,7 +1143,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
               <RefreshCw size={13} />
             </button>
             {installedCount > 0 && (
-              <span className="text-[10px] text-primary/70 bg-primary/10 px-2 py-1 rounded-md whitespace-nowrap">
+              <span className="text-2xs text-primary/70 bg-primary/10 px-2 py-1 rounded-md whitespace-nowrap">
                 {installedCount} installed
               </span>
             )}
@@ -1152,7 +1152,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
           {/* Type filter chips */}
           {visibleTypes.length > 2 && (
             <div className="flex items-center gap-1.5 flex-wrap">
-              <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mr-0.5">Type</span>
+              <span className="text-2xs text-muted-foreground/50 uppercase tracking-wider mr-0.5">Type</span>
               {visibleTypes.map((id) => (
                 <TypeFilterChip
                   key={id}
@@ -1167,7 +1167,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
 
           {/* Category filter chips */}
           <div className="flex items-center gap-1.5 flex-wrap">
-            <span className="text-[10px] text-muted-foreground/50 uppercase tracking-wider mr-0.5">Category</span>
+            <span className="text-2xs text-muted-foreground/50 uppercase tracking-wider mr-0.5">Category</span>
             {visibleCategories.map((id) => (
               <CategoryChip
                 key={id}

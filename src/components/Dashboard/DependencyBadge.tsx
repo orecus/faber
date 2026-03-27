@@ -1,25 +1,8 @@
 import React, { useState, useRef, useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { Link, Lock, Check, ChevronRight } from "lucide-react";
-import type { Task, TaskStatus } from "../../types";
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  backlog: "bg-muted-foreground/60",
-  ready: "bg-blue-500",
-  "in-progress": "bg-amber-500",
-  "in-review": "bg-purple-500",
-  done: "bg-emerald-500",
-  archived: "bg-muted-foreground/30",
-};
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  backlog: "Backlog",
-  ready: "Ready",
-  "in-progress": "In Progress",
-  "in-review": "In Review",
-  done: "Done",
-  archived: "Archived",
-};
+import type { Task } from "../../types";
+import { TASK_STATUS_DOT_COLORS, TASK_STATUS_LABELS } from "../../lib/taskStatusColors";
 
 interface DependencyBadgeProps {
   task: Task;
@@ -136,7 +119,7 @@ export default React.memo(function DependencyBadge({
         ref={triggerRef}
         onClick={handleClick}
         onPointerDown={(e) => e.stopPropagation()}
-        className={`flex items-center gap-0.5 px-1 py-px rounded text-[10px] font-medium transition-colors cursor-pointer ${
+        className={`flex items-center gap-0.5 px-1 py-px rounded text-2xs font-medium transition-colors cursor-pointer ${
           isBlocked
             ? "text-warning bg-warning/10 hover:bg-warning/20"
             : "text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -168,7 +151,7 @@ export default React.memo(function DependencyBadge({
             {/* Dependencies section */}
             {totalDeps > 0 && (
               <div>
-                <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-accent/50">
+                <div className="px-2 py-1 text-2xs font-semibold text-muted-foreground uppercase tracking-wider bg-accent/50">
                   Depends on
                 </div>
                 {task.depends_on.map((depId) => {
@@ -183,14 +166,14 @@ export default React.memo(function DependencyBadge({
                       {isDone ? (
                         <Check className="size-3 shrink-0 text-success" />
                       ) : (
-                        <div className={`size-2 shrink-0 rounded-full ${dep ? STATUS_COLORS[dep.status] : "bg-muted-foreground/30"}`} />
+                        <div className={`size-2 shrink-0 rounded-full ${dep ? TASK_STATUS_DOT_COLORS[dep.status] : "bg-muted-foreground/30"}`} />
                       )}
-                      <span className="text-[11px] text-foreground truncate flex-1">
+                      <span className="text-xs text-foreground truncate flex-1">
                         {dep?.title ?? depId}
                       </span>
                       {dep && (
-                        <span className="text-[9px] text-muted-foreground shrink-0">
-                          {STATUS_LABELS[dep.status]}
+                        <span className="text-2xs text-muted-foreground shrink-0">
+                          {TASK_STATUS_LABELS[dep.status]}
                         </span>
                       )}
                       <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
@@ -203,7 +186,7 @@ export default React.memo(function DependencyBadge({
             {/* Dependents section */}
             {totalDependents > 0 && (
               <div>
-                <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider bg-accent/50 border-t border-border/60">
+                <div className="px-2 py-1 text-2xs font-semibold text-muted-foreground uppercase tracking-wider bg-accent/50 border-t border-border/60">
                   Depended by
                 </div>
                 {dependents.map((depId) => {
@@ -214,13 +197,13 @@ export default React.memo(function DependencyBadge({
                       onClick={(e) => handleTaskClick(e, depId)}
                       className="w-full flex items-center gap-1.5 px-2 py-1 text-left hover:bg-accent/60 transition-colors cursor-pointer"
                     >
-                      <div className={`size-2 shrink-0 rounded-full ${dep ? STATUS_COLORS[dep.status] : "bg-muted-foreground/30"}`} />
-                      <span className="text-[11px] text-foreground truncate flex-1">
+                      <div className={`size-2 shrink-0 rounded-full ${dep ? TASK_STATUS_DOT_COLORS[dep.status] : "bg-muted-foreground/30"}`} />
+                      <span className="text-xs text-foreground truncate flex-1">
                         {dep?.title ?? depId}
                       </span>
                       {dep && (
-                        <span className="text-[9px] text-muted-foreground shrink-0">
-                          {STATUS_LABELS[dep.status]}
+                        <span className="text-2xs text-muted-foreground shrink-0">
+                          {TASK_STATUS_LABELS[dep.status]}
                         </span>
                       )}
                       <ChevronRight className="size-3 shrink-0 text-muted-foreground" />

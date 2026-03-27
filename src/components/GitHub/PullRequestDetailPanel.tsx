@@ -163,7 +163,7 @@ export default function PullRequestDetailPanel({
           <div className="space-y-1">
             <div className="flex items-center gap-1.5">
               <span
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-medium"
                 style={{
                   backgroundColor: `color-mix(in oklch, ${stateColor(detail.state)} 15%, transparent)`,
                   color: stateColor(detail.state),
@@ -172,7 +172,7 @@ export default function PullRequestDetailPanel({
                 {detail.state.toLowerCase()}
               </span>
               {detail.is_draft && (
-                <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium bg-muted text-muted-foreground">
                   Draft
                 </span>
               )}
@@ -180,18 +180,18 @@ export default function PullRequestDetailPanel({
             <div className="text-xs font-medium text-foreground">
               {detail.title}
             </div>
-            <div className="text-[11px] text-muted-foreground font-mono">
+            <div className="text-xs text-muted-foreground font-mono">
               #{detail.number}
             </div>
           </div>
 
           {/* Author + date */}
           <div className="space-y-1">
-            <div className="text-[11px] text-dim-foreground">
+            <div className="text-xs text-dim-foreground">
               {detail.author.login} opened{" "}
               {formatRelativeTime(detail.created_at)}
             </div>
-            <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
               <span className="text-primary">{detail.head_ref_name}</span>
               <span>→</span>
               <span>{detail.base_ref_name}</span>
@@ -204,7 +204,7 @@ export default function PullRequestDetailPanel({
             if (!rd) return null;
             return (
               <div
-                className="text-[11px] font-medium"
+                className="text-xs font-medium"
                 style={{ color: rd.color }}
               >
                 {rd.label}
@@ -215,17 +215,17 @@ export default function PullRequestDetailPanel({
           {/* Body */}
           {detail.body && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Description
               </div>
-              <div className="text-[11px] text-dim-foreground whitespace-pre-wrap leading-relaxed">
+              <div className="text-xs text-dim-foreground whitespace-pre-wrap leading-relaxed">
                 {detail.body}
               </div>
             </div>
           )}
 
           {/* Stats */}
-          <div className="flex items-center gap-3 text-[11px]">
+          <div className="flex items-center gap-3 text-xs">
             <span className="text-success">+{detail.additions}</span>
             <span className="text-destructive">-{detail.deletions}</span>
             <span className="text-muted-foreground">
@@ -237,17 +237,17 @@ export default function PullRequestDetailPanel({
           {/* Reviews */}
           {detail.reviews.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Reviews
               </div>
               {detail.reviews.map((r, i) => (
                 <div
                   key={`${r.author}-${i}`}
-                  className="flex items-center gap-1.5 text-[11px]"
+                  className="flex items-center gap-1.5 text-xs"
                 >
                   <span className="text-dim-foreground">{r.author}</span>
                   <span
-                    className="text-[10px] font-medium"
+                    className="text-2xs font-medium"
                     style={{
                       color:
                         r.state === "APPROVED"
@@ -270,7 +270,7 @@ export default function PullRequestDetailPanel({
               {detail.labels.map((label) => (
                 <span
                   key={label.name}
-                  className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium border"
+                  className="inline-flex items-center rounded-full px-1.5 py-px text-2xs font-medium border"
                   style={{
                     backgroundColor: `#${label.color}20`,
                     borderColor: `#${label.color}40`,
@@ -286,13 +286,13 @@ export default function PullRequestDetailPanel({
           {/* Files */}
           {detail.files.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Files changed ({detail.files.length})
               </div>
               {Array.from(groupByDirectory(detail.files)).map(
                 ([dir, files]) => (
                   <div key={dir}>
-                    <div className="text-[10px] text-muted-foreground mb-0.5 font-mono">
+                    <div className="text-2xs text-muted-foreground mb-0.5 font-mono">
                       {dir}/
                     </div>
                     {files.map((f) => {
@@ -321,13 +321,13 @@ export default function PullRequestDetailPanel({
                             className="shrink-0"
                             style={{ color: iconColor }}
                           />
-                          <span className="text-[11px] text-dim-foreground truncate font-mono flex-1">
+                          <span className="text-xs text-dim-foreground truncate font-mono flex-1">
                             {fileName}
                           </span>
-                          <span className="text-[10px] text-success shrink-0">
+                          <span className="text-2xs text-success shrink-0">
                             +{f.additions}
                           </span>
-                          <span className="text-[10px] text-destructive shrink-0">
+                          <span className="text-2xs text-destructive shrink-0">
                             -{f.deletions}
                           </span>
                         </div>
@@ -379,7 +379,7 @@ export default function PullRequestDetailPanel({
                         setMergeMethod(m);
                         setShowMergeOptions(false);
                       }}
-                      className={`w-full text-left px-2 py-1 text-[11px] rounded-[var(--radius-element)] transition-colors capitalize ${
+                      className={`w-full text-left px-2 py-1 text-xs rounded-[var(--radius-element)] transition-colors capitalize ${
                         mergeMethod === m
                           ? "bg-accent text-foreground"
                           : "text-dim-foreground hover:text-foreground hover:bg-accent"

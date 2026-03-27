@@ -210,7 +210,7 @@ export default function CreateRuleDialog({
                 />
               </div>
               {resolvedFilename && (
-                <p className="text-[10px] text-muted-foreground font-mono">
+                <p className="text-2xs text-muted-foreground font-mono">
                   {selectedDir.dir}/{resolvedFilename}
                 </p>
               )}

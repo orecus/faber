@@ -214,7 +214,7 @@ export default function LaunchBreakdownDialog({
                 Chat
               </button>
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {selectedTransport === "acp"
                 ? "Structured chat UI with tool calls and permission management"
                 : "Classic terminal session with PTY output"}
@@ -279,7 +279,7 @@ export default function LaunchBreakdownDialog({
             onChange={(e) => setUserPrompt(e.target.value)}
             placeholder="How should this epic be broken down?"
             rows={4}
-            className="text-[13px]"
+            className="text-sm"
           />
         </div>
 

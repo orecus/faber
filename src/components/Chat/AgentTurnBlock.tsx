@@ -361,12 +361,12 @@ function CollapsibleToolStep({ tc, sessionId, hasNext }: {
     <span className="font-mono text-xs leading-relaxed">
       {getStepLabel(tc)}
       {tc.status === "in_progress" && (
-        <Badge variant="secondary" className="ml-1.5 text-[9px] px-1.5 py-0 h-4 gap-1 font-sans text-primary">
+        <Badge variant="secondary" className="ml-1.5 text-2xs px-1.5 py-0 h-4 gap-1 font-sans text-primary">
           <Loader2 className="size-2.5 animate-spin" />
           running
         </Badge>
       )}
-      {tc.status === "failed" && <span className="ml-1.5 text-destructive text-[10px] font-sans">failed</span>}
+      {tc.status === "failed" && <span className="ml-1.5 text-destructive text-2xs font-sans">failed</span>}
     </span>
   );
 
@@ -516,11 +516,11 @@ function ProgressIndicator({ progress }: { progress: ClassifiedTools["progress"]
   return (
     <div className="flex items-center gap-2 text-xs text-muted-foreground px-1 py-1">
       <Loader2 className="size-3 animate-spin text-primary shrink-0" />
-      <span className="shrink-0 font-mono text-[10px]">{progress.currentStep}/{progress.totalSteps}</span>
+      <span className="shrink-0 font-mono text-2xs">{progress.currentStep}/{progress.totalSteps}</span>
       <div className="flex-1 h-1 rounded-full bg-muted overflow-hidden">
         <div className="h-full rounded-full bg-primary transition-all duration-300" style={{ width: `${pct}%` }} />
       </div>
-      {progress.description && <span className="truncate text-[11px]">{progress.description}</span>}
+      {progress.description && <span className="truncate text-xs">{progress.description}</span>}
     </div>
   );
 }
@@ -542,7 +542,7 @@ function FilesChangedIndicator({ files }: { files: ClassifiedTools["filesChanged
         <div className="flex flex-wrap items-center gap-1">
           <span className="text-xs text-muted-foreground mr-1">{files.length} file{files.length !== 1 ? "s" : ""} changed</span>
           {files.map((f, i) => (
-            <Badge key={i} variant="outline" className={cn("text-[10px] px-1.5 py-0 h-5 font-mono", actionColors[f.action] ?? "")}>
+            <Badge key={i} variant="outline" className={cn("text-2xs px-1.5 py-0 h-5 font-mono", actionColors[f.action] ?? "")}>
               {f.path.split("/").pop()} <span className="ml-0.5 opacity-60">{f.action}</span>
             </Badge>
           ))}
@@ -571,7 +571,7 @@ function ErrorIndicator({ errors, hasNext }: { errors: ClassifiedTools["errors"]
             <div className="w-full">
               <div className="rounded-lg bg-destructive/10 border border-destructive/20 px-3 py-2">
                 <p className="text-xs font-medium text-destructive">{err.error}</p>
-                {err.details && <p className="text-[11px] text-destructive/70 mt-1">{err.details}</p>}
+                {err.details && <p className="text-xs text-destructive/70 mt-1">{err.details}</p>}
               </div>
             </div>
           }
@@ -597,7 +597,7 @@ function WaitingIndicator({ waiting, hasNext }: { waiting: ClassifiedTools["wait
           <div className="rounded-lg bg-warning/10 border border-warning/20 px-3 py-2 animate-pulse">
             <div className="flex items-center gap-1.5 mb-1">
               <AlertTriangle className="size-3 text-warning shrink-0" />
-              <span className="text-[10px] font-medium text-warning uppercase tracking-wide">Waiting for input</span>
+              <span className="text-2xs font-medium text-warning uppercase tracking-wide">Waiting for input</span>
             </div>
             <p className="text-xs text-foreground">{waiting.question}</p>
           </div>
@@ -662,7 +662,7 @@ function TaskCreatedIndicator({ tasks, hasNext }: { tasks: ClassifiedTools["task
                       <div className="flex items-center gap-2">
                         <span className="text-muted-foreground w-16 shrink-0">Priority</span>
                         <Badge variant="outline" className={cn(
-                          "text-[10px] px-1.5 py-0 h-5",
+                          "text-2xs px-1.5 py-0 h-5",
                           task.priority === "P0" && "border-destructive/40 text-destructive",
                           task.priority === "P1" && "border-warning/40 text-warning",
                           task.priority === "P2" && "border-muted-foreground/40 text-muted-foreground",
@@ -680,7 +680,7 @@ function TaskCreatedIndicator({ tasks, hasNext }: { tasks: ClassifiedTools["task
                         <span className="text-muted-foreground w-16 shrink-0">Labels</span>
                         <div className="flex flex-wrap gap-1">
                           {task.labels.map((label) => (
-                            <Badge key={label} variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                            <Badge key={label} variant="secondary" className="text-2xs px-1.5 py-0 h-5">
                               {label}
                             </Badge>
                           ))}
@@ -747,7 +747,7 @@ function TaskUpdatedIndicator({ updates, hasNext }: { updates: ClassifiedTools["
                     {Object.entries(update.fields).map(([key, value]) => (
                       <div key={key} className="flex items-center gap-2">
                         <span className="text-muted-foreground w-20 shrink-0">{fieldLabels[key] ?? key}</span>
-                        <span className="text-dim-foreground font-mono text-[11px]">
+                        <span className="text-dim-foreground font-mono text-xs">
                           {Array.isArray(value) ? value.join(", ") : String(value)}
                         </span>
                       </div>

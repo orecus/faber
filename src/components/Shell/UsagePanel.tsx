@@ -23,12 +23,12 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
   if (agent.needs_auth) {
     return (
       <div className="px-3 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-dim-foreground mb-1">
+        <div className="flex items-center gap-1.5 text-xs text-dim-foreground mb-1">
           <AgentIcon agent={agent.agent_name} size={13} className="shrink-0 opacity-80" />
           <span className="truncate">{agent.display_name}</span>
         </div>
-        <div className="px-3 text-[10px] text-muted-foreground">
-          Run <code className="px-1 py-px rounded bg-accent/60 text-[10px]">claude</code> to
+        <div className="px-3 text-2xs text-muted-foreground">
+          Run <code className="px-1 py-px rounded bg-accent/60 text-2xs">claude</code> to
           authenticate
         </div>
       </div>
@@ -38,11 +38,11 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
   if (agent.error) {
     return (
       <div className="px-3 py-1">
-        <div className="flex items-center gap-1.5 text-[11px] text-dim-foreground mb-1">
+        <div className="flex items-center gap-1.5 text-xs text-dim-foreground mb-1">
           <AgentIcon agent={agent.agent_name} size={13} className="shrink-0 opacity-80" />
           <span className="truncate">{agent.display_name}</span>
         </div>
-        <div className="flex items-center gap-1 px-3 text-[10px] text-destructive">
+        <div className="flex items-center gap-1 px-3 text-2xs text-destructive">
           <AlertTriangle size={10} className="shrink-0" />
           <span className="truncate">{agent.error}</span>
         </div>
@@ -54,7 +54,7 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
 
   return (
     <div className="py-1">
-      <div className="flex items-center gap-1.5 px-3 text-[11px] text-dim-foreground mb-0.5">
+      <div className="flex items-center gap-1.5 px-3 text-xs text-dim-foreground mb-0.5">
         <AgentIcon agent={agent.agent_name} size={13} className="shrink-0 opacity-80" />
         <span className="truncate">{agent.display_name}</span>
       </div>
@@ -92,7 +92,7 @@ const UsagePanel = React.memo(function UsagePanel() {
       {/* Header */}
       <div
         onClick={handleToggle}
-        className="group/usage flex items-center gap-2 px-3 h-7 text-[11px] text-dim-foreground cursor-pointer hover:bg-accent/40 select-none"
+        className="group/usage flex items-center gap-2 px-3 h-7 text-xs text-dim-foreground cursor-pointer hover:bg-accent/40 select-none"
       >
         <span className="inline-flex w-4 justify-center shrink-0">
           {collapsed ? <ChevronRight size={12} /> : <ChevronDown size={12} />}

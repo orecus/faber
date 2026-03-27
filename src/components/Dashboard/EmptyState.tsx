@@ -15,7 +15,7 @@ export default function EmptyState({ onNewTask }: EmptyStateProps) {
         <h3 className="m-0 mb-2 text-base font-semibold text-foreground">
           No tasks yet
         </h3>
-        <p className="m-0 mb-4 text-[13px] text-dim-foreground leading-[1.5]">
+        <p className="m-0 mb-4 text-sm text-dim-foreground leading-[1.5]">
           Create a task file in your project's <code className="text-xs">.agents/tasks/</code>{" "}
           directory or create one from the UI.
         </p>

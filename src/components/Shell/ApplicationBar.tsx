@@ -75,7 +75,7 @@ const ApplicationBar = memo(function ApplicationBar() {
             icon={tab.icon}
             badge={
               tab.id === "skills-rules" && acpUpdatesAvailable > 0 ? (
-                <span className="ml-1 flex size-[16px] items-center justify-center rounded-full bg-warning/20 text-[9px] font-bold text-warning">
+                <span className="ml-1 flex size-[16px] items-center justify-center rounded-full bg-warning/20 text-2xs font-bold text-warning">
                   {acpUpdatesAvailable}
                 </span>
               ) : undefined

@@ -202,7 +202,7 @@ export function TaskFileConflictDialog({
               <AlertTriangle className="size-4 text-warning" />
             </div>
             Resolve Task File Conflicts
-            <span className="text-[11px] font-medium bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
+            <span className="text-xs font-medium bg-muted/60 text-muted-foreground px-2 py-0.5 rounded-full">
               {conflicts.length}
             </span>
           </DialogTitle>
@@ -226,11 +226,11 @@ export function TaskFileConflictDialog({
                 <div className="flex items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <Icon className={`size-3.5 ${meta.colorClass}`} />
-                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="text-xs font-medium uppercase tracking-wider text-muted-foreground">
                       {meta.label}
                     </span>
                     <span
-                      className={`text-[10px] font-medium px-1.5 py-0.5 rounded-full ring-1 ${meta.badgeClass}`}
+                      className={`text-2xs font-medium px-1.5 py-0.5 rounded-full ring-1 ${meta.badgeClass}`}
                     >
                       {items.length}
                     </span>
@@ -238,13 +238,13 @@ export function TaskFileConflictDialog({
                   <button
                     type="button"
                     onClick={() => setAllForType(type, defaultChoice)}
-                    className="text-[10px] text-muted-foreground hover:text-foreground transition-colors"
+                    className="text-2xs text-muted-foreground hover:text-foreground transition-colors"
                   >
                     Reset all
                   </button>
                 </div>
 
-                <span className="text-[10px] text-muted-foreground -mt-1">
+                <span className="text-2xs text-muted-foreground -mt-1">
                   {meta.description}
                 </span>
 
@@ -318,10 +318,10 @@ function ConflictRow({
     <div className="rounded-md bg-background/50 ring-1 ring-border/20 px-3 py-2 flex flex-col gap-1.5">
       <div className="flex items-center justify-between gap-3">
         <div className="flex items-center gap-2 min-w-0">
-          <span className="text-[11px] font-mono bg-muted/50 px-1.5 py-0.5 rounded shrink-0">
+          <span className="text-xs font-mono bg-muted/50 px-1.5 py-0.5 rounded shrink-0">
             {conflict.task_id}
           </span>
-          <span className="text-[12px] text-foreground truncate">
+          <span className="text-xs text-foreground truncate">
             {conflict.title}
           </span>
         </div>
@@ -331,7 +331,7 @@ function ConflictRow({
           onValueChange={(val) => onChoiceChange(val as ResolutionChoice)}
           items={options.map((o) => ({ value: o.value, label: o.label }))}
         >
-          <SelectTrigger size="sm" className="w-auto min-w-[160px] h-7 text-[11px] shrink-0">
+          <SelectTrigger size="sm" className="w-auto min-w-[160px] h-7 text-xs shrink-0">
             <ChoiceIcon choice={choice} />
             <SelectValue />
           </SelectTrigger>
@@ -348,7 +348,7 @@ function ConflictRow({
       {/* Show diffs for content_differs */}
       {conflict.conflict_type === "content_differs" &&
         conflict.diffs.length > 0 && (
-          <span className="text-[10px] text-muted-foreground pl-0.5">
+          <span className="text-2xs text-muted-foreground pl-0.5">
             {conflict.diffs.join(", ")}
           </span>
         )}

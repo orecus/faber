@@ -70,7 +70,7 @@ function SettingsNav({
   return (
     <nav className="flex flex-col w-[180px] shrink-0 border-r border-border/60 py-3 pr-2 overflow-y-auto">
       {/* App section */}
-      <div className="px-3 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+      <div className="px-3 pb-1.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground/70">
         App
       </div>
       {APP_TABS.map((tab) => {
@@ -80,7 +80,7 @@ function SettingsNav({
           <button
             key={tab.id}
             onClick={() => onTabChange(tab.id)}
-            className={`flex items-center gap-2.5 px-3 py-1.5 text-[13px] rounded-r-md transition-colors duration-100 text-left ${
+            className={`flex items-center gap-2.5 px-3 py-1.5 text-sm rounded-r-md transition-colors duration-100 text-left ${
               isActive
                 ? "bg-accent/60 text-foreground font-medium border-l-2 border-primary"
                 : "text-dim-foreground hover:text-foreground hover:bg-accent/30 border-l-2 border-transparent"
@@ -93,7 +93,7 @@ function SettingsNav({
       })}
 
       {/* Project section */}
-      <div className="px-3 pt-4 pb-1.5 text-[10px] font-semibold uppercase tracking-widest text-muted-foreground/70">
+      <div className="px-3 pt-4 pb-1.5 text-2xs font-semibold uppercase tracking-widest text-muted-foreground/70">
         Project
       </div>
       {PROJECT_TABS.map((tab) => {
@@ -105,7 +105,7 @@ function SettingsNav({
             key={tab.id}
             onClick={() => !isDisabled && onTabChange(tab.id)}
             disabled={isDisabled}
-            className={`flex items-center gap-2.5 px-3 py-1.5 text-[13px] rounded-r-md transition-colors duration-100 text-left ${
+            className={`flex items-center gap-2.5 px-3 py-1.5 text-sm rounded-r-md transition-colors duration-100 text-left ${
               isDisabled
                 ? "text-muted-foreground/40 cursor-not-allowed border-l-2 border-transparent"
                 : isActive
@@ -199,7 +199,7 @@ export default memo(function SettingsView() {
       <div className="flex items-center gap-2 px-5 py-2.5 shrink-0 border-b border-border/40">
         <Palette size={16} className="text-primary" />
         <h1 className="text-sm font-semibold text-foreground">Settings</h1>
-        <kbd className="ml-auto px-1.5 py-0.5 rounded bg-accent/60 font-mono text-[10px] text-muted-foreground">
+        <kbd className="ml-auto px-1.5 py-0.5 rounded bg-accent/60 font-mono text-2xs text-muted-foreground">
           Esc
         </kbd>
       </div>

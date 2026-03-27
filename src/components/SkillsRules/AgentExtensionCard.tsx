@@ -61,11 +61,11 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
               <AgentIcon agent={agent.name} size={22} />
             </div>
             <div className="flex flex-col gap-0.5">
-              <span className="text-[13px] font-semibold leading-tight text-foreground">
+              <span className="text-sm font-semibold leading-tight text-foreground">
                 {agent.display_name}
               </span>
               {description && (
-                <span className="text-[11px] leading-tight text-muted-foreground">
+                <span className="text-xs leading-tight text-muted-foreground">
                   {description}
                 </span>
               )}
@@ -74,7 +74,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
 
           {/* CLI status badge */}
           {agent.installed ? (
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-[10px] font-medium text-success">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-success/15 px-2 py-0.5 text-2xs font-medium text-success">
               <span className="size-1.5 rounded-full bg-success" />
               Installed
             </span>
@@ -83,13 +83,13 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
               href={agent.cli_install_url}
               target="_blank"
               rel="noopener noreferrer"
-              className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-[10px] font-medium text-primary transition-colors hover:bg-primary/25"
+              className="flex shrink-0 items-center gap-1 rounded-full bg-primary/15 px-2 py-0.5 text-2xs font-medium text-primary transition-colors hover:bg-primary/25"
             >
               <Download size={10} />
               Install CLI
             </a>
           ) : (
-            <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+            <span className="flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-2xs font-medium text-muted-foreground">
               <span className="size-1.5 rounded-full bg-muted-foreground/40" />
               Not Installed
             </span>
@@ -98,18 +98,18 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
 
         {/* ── Info chips: CLI command + default model + registry version ── */}
         <div className="flex flex-wrap items-center gap-1.5">
-          <span className="flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 font-mono text-[11px] text-dim-foreground">
+          <span className="flex items-center gap-1 rounded-md bg-muted/60 px-2 py-0.5 font-mono text-xs text-dim-foreground">
             <Terminal size={10} className="text-muted-foreground" />
             {agent.command}
           </span>
           {agent.default_model && (
-            <span className="rounded-md bg-muted/60 px-2 py-0.5 text-[11px] text-muted-foreground">
+            <span className="rounded-md bg-muted/60 px-2 py-0.5 text-xs text-muted-foreground">
               {agent.default_model}
             </span>
           )}
           {registryEntry?.installed_version && (
             <span
-              className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-[11px] ${
+              className={`flex items-center gap-1 rounded-md px-2 py-0.5 font-mono text-xs ${
                 registryEntry.update_available
                   ? "bg-muted/60 text-muted-foreground line-through decoration-muted-foreground/40"
                   : "bg-primary/10 text-primary/80"
@@ -120,13 +120,13 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
             </span>
           )}
           {registryEntry?.update_available && (
-            <span className="flex items-center gap-1 rounded-md bg-warning/15 px-2 py-0.5 font-mono text-[11px] text-warning">
+            <span className="flex items-center gap-1 rounded-md bg-warning/15 px-2 py-0.5 font-mono text-xs text-warning">
               <ArrowUpCircle size={9} />
               v{registryEntry.registry_version}
             </span>
           )}
           {registryEntry && !registryEntry.installed_version && (
-            <span className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-[11px] text-primary/80">
+            <span className="flex items-center gap-1 rounded-md bg-primary/10 px-2 py-0.5 font-mono text-xs text-primary/80">
               <Globe size={9} className="opacity-60" />
               v{registryEntry.registry_version}
             </span>
@@ -137,7 +137,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
         {!agent.installed && agent.cli_install_hint && (
           <div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2">
             <Terminal size={12} className="shrink-0 text-muted-foreground" />
-            <code className="flex-1 select-all text-[11px] text-dim-foreground">
+            <code className="flex-1 select-all text-xs text-dim-foreground">
               {agent.cli_install_hint}
             </code>
             {agent.cli_install_url && (
@@ -175,7 +175,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
                     />
                   )}
                   <span
-                    className={`text-[12px] ${agent.installed ? "text-dim-foreground" : "text-muted-foreground"}`}
+                    className={`text-xs ${agent.installed ? "text-dim-foreground" : "text-muted-foreground"}`}
                   >
                     Built-in ACP
                   </span>
@@ -193,11 +193,11 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
                         strokeWidth={2.5}
                       />
                       <div className="flex flex-col">
-                        <span className="text-[12px] text-dim-foreground">
+                        <span className="text-xs text-dim-foreground">
                           ACP Ready
                         </span>
                         {agent.acp_adapter_package && (
-                          <span className="font-mono text-[10px] text-muted-foreground">
+                          <span className="font-mono text-2xs text-muted-foreground">
                             {agent.acp_adapter_package}
                           </span>
                         )}
@@ -209,7 +209,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
                         size={13}
                         className="shrink-0 text-warning"
                       />
-                      <span className="text-[12px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         Adapter Not Installed
                       </span>
                     </>
@@ -225,7 +225,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
                     className="shrink-0 text-muted-foreground/40"
                     strokeWidth={2.5}
                   />
-                  <span className="text-[12px] text-muted-foreground/60">
+                  <span className="text-xs text-muted-foreground/60">
                     ACP not supported
                   </span>
                 </>
@@ -244,7 +244,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
                   disabled={installing}
                   loading={installing}
                   leftIcon={!installing ? <ArrowUpCircle size={12} /> : undefined}
-                  className="h-7 px-2.5 text-[11px] border-warning/40 text-warning hover:bg-warning/10 hover:text-warning cursor-pointer"
+                  className="h-7 px-2.5 text-xs border-warning/40 text-warning hover:bg-warning/10 hover:text-warning cursor-pointer"
                 >
                   Update to v{registryEntry.registry_version}
                 </Button>
@@ -261,7 +261,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
                   disabled={installing || !agent.installed}
                   loading={installing}
                   leftIcon={!installing ? <Download size={12} /> : undefined}
-                  className="h-7 px-2.5 text-[11px]"
+                  className="h-7 px-2.5 text-xs"
                 >
                   Install Adapter
                 </Button>
@@ -275,12 +275,12 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2">
               {registryEntry.license && (
-                <span className="rounded-md bg-muted/40 px-1.5 py-px text-[10px] text-muted-foreground">
+                <span className="rounded-md bg-muted/40 px-1.5 py-px text-2xs text-muted-foreground">
                   {registryEntry.license}
                 </span>
               )}
               {registryEntry.authors.length > 0 && (
-                <span className="text-[10px] text-muted-foreground/70">
+                <span className="text-2xs text-muted-foreground/70">
                   by {registryEntry.authors.join(", ")}
                 </span>
               )}
@@ -290,7 +290,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
                 href={registryEntry.repository}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="flex items-center gap-1 text-[10px] text-muted-foreground transition-colors hover:text-foreground"
+                className="flex items-center gap-1 text-2xs text-muted-foreground transition-colors hover:text-foreground"
               >
                 <ExternalLink size={9} />
                 Repo
@@ -305,7 +305,7 @@ const AgentExtensionCard = React.memo(function AgentExtensionCard({
             {agent.supported_models.map((model) => (
               <span
                 key={model}
-                className="rounded-md bg-muted/40 px-1.5 py-px text-[10px] text-muted-foreground"
+                className="rounded-md bg-muted/40 px-1.5 py-px text-2xs text-muted-foreground"
               >
                 {model}
               </span>

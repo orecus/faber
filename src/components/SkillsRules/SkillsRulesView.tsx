@@ -44,7 +44,7 @@ export default function SkillsRulesView() {
   return (
     <ViewLayout>
       <ViewLayout.Toolbar>
-        <span className="text-[13px] font-medium text-foreground mr-1">
+        <span className="text-sm font-medium text-foreground mr-1">
           Extensions
         </span>
 
@@ -60,6 +60,7 @@ export default function SkillsRulesView() {
           barRadius="md"
           tabRadius="md"
           fullWidth={false}
+          className="p-0"
         >
           <Tabs.Tab value="rules">Rules</Tabs.Tab>
           <Tabs.Tab value="skills">Skills</Tabs.Tab>
@@ -75,7 +76,7 @@ export default function SkillsRulesView() {
             icon={<Bot size={13} />}
             badge={
               acpUpdatesAvailable > 0 ? (
-                <span className="ml-0.5 flex items-center gap-1 rounded-full bg-warning/20 px-1.5 py-0.5 text-[9px] font-bold text-warning">
+                <span className="ml-0.5 flex items-center gap-1 rounded-full bg-warning/20 px-1.5 py-0.5 text-2xs font-bold text-warning">
                   <ArrowUpCircle size={9} />
                   {acpUpdatesAvailable} {acpUpdatesAvailable === 1 ? "update" : "updates"}
                 </span>
@@ -89,12 +90,14 @@ export default function SkillsRulesView() {
         <div className="flex-1" />
       </ViewLayout.Toolbar>
 
-      {activeTab === "rules" && <RulesTab projectId={activeProjectId} />}
-      {activeTab === "skills" && <SkillsTab projectId={activeProjectId} />}
-      {activeTab === "plugins" && <PluginsTab projectId={activeProjectId} />}
-      {activeTab === "agents" && (
-        <AgentsExtensionTab projectId={activeProjectId} />
-      )}
+      <div className="flex flex-col flex-1 min-h-0">
+        {activeTab === "rules" && <RulesTab projectId={activeProjectId} />}
+        {activeTab === "skills" && <SkillsTab projectId={activeProjectId} />}
+        {activeTab === "plugins" && <PluginsTab projectId={activeProjectId} />}
+        {activeTab === "agents" && (
+          <AgentsExtensionTab projectId={activeProjectId} />
+        )}
+      </div>
     </ViewLayout>
   );
 }

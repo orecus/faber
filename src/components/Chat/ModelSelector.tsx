@@ -133,7 +133,7 @@ export default React.memo(function ModelSelector({
           <Button
             variant="ghost"
             size="sm"
-            className="h-7 gap-1.5 px-2 text-[11px] font-medium text-dim-foreground hover:text-foreground cursor-pointer"
+            className="h-7 gap-1.5 px-2 text-xs font-medium text-dim-foreground hover:text-foreground cursor-pointer"
             disabled={disabled}
           />
         }
@@ -141,7 +141,7 @@ export default React.memo(function ModelSelector({
         {logoSlug && (
           <ModelSelectorLogo provider={logoSlug} className="size-3" />
         )}
-        <ModelSelectorName className="max-w-[140px] text-[11px]">
+        <ModelSelectorName className="max-w-[140px] text-xs">
           {activeModelLabel}
         </ModelSelectorName>
         <ChevronDown size={10} className="text-muted-foreground" />
@@ -178,7 +178,7 @@ export default React.memo(function ModelSelector({
           ) : (
             filteredGroups.map((group) => (
               <div key={group.name}>
-                <div className="px-2 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+                <div className="px-2 py-1.5 text-2xs font-medium text-muted-foreground uppercase tracking-wider">
                   {group.name}
                 </div>
                 {group.options.map((model) => (
@@ -236,7 +236,7 @@ const ModelItem = React.memo(function ModelItem({
       <div className="flex flex-col gap-0 min-w-0 flex-1">
         <span className="text-xs truncate">{model.name}</span>
         {model.description && (
-          <span className="text-[10px] text-muted-foreground truncate">
+          <span className="text-2xs text-muted-foreground truncate">
             {model.description}
           </span>
         )}

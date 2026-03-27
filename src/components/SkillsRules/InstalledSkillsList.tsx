@@ -131,7 +131,7 @@ export default function InstalledSkillsList({
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {title}
           </span>
-          <span className="text-[10px] text-muted-foreground/70 bg-accent/40 px-1.5 py-0.5 rounded-full">
+          <span className="text-2xs text-muted-foreground/70 bg-accent/40 px-1.5 py-0.5 rounded-full">
             {skills.length}
           </span>
         </button>

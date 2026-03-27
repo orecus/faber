@@ -12,6 +12,7 @@ import {
   Loader2,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { Checkbox } from "../ui/checkbox";
@@ -111,9 +112,9 @@ function FileRow({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-baseline gap-1 truncate text-left"
       >
-        <span className="truncate font-mono text-[12px]">{fileName}</span>
+        <span className="truncate font-mono text-xs">{fileName}</span>
         {dirPath && (
-          <span className="truncate text-[10px] text-muted-foreground">
+          <span className="truncate text-2xs text-muted-foreground">
             {dirPath}
           </span>
         )}
@@ -121,7 +122,7 @@ function FileRow({
 
       {/* Status badge */}
       <span
-        className="shrink-0 rounded px-1 py-px text-[10px] font-bold leading-none"
+        className="shrink-0 rounded px-1 py-px text-2xs font-bold leading-none"
         style={{
           color: config.color,
           background: `color-mix(in oklch, ${config.color} 15%, transparent)`,
@@ -144,6 +145,7 @@ export default function FileList({
   onRefresh,
 }: FileListProps) {
   const { isGlass } = useTheme();
+  const accentColor = useProjectAccentColor();
   const [commitMsg, setCommitMsg] = useState("");
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -215,10 +217,10 @@ export default function FileList({
                 <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
               )}
               <CheckCircle2 className="size-3 text-success opacity-60" />
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Committed
               </span>
-              <span className="ml-auto text-[11px] text-muted-foreground">
+              <span className="ml-auto text-xs text-muted-foreground">
                 {committedFiles.length}
               </span>
             </div>
@@ -260,10 +262,10 @@ export default function FileList({
               className="size-3.5"
             />
           )}
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Changes
           </span>
-          <span className="ml-auto text-[11px] text-muted-foreground">
+          <span className="ml-auto text-xs text-muted-foreground">
             {someStaged && `${stagedFiles.length}/`}
             {changedFiles.length}
           </span>
@@ -271,7 +273,7 @@ export default function FileList({
         {changesExpanded && (
           <div className="py-1">
             {!hasChanges ? (
-              <div className="px-3 py-3 text-center text-[11px] text-muted-foreground">
+              <div className="px-3 py-3 text-center text-xs text-muted-foreground">
                 No uncommitted changes
               </div>
             ) : (
@@ -310,11 +312,11 @@ export default function FileList({
                 : "Stage files to commit"
             }
             disabled={!someStaged || committing}
-            className="min-w-0 flex-1 rounded-[var(--radius-element)] border border-border bg-popover px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-[var(--radius-element)] border border-border bg-popover px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
           />
           <Button
             variant="color"
-            color="green"
+            color={accentColor}
             size="sm"
             disabled={!someStaged || !commitMsg.trim() || committing}
             onClick={handleCommit}
@@ -327,13 +329,13 @@ export default function FileList({
             }
             hoverEffect="scale-glow"
             clickEffect="scale"
-            className="shrink-0 px-2 text-[11px]"
+            className="shrink-0 px-2 text-xs"
           >
             Commit
           </Button>
         </div>
         {commitError && (
-          <p className="mt-1 text-[10px] text-destructive">{commitError}</p>
+          <p className="mt-1 text-2xs text-destructive">{commitError}</p>
         )}
       </div>
     </div>

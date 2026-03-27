@@ -30,7 +30,7 @@ function StatusRow({
     <div
       onClick={onClick}
       title={title}
-      className={`group/row flex items-center gap-2 px-3 h-6 text-[11px] text-dim-foreground min-w-0 ${onClick ? "cursor-pointer hover:bg-accent/40" : ""} ${className ?? ""}`}
+      className={`group/row flex items-center gap-2 px-3 h-6 text-xs text-dim-foreground min-w-0 ${onClick ? "cursor-pointer hover:bg-accent/40" : ""} ${className ?? ""}`}
     >
       <span className="inline-flex w-4 justify-center shrink-0">{icon}</span>
       <span className="truncate min-w-0 flex-1">{label}</span>

@@ -121,7 +121,7 @@ function SettingsSlider({
           style={{ left: `calc(${pct}% - 8px)` }}
         />
       </div>
-      <span className="text-[13px] font-medium text-foreground tabular-nums min-w-[3.5rem] text-right">
+      <span className="text-sm font-medium text-foreground tabular-nums min-w-[3.5rem] text-right">
         {formatValue ? formatValue(value) : value}
       </span>
     </div>
@@ -251,7 +251,7 @@ export function TerminalTab() {
             ))}
           </SelectContent>
         </Select>
-        <div className="text-[11px] text-muted-foreground mt-1.5">
+        <div className="text-xs text-muted-foreground mt-1.5">
           Takes effect on new sessions. Existing sessions keep their current
           shell.
         </div>
@@ -282,7 +282,7 @@ export function TerminalTab() {
               value={fontFilter}
               onChange={(e) => setFontFilter(e.target.value)}
               placeholder="Search fonts..."
-              className="w-full bg-transparent text-[13px] text-foreground placeholder:text-muted-foreground outline-none"
+              className="w-full bg-transparent text-sm text-foreground placeholder:text-muted-foreground outline-none"
             />
           </div>
 
@@ -291,7 +291,7 @@ export function TerminalTab() {
             {Object.entries(groupedFonts).map(([category, fonts]) => (
               <div key={category}>
                 {/* Category header */}
-                <div className="sticky top-0 z-10 px-3 py-1.5 text-[11px] font-medium text-muted-foreground uppercase tracking-wide bg-muted/80 backdrop-blur-sm border-b border-border/50">
+                <div className="sticky top-0 z-10 px-3 py-1.5 text-xs font-medium text-muted-foreground uppercase tracking-wide bg-muted/80 backdrop-blur-sm border-b border-border/50">
                   {CATEGORY_LABELS[category] ?? category}
                 </div>
                 {fonts.map((font) => {
@@ -300,7 +300,7 @@ export function TerminalTab() {
                     <button
                       key={font.name}
                       onClick={() => handleSelectFont(font)}
-                      className={`w-full text-left px-3 py-1.5 text-[13px] cursor-pointer transition-colors duration-100 ${
+                      className={`w-full text-left px-3 py-1.5 text-sm cursor-pointer transition-colors duration-100 ${
                         isActive
                           ? "bg-primary/10 text-primary font-medium"
                           : "text-foreground hover:bg-accent"
@@ -314,7 +314,7 @@ export function TerminalTab() {
               </div>
             ))}
             {filteredFonts.length === 0 && (
-              <div className="px-3 py-4 text-[13px] text-muted-foreground text-center">
+              <div className="px-3 py-4 text-sm text-muted-foreground text-center">
                 No matching fonts
               </div>
             )}
@@ -323,13 +323,13 @@ export function TerminalTab() {
           {/* Preview */}
           <div className="border-t border-border px-4 py-3">
             <div
-              className="text-[15px] text-foreground leading-relaxed"
+              className="text-sm text-foreground leading-relaxed"
               style={{ fontFamily: fontFamily }}
             >
               The quick brown fox jumps over the lazy dog
             </div>
             <div
-              className="text-[13px] text-muted-foreground mt-0.5"
+              className="text-sm text-muted-foreground mt-0.5"
               style={{ fontFamily: fontFamily }}
             >
               0123456789 !@#$%^&*()
@@ -337,7 +337,7 @@ export function TerminalTab() {
             {selectedFont && (
               <Badge
                 variant="outline"
-                className="mt-2 text-[10px] font-normal text-primary border-primary/30"
+                className="mt-2 text-2xs font-normal text-primary border-primary/30"
               >
                 {CATEGORY_LABELS[selectedFont.category]}
               </Badge>
@@ -367,7 +367,7 @@ export function TerminalTab() {
             <button
               key={level}
               onClick={() => setZoom(level)}
-              className={`flex-1 py-1.5 text-[12px] font-medium rounded-[var(--radius-element)] cursor-pointer transition-colors duration-100 ${
+              className={`flex-1 py-1.5 text-xs font-medium rounded-[var(--radius-element)] cursor-pointer transition-colors duration-100 ${
                 zoom === level
                   ? "bg-primary text-primary-foreground"
                   : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
@@ -396,7 +396,7 @@ export function TerminalTab() {
       <button
         onClick={handleResetDefaults}
         disabled={isDefault}
-        className="flex items-center justify-center gap-1.5 text-[12px] text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors duration-100 py-2"
+        className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground hover:text-foreground disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition-colors duration-100 py-2"
       >
         <RefreshCw className="size-3" />
         Reset to Defaults

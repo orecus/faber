@@ -48,10 +48,10 @@ function AuthStatusCard({
             <Shield className="size-4 text-muted-foreground" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="text-[13px] font-medium text-foreground">
+            <div className="text-sm font-medium text-foreground">
               Checking authentication...
             </div>
-            <div className="text-[11px] text-muted-foreground mt-0.5">
+            <div className="text-xs text-muted-foreground mt-0.5">
               Verifying GitHub CLI status
             </div>
           </div>
@@ -70,10 +70,10 @@ function AuthStatusCard({
         <div
           className={`flex items-center justify-center size-9 rounded-lg shrink-0 ${
             isOk
-              ? "bg-[color-mix(in_oklch,var(--success)_12%,transparent)]"
+              ? "bg-success/12"
               : hasWarning
-                ? "bg-[color-mix(in_oklch,var(--warning)_12%,transparent)]"
-                : "bg-[color-mix(in_oklch,var(--destructive)_12%,transparent)]"
+                ? "bg-warning/12"
+                : "bg-destructive/12"
           }`}
         >
           {isOk ? (
@@ -85,7 +85,7 @@ function AuthStatusCard({
           )}
         </div>
         <div className="flex-1 min-w-0">
-          <div className="text-[13px] font-medium text-foreground flex items-center gap-1.5">
+          <div className="text-sm font-medium text-foreground flex items-center gap-1.5">
             {isOk
               ? "Authenticated"
               : hasWarning
@@ -94,7 +94,7 @@ function AuthStatusCard({
                   ? "GitHub CLI not installed"
                   : "Not authenticated"}
           </div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
+          <div className="text-xs text-muted-foreground mt-0.5">
             {isOk && authStatus.username && (
               <span className="inline-flex items-center gap-1">
                 <User className="size-3" />
@@ -114,7 +114,7 @@ function AuthStatusCard({
             {!authStatus.installed && (
               <span>
                 Install the{" "}
-                <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
+                <code className="text-2xs bg-muted px-1 py-0.5 rounded">
                   gh
                 </code>{" "}
                 CLI to enable GitHub features
@@ -123,7 +123,7 @@ function AuthStatusCard({
             {authStatus.installed && !authStatus.authenticated && (
               <span>
                 Run{" "}
-                <code className="text-[10px] bg-muted px-1 py-0.5 rounded">
+                <code className="text-2xs bg-muted px-1 py-0.5 rounded">
                   gh auth login
                 </code>{" "}
                 to authenticate
@@ -227,7 +227,7 @@ function LabelMappingTable({
           {repoLabels.length > 0 ? "Refresh Labels" : "Fetch Labels"}
         </Button>
         {repoLabels.length > 0 && (
-          <span className="text-[11px] text-muted-foreground">
+          <span className="text-xs text-muted-foreground">
             {repoLabels.length} labels available
           </span>
         )}
@@ -260,7 +260,7 @@ function LabelMappingTable({
 
             return (
               <div key={status} className="flex items-center gap-3">
-                <span className="text-[12px] text-dim-foreground w-24 shrink-0 capitalize">
+                <span className="text-xs text-dim-foreground w-24 shrink-0 capitalize">
                   {status}
                 </span>
                 <div className="flex-1 max-w-64">
@@ -309,7 +309,7 @@ function LabelMappingTable({
       )}
 
       {repoLabels.length === 0 && (
-        <div className="text-[11px] text-muted-foreground py-2">
+        <div className="text-xs text-muted-foreground py-2">
           Click &quot;Fetch Labels&quot; to load available labels from the
           repository, or &quot;Create default labels&quot; to set up a
           standard label set.
@@ -527,10 +527,10 @@ export function GitHubTab() {
     <div className="flex flex-col gap-5">
       {/* Project context */}
       <div className="flex items-center gap-2">
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           Settings for
         </span>
-        <span className="text-[13px] font-medium text-foreground">
+        <span className="text-sm font-medium text-foreground">
           {activeProject.name}
         </span>
       </div>
@@ -624,7 +624,7 @@ export function GitHubTab() {
           Manual Sync Defaults
         </div>
 
-        <p className="text-[11px] text-muted-foreground mb-3">
+        <p className="text-xs text-muted-foreground mb-3">
           Pre-checked options when opening the Sync to GitHub dialog.
         </p>
 
@@ -696,7 +696,7 @@ export function GitHubTab() {
         )}
 
         {!syncEnabled && (
-          <div className="text-[11px] text-muted-foreground mt-1">
+          <div className="text-xs text-muted-foreground mt-1">
             Enable GitHub Sync above to configure label mapping.
           </div>
         )}

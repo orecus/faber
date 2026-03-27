@@ -80,7 +80,7 @@ export default function AgentActivityTab({
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
         <Activity size={20} className="opacity-40" />
         <p className="text-xs">No agent activity or history yet</p>
-        <p className="text-[10px] opacity-60">
+        <p className="text-2xs opacity-60">
           Launch a session for this task to see agent activity
         </p>
       </div>
@@ -119,7 +119,7 @@ function LiveStatusSection({ mcpStatus }: { mcpStatus: McpSessionState }) {
             {mcpStatus.message || mcpStatus.status || "Working"}
           </p>
           {mcpStatus.activity && (
-            <p className="text-[10px] text-muted-foreground capitalize">
+            <p className="text-2xs text-muted-foreground capitalize">
               {mcpStatus.activity}
             </p>
           )}
@@ -129,7 +129,7 @@ function LiveStatusSection({ mcpStatus }: { mcpStatus: McpSessionState }) {
       {/* Progress bar */}
       {mcpStatus.current_step != null && mcpStatus.total_steps != null && (
         <div className="space-y-1">
-          <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+          <div className="flex items-center justify-between text-2xs text-muted-foreground">
             <span>{mcpStatus.description || "Processing"}</span>
             <span>
               {mcpStatus.current_step}/{mcpStatus.total_steps}
@@ -208,7 +208,7 @@ function HistorySection({
       {hasLiveStatus && (
         <div className="border-t border-border/30 pt-2" />
       )}
-      <div className="flex items-center gap-1.5 text-[10px] text-muted-foreground">
+      <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
         <History size={10} className="opacity-60" />
         <span className="font-medium uppercase tracking-wider">History</span>
         {loading && <Loader2 size={10} className="animate-spin ml-1" />}
@@ -219,7 +219,7 @@ function HistorySection({
           <div key={group.sessionId ?? gi} className="flex flex-col">
             <div className={`flex items-center gap-1.5 py-1.5 ${gi > 0 ? "mt-1" : ""}`}>
               <div className="flex-1 border-t border-border/20" />
-              <span className="text-[9px] text-muted-foreground/40 shrink-0">
+              <span className="text-2xs text-muted-foreground/40 shrink-0">
                 {formatSessionLabel(group)}
               </span>
               <div className="flex-1 border-t border-border/20" />
@@ -255,7 +255,7 @@ function HistoryEntry({ event }: { event: TaskActivity }) {
       onClick={isExpandable ? () => setExpanded((v) => !v) : undefined}
     >
       <div className="flex items-center gap-1.5">
-        <span className="text-[11px] leading-none tabular-nums text-muted-foreground/60 w-[38px] shrink-0">
+        <span className="text-xs leading-none tabular-nums text-muted-foreground/60 w-[38px] shrink-0">
           {time}
         </span>
         <span className={`shrink-0 flex items-center ${color}`}>

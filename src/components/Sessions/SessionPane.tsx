@@ -215,7 +215,7 @@ export default React.memo(function SessionPane({
               {displayName}
             </span>
             {showSaved && (
-              <span className="text-[10px] text-success font-medium animate-in fade-in duration-200">
+              <span className="text-2xs text-success font-medium animate-in fade-in duration-200">
                 Saved
               </span>
             )}
@@ -243,14 +243,14 @@ export default React.memo(function SessionPane({
 
         {/* MCP Progress + Status Message */}
         {mcpData?.current_step != null && mcpData.total_steps != null && (
-          <span className="text-[11px] text-dim-foreground overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">
+          <span className="text-xs text-dim-foreground overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">
             Step {mcpData.current_step}/{mcpData.total_steps}
             {mcpData.description ? `: ${mcpData.description}` : ""}
             {mcpData.message ? ` — ${mcpData.message}` : ""}
           </span>
         )}
         {mcpData && mcpData.current_step == null && mcpData.message && !isMcpError && !isMcpWaiting && (
-          <span className="text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0 text-muted-foreground">
+          <span className="text-xs overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0 text-muted-foreground">
             {mcpData.message}
           </span>
         )}
@@ -260,7 +260,7 @@ export default React.memo(function SessionPane({
 
         {/* Permission badge (when ACP permission requests are pending) */}
         {showPermissionState && (
-          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-warning/20 ring-1 ring-warning/30 text-[10px] font-bold text-warning uppercase tracking-wider shrink-0">
+          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-warning/20 ring-1 ring-warning/30 text-2xs font-bold text-warning uppercase tracking-wider shrink-0">
             Approval needed
           </span>
         )}
@@ -289,12 +289,12 @@ export default React.memo(function SessionPane({
             }}
           />
           {showErrorState && mcpData?.error_message && (
-            <span className="text-[11px] text-destructive font-medium overflow-hidden text-ellipsis whitespace-nowrap" title={mcpData.error_message}>
+            <span className="text-xs text-destructive font-medium overflow-hidden text-ellipsis whitespace-nowrap" title={mcpData.error_message}>
               {mcpData.error_message}
             </span>
           )}
           {showWaitingState && mcpData?.waiting_question && (
-            <span className="text-[11px] text-warning font-medium overflow-hidden text-ellipsis whitespace-nowrap animate-pulse" title={mcpData.waiting_question}>
+            <span className="text-xs text-warning font-medium overflow-hidden text-ellipsis whitespace-nowrap animate-pulse" title={mcpData.waiting_question}>
               {mcpData.waiting_question}
             </span>
           )}

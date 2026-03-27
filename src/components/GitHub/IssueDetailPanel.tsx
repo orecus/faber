@@ -101,7 +101,7 @@ export default function IssueDetailPanel({
           <div className="space-y-1">
             <div className="flex items-center gap-1.5">
               <span
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-medium"
                 style={{
                   backgroundColor: `color-mix(in oklch, ${stateColor(detail.issue.state)} 15%, transparent)`,
                   color: stateColor(detail.issue.state),
@@ -116,7 +116,7 @@ export default function IssueDetailPanel({
               </span>
               {detail.already_imported && detail.existing_task_id && (
                 <span
-                  className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                  className="inline-flex items-center gap-0.5 rounded-full px-1.5 py-0.5 text-2xs font-medium"
                   style={{
                     backgroundColor: `color-mix(in oklch, var(--success) 12%, transparent)`,
                     color: "var(--success)",
@@ -130,14 +130,14 @@ export default function IssueDetailPanel({
             <div className="text-xs font-medium text-foreground">
               {detail.issue.title}
             </div>
-            <div className="text-[11px] text-muted-foreground font-mono">
+            <div className="text-xs text-muted-foreground font-mono">
               #{detail.issue.number}
             </div>
           </div>
 
           {/* Author + date */}
           {detail.issue.assignees.length > 0 && (
-            <div className="flex items-center gap-1.5 text-[11px] text-dim-foreground">
+            <div className="flex items-center gap-1.5 text-xs text-dim-foreground">
               <User size={11} className="shrink-0" />
               <span>
                 {detail.issue.assignees.map((a) => a.login).join(", ")}
@@ -145,7 +145,7 @@ export default function IssueDetailPanel({
             </div>
           )}
 
-          <div className="text-[11px] text-dim-foreground">
+          <div className="text-xs text-dim-foreground">
             Opened {formatRelativeTime(detail.issue.created_at)}
             {detail.issue.updated_at !== detail.issue.created_at && (
               <span className="text-muted-foreground">
@@ -160,7 +160,7 @@ export default function IssueDetailPanel({
               {detail.issue.labels.map((label) => (
                 <span
                   key={label.name}
-                  className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium border"
+                  className="inline-flex items-center rounded-full px-1.5 py-px text-2xs font-medium border"
                   style={{
                     backgroundColor: `#${label.color}20`,
                     borderColor: `#${label.color}40`,
@@ -176,10 +176,10 @@ export default function IssueDetailPanel({
           {/* Body */}
           {detail.issue.body && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Description
               </div>
-              <div className="text-[11px] text-dim-foreground whitespace-pre-wrap leading-relaxed">
+              <div className="text-xs text-dim-foreground whitespace-pre-wrap leading-relaxed">
                 {detail.issue.body}
               </div>
             </div>
@@ -187,10 +187,10 @@ export default function IssueDetailPanel({
 
           {!detail.issue.body && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Description
               </div>
-              <div className="text-[11px] text-muted-foreground italic">
+              <div className="text-xs text-muted-foreground italic">
                 No description provided
               </div>
             </div>
@@ -198,13 +198,13 @@ export default function IssueDetailPanel({
 
           {/* Comments */}
           <div className="space-y-2">
-            <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-muted-foreground">
+            <div className="flex items-center gap-1.5 text-2xs uppercase tracking-wider text-muted-foreground">
               <MessageSquare size={11} />
               Comments ({detail.comments.length})
             </div>
 
             {detail.comments.length === 0 && (
-              <div className="text-[11px] text-muted-foreground italic">
+              <div className="text-xs text-muted-foreground italic">
                 No comments yet
               </div>
             )}
@@ -225,15 +225,15 @@ export default function IssueDetailPanel({
                   ) : (
                     <User size={11} className="shrink-0 text-muted-foreground" />
                   )}
-                  <span className="text-[11px] font-medium text-dim-foreground truncate">
+                  <span className="text-xs font-medium text-dim-foreground truncate">
                     {comment.author}
                   </span>
-                  <span className="text-[10px] text-muted-foreground shrink-0 ml-auto">
+                  <span className="text-2xs text-muted-foreground shrink-0 ml-auto">
                     {formatRelativeTime(comment.created_at)}
                   </span>
                 </div>
                 {/* Comment body */}
-                <div className="px-2.5 py-2 text-[11px] text-dim-foreground whitespace-pre-wrap leading-relaxed">
+                <div className="px-2.5 py-2 text-xs text-dim-foreground whitespace-pre-wrap leading-relaxed">
                   {comment.body}
                 </div>
               </div>

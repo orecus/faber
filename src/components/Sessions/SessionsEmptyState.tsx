@@ -41,7 +41,7 @@ export default function SessionsEmptyState({
         <div className="text-base text-foreground mb-1.5">
           No active sessions
         </div>
-        <div className="text-[13px] text-muted-foreground leading-normal mb-4">
+        <div className="text-sm text-muted-foreground leading-normal mb-4">
           Start an agent session or open a plain terminal to get started.
         </div>
         <div className="flex items-center justify-center gap-2">

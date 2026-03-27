@@ -193,7 +193,7 @@ This gives each task its own working directory, so agents can make changes witho
 
 ## GitHub Sync Settings
 
-All sync behavior is controlled per-project in **Settings > Projects > [Your Project] > GitHub Sync**.
+All sync behavior is controlled per-project in **Settings > Project > GitHub Sync** (the Project tab in the Settings view).
 
 The master toggle defaults to **OFF**. Nothing is written to GitHub until you explicitly enable it.
 

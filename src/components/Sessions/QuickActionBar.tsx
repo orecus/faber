@@ -81,7 +81,7 @@ export default React.memo(function QuickActionBar({
             className="flex items-center gap-1.5 px-2 py-1 rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/60 transition-colors duration-150 cursor-pointer"
           >
             <Icon size={13} />
-            <span className="text-[11px] leading-none whitespace-nowrap">
+            <span className="text-xs leading-none whitespace-nowrap">
               {action.label}
             </span>
           </button>

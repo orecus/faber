@@ -126,7 +126,7 @@ export default function CommitDetailPanel({
               className="size-2.5 rounded-full shrink-0"
               style={{ background: railColor }}
             />
-            <code className="text-[11px] font-mono text-dim-foreground truncate flex-1">
+            <code className="text-xs font-mono text-dim-foreground truncate flex-1">
               {detail.hash}
             </code>
             <button
@@ -143,10 +143,10 @@ export default function CommitDetailPanel({
             <div className="text-xs text-foreground">
               {detail.author_name}
             </div>
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               {detail.author_email}
             </div>
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               {formatTimestamp(detail.timestamp)}
             </div>
           </div>
@@ -157,7 +157,7 @@ export default function CommitDetailPanel({
               {detail.subject}
             </div>
             {detail.body && (
-              <div className="text-[11px] text-dim-foreground whitespace-pre-wrap leading-relaxed">
+              <div className="text-xs text-dim-foreground whitespace-pre-wrap leading-relaxed">
                 {detail.body}
               </div>
             )}
@@ -166,14 +166,14 @@ export default function CommitDetailPanel({
           {/* Parents */}
           {detail.parent_hashes.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 {detail.parent_hashes.length > 1 ? "Parents (merge)" : "Parent"}
               </div>
               <div className="flex flex-wrap gap-1">
                 {detail.parent_hashes.map((ph) => (
                   <code
                     key={ph}
-                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-popover text-dim-foreground"
+                    className="text-2xs font-mono px-1.5 py-0.5 rounded bg-popover text-dim-foreground"
                   >
                     {ph.slice(0, 12)}
                   </code>
@@ -185,13 +185,13 @@ export default function CommitDetailPanel({
           {/* Changed files */}
           {detail.files.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Files changed ({detail.files.length})
               </div>
               {Array.from(groupByDirectory(detail.files)).map(
                 ([dir, files]) => (
                   <div key={dir}>
-                    <div className="text-[10px] text-muted-foreground mb-0.5 font-mono">
+                    <div className="text-2xs text-muted-foreground mb-0.5 font-mono">
                       {dir}/
                     </div>
                     {files.map((f) => {
@@ -208,7 +208,7 @@ export default function CommitDetailPanel({
                             className="shrink-0"
                             style={{ color: cfg.color }}
                           />
-                          <span className="text-[11px] text-dim-foreground truncate font-mono">
+                          <span className="text-xs text-dim-foreground truncate font-mono">
                             {fileName}
                           </span>
                         </div>

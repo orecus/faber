@@ -57,7 +57,7 @@ export default React.memo(function WaitingCard({
 
           {/* Question text */}
           <div className="flex-1 min-w-0">
-            <p className="text-[11px] font-medium text-warning/80 uppercase tracking-wider mb-0.5">
+            <p className="text-xs font-medium text-warning/80 uppercase tracking-wider mb-0.5">
               Waiting for input
             </p>
             <p className="text-xs text-foreground leading-relaxed">

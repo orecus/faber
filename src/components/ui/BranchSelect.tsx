@@ -244,7 +244,7 @@ export default function BranchSelect({
 
           {/* Error */}
           {error && (
-            <div className="px-2.5 py-1.5 text-[11px] text-destructive bg-[color-mix(in_oklch,var(--destructive)_8%,transparent)] border-b border-border">
+            <div className="px-2.5 py-1.5 text-xs text-destructive bg-destructive/8 border-b border-border">
               {error}
             </div>
           )}
@@ -271,7 +271,7 @@ export default function BranchSelect({
                     }`}
                   >
                     <GitBranch className="size-3 shrink-0 text-muted-foreground" />
-                    <span className="flex-1 truncate text-left text-[11px]">
+                    <span className="flex-1 truncate text-left text-xs">
                       Current HEAD
                     </span>
                     {!activeBranch && (
@@ -285,7 +285,7 @@ export default function BranchSelect({
               {/* Local branches */}
               {filteredLocal.length > 0 && (
                 <>
-                  <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  <div className="px-2.5 py-1 text-2xs uppercase tracking-wider text-muted-foreground font-medium">
                     Local
                   </div>
                   {filteredLocal.map((b) => {
@@ -309,7 +309,7 @@ export default function BranchSelect({
                         } ${actionLoading !== null && !isLoading ? "opacity-50" : ""}`}
                       >
                         <GitBranch className="size-3 shrink-0 text-muted-foreground" />
-                        <span className="flex-1 truncate text-left font-mono text-[11px]">
+                        <span className="flex-1 truncate text-left font-mono text-xs">
                           {b}
                         </span>
                         {isLoading && (
@@ -330,7 +330,7 @@ export default function BranchSelect({
                   {filteredLocal.length > 0 && (
                     <div className="mx-2 my-1 h-px bg-border" />
                   )}
-                  <div className="px-2.5 py-1 text-[10px] uppercase tracking-wider text-muted-foreground font-medium">
+                  <div className="px-2.5 py-1 text-2xs uppercase tracking-wider text-muted-foreground font-medium">
                     Remote
                   </div>
                   {filteredRemote.map((b) => {
@@ -348,7 +348,7 @@ export default function BranchSelect({
                         } ${actionLoading !== null && !isLoading ? "opacity-50" : ""}`}
                       >
                         <Cloud className="size-3 shrink-0 text-muted-foreground" />
-                        <span className="flex-1 truncate text-left font-mono text-[11px]">
+                        <span className="flex-1 truncate text-left font-mono text-xs">
                           {b}
                         </span>
                         {isLoading && (
@@ -367,7 +367,7 @@ export default function BranchSelect({
               {filteredLocal.length === 0 &&
                 filteredRemote.length === 0 &&
                 !(mode === "select" && !search) && (
-                  <div className="px-2.5 py-4 text-center text-[11px] text-muted-foreground">
+                  <div className="px-2.5 py-4 text-center text-xs text-muted-foreground">
                     No branches match &quot;{search}&quot;
                   </div>
                 )}
@@ -408,7 +408,7 @@ export default function BranchSelect({
                     disabled={
                       !newBranchName.trim() || actionLoading !== null
                     }
-                    className="flex items-center gap-1 rounded px-2 py-0.5 text-[11px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
+                    className="flex items-center gap-1 rounded px-2 py-0.5 text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
                   >
                     {actionLoading ? (
                       <Loader2 className="size-3 animate-spin" />

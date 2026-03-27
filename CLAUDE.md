@@ -148,6 +148,7 @@ error!(session_id = %id, error = %e, "PTY spawn failed");
 - **Custom semantic tokens:** `text-dim-foreground` (between foreground and muted), `text-success` / `bg-success`, `text-warning` / `bg-warning`
 - **Glass/solid switching:** Use `useTheme()` → `isGlass` boolean. For panels: `<Card type={isGlass ? "normal" : "solid"}>` (orecus.io Card). For shell containers (sidebar, status bar, tab bar): `glassStyles[isGlass ? "subtle" : "solid"]` from `color-utils.ts`
 - **Panel borders:** Use `ring-1 ring-border/40` for subtle panel containers, `border-border` for structural dividers (border-b, border-l, etc.)
+- **Typography scale:** Use only these sizes — `text-micro` (8px, reserved), `text-2xs` (10px, badges/counters/metadata), `text-xs` (12px, labels/hints/secondary), `text-sm` (14px, primary UI text), `text-base` (16px, headings). Do **not** introduce arbitrary `text-[Xpx]` values without justification.
 - Tailwind `animate-spin` for spinners; use `<Loader2>` from lucide-react
 - Theme selectors: `[data-theme^="dark"]`, `[data-theme^="light"]`
 - Main CSS file: `src/styles/main.css`

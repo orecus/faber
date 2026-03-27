@@ -68,7 +68,7 @@ export default memo(function FloatingPermissionBanner() {
           : `${totalCount} permission requests waiting`}
       </span>
 
-      <span className="text-[10px] font-medium text-warning-foreground/70 whitespace-nowrap">
+      <span className="text-2xs font-medium text-warning-foreground/70 whitespace-nowrap">
         Click to review
       </span>
     </button>

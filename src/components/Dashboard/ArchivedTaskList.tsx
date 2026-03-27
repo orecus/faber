@@ -61,7 +61,7 @@ export default function ArchivedTaskList({
               onClick={() => onTaskClick(task.id)}
             >
               {/* Task ID */}
-              <span className="text-[10px] font-mono text-muted-foreground shrink-0 w-12">
+              <span className="text-2xs font-mono text-muted-foreground shrink-0 w-12">
                 {task.id}
               </span>
 
@@ -79,13 +79,13 @@ export default function ArchivedTaskList({
                   {task.labels.slice(0, 3).map((label) => (
                     <span
                       key={label}
-                      className="inline-block px-1.5 py-px text-[9px] font-medium rounded-full bg-accent text-muted-foreground truncate max-w-[80px]"
+                      className="inline-block px-1.5 py-px text-2xs font-medium rounded-full bg-accent text-muted-foreground truncate max-w-[80px]"
                     >
                       {label}
                     </span>
                   ))}
                   {task.labels.length > 3 && (
-                    <span className="text-[9px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       +{task.labels.length - 3}
                     </span>
                   )}
@@ -93,7 +93,7 @@ export default function ArchivedTaskList({
               )}
 
               {/* Archived date */}
-              <span className="text-[10px] text-muted-foreground shrink-0">
+              <span className="text-2xs text-muted-foreground shrink-0">
                 {formatDate(task.updated_at)}
               </span>
 

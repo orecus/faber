@@ -132,14 +132,14 @@ export default function AgentsExtensionTab({
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">
             <Bot size={14} className="text-muted-foreground" />
-            <span className="text-[13px] font-medium text-foreground">
+            <span className="text-sm font-medium text-foreground">
               {installedCount} of {agents.length} installed
             </span>
           </div>
           <span className="text-border">·</span>
           <div className="flex items-center gap-1.5">
             <Wifi size={12} className="text-muted-foreground" />
-            <span className="text-[12px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {acpReadyCount} ACP ready
             </span>
           </div>
@@ -148,7 +148,7 @@ export default function AgentsExtensionTab({
               <span className="text-border">·</span>
               <div className="flex items-center gap-1.5">
                 <Cloud size={12} className="text-primary/60" />
-                <span className="text-[12px] text-muted-foreground">
+                <span className="text-xs text-muted-foreground">
                   {acpRegistry.length} in registry
                 </span>
               </div>
@@ -159,7 +159,7 @@ export default function AgentsExtensionTab({
         <button
           onClick={handleRefresh}
           disabled={refreshing}
-          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-[12px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
+          className="flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground disabled:opacity-50"
         >
           {refreshing ? (
             <Loader2 size={13} className="animate-spin" />
@@ -172,12 +172,12 @@ export default function AgentsExtensionTab({
 
       {/* Error toasts */}
       {installError && (
-        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-[12px] text-destructive">
+        <div className="mb-3 rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-xs text-destructive">
           {installError}
         </div>
       )}
       {acpRegistryError && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-[12px] text-warning">
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-warning/30 bg-warning/10 px-3 py-2 text-xs text-warning">
           <AlertCircle size={13} className="shrink-0" />
           <span>
             Registry unavailable — showing local data only.{" "}
@@ -190,7 +190,7 @@ export default function AgentsExtensionTab({
 
       {/* Registry loading indicator */}
       {acpRegistryLoading && acpRegistry.length === 0 && (
-        <div className="mb-3 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-[12px] text-muted-foreground">
+        <div className="mb-3 flex items-center gap-2 rounded-lg border border-border/50 bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
           <Loader2 size={13} className="animate-spin" />
           Fetching ACP registry...
         </div>

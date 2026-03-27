@@ -131,7 +131,7 @@ function AppearancePanel() {
                       className="w-full h-8 rounded-[var(--radius-element)] border border-border"
                       style={{ background: m.gradient }}
                     />
-                    <div className="text-[13px] font-medium text-foreground">
+                    <div className="text-sm font-medium text-foreground">
                       {m.label}
                     </div>
                     {active && (
@@ -298,15 +298,15 @@ function UpdatesPanel() {
       {/* Version + Check button */}
       <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
         <div>
-          <div className="text-[13px] font-medium text-foreground">
+          <div className="text-sm font-medium text-foreground">
             Current version
           </div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
+          <div className="text-xs text-muted-foreground mt-0.5">
             {appVersion || "..."}
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-2xs text-muted-foreground">
             {formatLastChecked(lastCheckedAt)}
           </span>
           <button
@@ -335,7 +335,7 @@ function UpdatesPanel() {
       {/* Check interval */}
       {autoCheckEnabled && (
         <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
-          <div className="text-[13px] text-foreground">Check frequency</div>
+          <div className="text-sm text-foreground">Check frequency</div>
           <Select
             value={String(checkIntervalHours)}
             onValueChange={(v) => v && setCheckIntervalHours(Number(v))}
@@ -375,7 +375,7 @@ function UpdatesPanel() {
 
       {advancedOpen && (
         <div className="flex flex-col gap-2 p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
-          <div className="text-[11px] text-muted-foreground">
+          <div className="text-xs text-muted-foreground">
             Custom update endpoint URL
           </div>
           <div className="flex gap-2">
@@ -389,7 +389,7 @@ function UpdatesPanel() {
             />
             <button
               onClick={handleEndpointReset}
-              className="px-2 py-1 text-[11px] rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
+              className="px-2 py-1 text-xs rounded-md text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors"
             >
               Reset
             </button>
@@ -415,10 +415,10 @@ function SystemPanel() {
     <div className="flex flex-col gap-3">
       <div className="flex items-center justify-between p-2.5 rounded-lg bg-muted/20 ring-1 ring-border/30">
         <div>
-          <div className="text-[13px] font-medium text-foreground">
+          <div className="text-sm font-medium text-foreground">
             Log files
           </div>
-          <div className="text-[11px] text-muted-foreground mt-0.5">
+          <div className="text-xs text-muted-foreground mt-0.5">
             Open the folder containing backend log files for debugging.
           </div>
         </div>

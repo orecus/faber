@@ -122,7 +122,7 @@ export function GitWorktreesTab() {
       <div className={panelClass}>
         <div className={sectionHeadingClass}>Branch Naming</div>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-dim-foreground font-medium">
+          <span className="text-xs text-dim-foreground font-medium">
             Branch pattern
           </span>
           <InputGroup>
@@ -137,7 +137,7 @@ export function GitWorktreesTab() {
               placeholder="feat/{{task_id}}-{{task_slug}}"
             />
           </InputGroup>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-2xs text-muted-foreground">
             Template for branch names when creating worktrees. Variables:{" "}
             {"{{task_id}}"}, {"{{task_slug}}"}
           </span>
@@ -148,7 +148,7 @@ export function GitWorktreesTab() {
       <div className={panelClass}>
         <div className={sectionHeadingClass}>Session Configuration</div>
         <div className="flex flex-col gap-1.5">
-          <span className="text-[12px] text-dim-foreground font-medium">
+          <span className="text-xs text-dim-foreground font-medium">
             Instruction file
           </span>
           <InputGroup>
@@ -165,7 +165,7 @@ export function GitWorktreesTab() {
               placeholder="CLAUDE.md (auto-detected)"
             />
           </InputGroup>
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-2xs text-muted-foreground">
             Relative path from project root. Injected into agent session prompts.
           </span>
         </div>

@@ -113,8 +113,8 @@ export default function DiffView({
     <div
       className={`flex items-center justify-between px-3 py-1.5 text-xs shrink-0 ${
         feedback.type === "success"
-          ? "bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-success"
-          : "bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive"
+          ? "bg-success/10 text-success"
+          : "bg-destructive/10 text-destructive"
       }`}
     >
       <span>{feedback.text}</span>

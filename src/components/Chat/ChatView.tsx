@@ -573,11 +573,11 @@ const DateGroupHeader = memo(function DateGroupHeader({
           !collapsed && "rotate-90",
         )}
       />
-      <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground/50 group-hover/dg:text-muted-foreground transition-colors">
+      <span className="text-2xs font-medium uppercase tracking-wider text-muted-foreground/50 group-hover/dg:text-muted-foreground transition-colors">
         {label}
       </span>
       {collapsed && (
-        <span className="text-[10px] text-muted-foreground/30 tabular-nums">
+        <span className="text-2xs text-muted-foreground/30 tabular-nums">
           {count}
         </span>
       )}
@@ -654,7 +654,7 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
           Previous Sessions
         </span>
         {hasData && sessions.length > 0 && (
-          <span className="text-[10px] text-muted-foreground/60 tabular-nums">
+          <span className="text-2xs text-muted-foreground/60 tabular-nums">
             {sessions.length}
           </span>
         )}
@@ -713,7 +713,7 @@ const SessionHistorySidebar = memo(function SessionHistorySidebar({
             </p>
             <button
               onClick={onRetry}
-              className="text-[11px] text-primary hover:underline"
+              className="text-xs text-primary hover:underline"
             >
               Retry
             </button>
@@ -845,7 +845,7 @@ const SessionHistoryItem = memo(function SessionHistoryItem({
         {/* Meta row: time, mode badge, task ID */}
         <div className="flex items-center gap-1.5 mt-0.5">
           {session.updated_at && (
-            <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
+            <span className="flex items-center gap-1 text-xs text-muted-foreground">
               <Clock size={9} className="shrink-0" />
               {formatRelativeTime(session.updated_at)}
             </span>
@@ -853,7 +853,7 @@ const SessionHistoryItem = memo(function SessionHistoryItem({
           {modeConfig && (
             <span
               className={cn(
-                "inline-flex items-center px-1.5 py-px rounded text-[9px] font-medium leading-tight",
+                "inline-flex items-center px-1.5 py-px rounded text-2xs font-medium leading-tight",
                 modeConfig.className,
               )}
             >
@@ -861,7 +861,7 @@ const SessionHistoryItem = memo(function SessionHistoryItem({
             </span>
           )}
           {faberMeta?.taskId && (
-            <span className="inline-flex items-center px-1 py-px rounded bg-accent/60 text-[9px] font-mono text-dim-foreground leading-tight">
+            <span className="inline-flex items-center px-1 py-px rounded bg-accent/60 text-2xs font-mono text-dim-foreground leading-tight">
               {faberMeta.taskId}
             </span>
           )}

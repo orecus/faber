@@ -134,7 +134,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                 <button
                   onClick={() => setStateFilter(filter)}
                   title={`Show ${filter} issues`}
-                  className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors capitalize ${
+                  className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors capitalize ${
                     stateFilter === filter
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:text-dim-foreground"
@@ -162,7 +162,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
         {importableCount > 0 && (
           <button
             onClick={allSelected ? clearSelection : selectAll}
-            className="text-[11px] text-dim-foreground hover:text-foreground transition-colors"
+            className="text-xs text-dim-foreground hover:text-foreground transition-colors"
             title={allSelected ? "Clear all selections" : "Select all importable issues"}
           >
             {allSelected ? "Clear selection" : "Select all"}
@@ -208,7 +208,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
 
       {/* Error banner */}
       {error && (
-        <div className="px-3 py-1.5 text-xs bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive">
+        <div className="px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
           {error}
         </div>
       )}
@@ -242,7 +242,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                 onClick={() => handleRowClick(issue.number)}
                 className={`flex items-center gap-2.5 px-3 py-2 border-b border-border/40 hover:bg-accent transition-colors cursor-pointer ${
                   selectedIssue === issue.number
-                    ? "bg-[color-mix(in_oklch,var(--primary)_6%,transparent)]"
+                    ? "bg-primary/6"
                     : ""
                 }`}
               >
@@ -266,7 +266,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                 </div>
 
                 {/* Issue number */}
-                <span className="shrink-0 text-[11px] font-mono text-dim-foreground w-[48px]">
+                <span className="shrink-0 text-xs font-mono text-dim-foreground w-[48px]">
                   #{issue.number}
                 </span>
 
@@ -287,7 +287,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
 
                 {/* Title + labels */}
                 <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                  <span className="truncate text-[13px] text-foreground">
+                  <span className="truncate text-sm text-foreground">
                     {issue.title}
                   </span>
 
@@ -295,7 +295,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                   {issue.labels.map((label) => (
                     <span
                       key={label.name}
-                      className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium leading-tight max-w-[100px] truncate border"
+                      className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-2xs font-medium leading-tight max-w-[100px] truncate border"
                       style={{
                         backgroundColor: `#${label.color}20`,
                         borderColor: `#${label.color}40`,
@@ -309,7 +309,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
 
                 {/* Assignees */}
                 {issue.assignees.length > 0 && (
-                  <div className="shrink-0 flex items-center gap-1 text-[10px] text-dim-foreground">
+                  <div className="shrink-0 flex items-center gap-1 text-2xs text-dim-foreground">
                     <User size={10} />
                     <span>
                       {issue.assignees.map((a) => a.login).join(", ")}
@@ -321,7 +321,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                 {already_imported && existing_task_id && (
                   <Badge
                     variant="secondary"
-                    className="shrink-0 gap-1 text-[10px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-success border-[color-mix(in_oklch,var(--success)_25%,transparent)]"
+                    className="shrink-0 gap-1 text-2xs bg-success/12 text-success border-success/25"
                   >
                     <Check size={10} />
                     {existing_task_id}

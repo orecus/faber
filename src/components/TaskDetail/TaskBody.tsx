@@ -37,16 +37,16 @@ export default function TaskBody({ body, onChange, onSave }: TaskBodyProps) {
       >
         {/* Edit mode toolbar */}
         <div className="flex items-center justify-between pb-2">
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Editing
           </span>
           <div className="flex items-center gap-2">
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               Ctrl+Enter to save
             </span>
             <button
               onClick={() => setEditing(false)}
-              className="cursor-pointer rounded-md px-2 py-0.5 text-[11px] text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
+              className="cursor-pointer rounded-md px-2 py-0.5 text-xs text-muted-foreground transition-colors hover:bg-accent hover:text-foreground"
             >
               Done
             </button>
@@ -62,7 +62,7 @@ export default function TaskBody({ body, onChange, onSave }: TaskBodyProps) {
       {/* Edit button overlay */}
       <button
         onClick={() => setEditing(true)}
-        className="cursor-pointer absolute right-2 top-1 z-10 flex items-center gap-1.5 rounded-md bg-accent/80 px-2 py-1 text-[11px] text-muted-foreground opacity-30 backdrop-blur-sm transition-all hover:bg-accent hover:text-foreground group-hover/body:opacity-100 group-focus-within/body:opacity-100"
+        className="cursor-pointer absolute right-2 top-1 z-10 flex items-center gap-1.5 rounded-md bg-accent/80 px-2 py-1 text-xs text-muted-foreground opacity-30 backdrop-blur-sm transition-all hover:bg-accent hover:text-foreground group-hover/body:opacity-100 group-focus-within/body:opacity-100"
       >
         <Pencil className="size-3" />
         Edit

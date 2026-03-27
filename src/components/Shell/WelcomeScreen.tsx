@@ -169,7 +169,7 @@ export default function WelcomeScreen() {
                         size={12}
                         className="animate-spin text-muted-foreground"
                       />
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {activeLoadingLabel
                           ? `${activeLoadingLabel}…`
                           : "Loading…"}
@@ -246,10 +246,10 @@ export default function WelcomeScreen() {
                           <div className="text-muted-foreground">
                             <Icon size={18} strokeWidth={1.5} />
                           </div>
-                          <div className="text-[12px] font-medium text-dim-foreground">
+                          <div className="text-xs font-medium text-dim-foreground">
                             {cap.label}
                           </div>
-                          <div className="text-[10px] text-muted-foreground leading-snug">
+                          <div className="text-2xs text-muted-foreground leading-snug">
                             {cap.description}
                           </div>
                         </CardContent>
@@ -267,12 +267,12 @@ export default function WelcomeScreen() {
                 className="mt-5 w-full flex flex-col items-center gap-2.5"
               >
                 <div className="flex items-center gap-2">
-                  <span className="text-[11px] text-muted-foreground">
+                  <span className="text-xs text-muted-foreground">
                     Supported agents
                   </span>
                   {agentSummary && (
                     <span
-                      className={`flex items-center gap-1 text-[11px] ${
+                      className={`flex items-center gap-1 text-xs ${
                         agentSummary.allReady
                           ? "text-success"
                           : "text-dim-foreground"
@@ -310,7 +310,7 @@ export default function WelcomeScreen() {
                   style={leftColHeight ? { maxHeight: leftColHeight } : undefined}
                 >
                   <div className="flex items-center gap-2 mb-2.5 px-1 shrink-0">
-                    <span className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
+                    <span className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground">
                       Your Projects
                     </span>
                     <div className="flex-1 h-px bg-border" />
@@ -351,10 +351,10 @@ export default function WelcomeScreen() {
                               />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
-                              <span className="text-[13px] font-medium text-foreground truncate">
+                              <span className="text-sm font-medium text-foreground truncate">
                                 {project.name}
                               </span>
-                              <span className="text-[11px] text-muted-foreground truncate">
+                              <span className="text-xs text-muted-foreground truncate">
                                 {project.path}
                               </span>
                             </div>

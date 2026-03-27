@@ -13,6 +13,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Status Bar** — New bottom bar showing MCP status and port, GitHub auth status, top agent usage percentage, context-sensitive keyboard shortcuts, and app version
 - **File Search** — File browser now preloads a project file index in the background and supports client-side filtering with highlighted search matches. Re-indexes automatically when files change
 - **File Context Menu** — Right-click any file in the tree for quick actions: copy relative path, copy absolute path, reveal in file explorer, or open in an external editor (auto-detects VS Code, Cursor, Zed, Windsurf, Fleet, Sublime, Vim, Neovim)
+- **Task Progress Ring** — In-progress task cards on the Kanban board now show a circular progress indicator (SVG ring) with percentage text, driven by MCP `report_progress` step data. Research/exploring activities display in amber; regular work in blue
+- **Task Dependency Indicators** — Task cards show per-dependency met/unmet dots (filled green for met, outlined amber for unmet) and a dependents badge showing how many other tasks depend on this one
+- **Epic Dependency Connectors** — Kanban columns now render small vertical connector arrows between epic children that have dependency relationships, making chains visible directly on the board
+- **Searchable Filter Dropdowns** — Unbounded filter lists (Labels, Agents, Epics) in the Dashboard filter bar now use searchable dropdown popovers instead of inline chips, with count badges on the trigger buttons and active filter pills displayed below the bar
+- **Task Status Color Module** — Centralized `taskStatusColors.ts` exports canonical dot colors, CSS colors, and labels for all task statuses, eliminating duplicate definitions across components
 - **Success Toasts** — Green flash notifications (3-second auto-dismiss) for confirming actions like ACP adapter installs and session renames
 - **Editor Detection** — Backend probes PATH for 8 known editors and exposes `detect_editors` / `open_in_editor` IPC commands
 - **Project File Indexing** — New `index_project_files` Rust command recursively indexes project files (skipping hidden dirs, node_modules, target, .git) for fast client-side search
@@ -28,6 +33,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Session Pane** — Removed reorder arrows (drag-and-drop is the primary method); added brief "Saved" indicator after session rename; wider rename input field
 - **Permission Dialog Urgency** — Timeout bar is thicker and the urgent state (last 30 seconds) now pulses with an animation
 - **Command Palette** — Added "Go to Settings" navigation command
+- **Typography Scale** — Standardized all text sizes across 100+ components to a canonical scale (`text-micro` 8px, `text-2xs` 10px, `text-xs` 12px, `text-sm` 14px, `text-base` 16px), replacing ad-hoc `text-[Npx]` values with new custom Tailwind utilities
+- **Filter Bar Architecture** — Status and Priority filters remain as inline toggle chips; Labels, Agents, and Epics now use collapsible searchable dropdowns for better usability in large projects
+- **DnD Visual Feedback** — Dragged Kanban cards now fully hide (opacity-0) during drag instead of showing a faded ghost, for cleaner drag-and-drop
+- **Priority Badge Styling** — Compact inline priority badges with smaller font and renamed helper (`getPriorityBadgeClass`)
+- **Task Card Layout** — Increased padding, improved visual hierarchy, and inline action buttons hidden by default (revealed on hover/focus)
 
 ### Fixed
 

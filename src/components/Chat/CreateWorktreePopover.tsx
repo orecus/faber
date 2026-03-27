@@ -83,7 +83,7 @@ export default React.memo(function CreateWorktreePopover({
       }}
     >
       <PopoverTrigger
-        className="flex items-center gap-1 h-5 px-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
+        className="flex items-center gap-1 h-5 px-1.5 rounded text-2xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
         title="Create worktree"
       >
         <GitFork size={10} />
@@ -107,7 +107,7 @@ export default React.memo(function CreateWorktreePopover({
         <div className="px-3 py-2.5 space-y-2.5">
           {/* Branch name */}
           <div>
-            <label className="mb-1 block text-[10px] text-muted-foreground uppercase tracking-wider">
+            <label className="mb-1 block text-2xs text-muted-foreground uppercase tracking-wider">
               Branch name
             </label>
             <input
@@ -124,7 +124,7 @@ export default React.memo(function CreateWorktreePopover({
 
           {/* Base branch */}
           <div>
-            <label className="mb-1 block text-[10px] text-muted-foreground uppercase tracking-wider">
+            <label className="mb-1 block text-2xs text-muted-foreground uppercase tracking-wider">
               Base branch
             </label>
             <BranchSelect
@@ -140,7 +140,7 @@ export default React.memo(function CreateWorktreePopover({
 
           {/* Error */}
           {error && (
-            <p className="text-[11px] text-destructive leading-snug">
+            <p className="text-xs text-destructive leading-snug">
               {error}
             </p>
           )}
@@ -151,14 +151,14 @@ export default React.memo(function CreateWorktreePopover({
           <button
             onClick={() => setOpen(false)}
             disabled={creating}
-            className="h-6 px-2.5 rounded text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50"
+            className="h-6 px-2.5 rounded text-xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50"
           >
             Cancel
           </button>
           <button
             onClick={handleCreate}
             disabled={creating}
-            className="flex items-center gap-1 h-6 px-2.5 rounded text-[11px] font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
+            className="flex items-center gap-1 h-6 px-2.5 rounded text-xs font-medium bg-primary text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-50"
           >
             {creating ? (
               <Loader2 size={10} className="animate-spin" />

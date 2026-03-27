@@ -189,13 +189,13 @@ export default function SkillsTab({ projectId }: Props) {
                         />
                       </button>
                       {skill.installs > 0 && (
-                        <span className="text-[10px] text-muted-foreground bg-accent/60 px-1.5 py-0.5 rounded-full">
+                        <span className="text-2xs text-muted-foreground bg-accent/60 px-1.5 py-0.5 rounded-full">
                           {skill.installs.toLocaleString()} installs
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-[10px] text-dim-foreground truncate">
+                      <span className="text-2xs text-dim-foreground truncate">
                         {highlightMatch(skill.source, query)}
                       </span>
                     </div>

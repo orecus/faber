@@ -1,6 +1,6 @@
 import { memo, useMemo, useState, useCallback, useRef, useEffect } from "react";
-import { useDroppable } from "@dnd-kit/core";
-import { ArrowUpDown, PanelLeftClose, PanelLeftOpen, Check } from "lucide-react";
+import { useDroppable, useDndContext } from "@dnd-kit/core";
+import { ArrowUpDown, PanelLeftClose, PanelLeftOpen, Check, ChevronDown } from "lucide-react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import TaskCard from "./TaskCard";
@@ -13,6 +13,16 @@ import { isTaskBlocked, buildColumnItems, SORT_MODE_LABELS, type ColumnSortMode 
 import type { Session, Task, TaskStatus } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { DEFAULT_PRIORITIES } from "../../lib/priorities";
+
+/** Small vertical connector arrow shown between epic children that depend on each other */
+function EpicDepConnector() {
+  return (
+    <div className="flex items-center justify-center h-2.5 -my-px relative">
+      <div className="w-px h-full bg-primary/25" />
+      <ChevronDown className="size-2 text-primary/40 absolute -bottom-0.5" />
+    </div>
+  );
+}
 
 const COLUMN_LABELS: Record<TaskStatus, string> = {
   backlog: "Backlog",
@@ -83,6 +93,8 @@ const KanbanColumn = memo(function KanbanColumn({
     activeProjectId ? (s.projectPriorities[activeProjectId] ?? DEFAULT_PRIORITIES) : DEFAULT_PRIORITIES
   );
   const { isOver, setNodeRef } = useDroppable({ id: status });
+  const { active } = useDndContext();
+  const activeDragId = active?.id as string | undefined;
   const [showSortMenu, setShowSortMenu] = useState(false);
   const sortMenuRef = useRef<HTMLDivElement>(null);
 
@@ -160,14 +172,14 @@ const KanbanColumn = memo(function KanbanColumn({
         <div className="py-2">
           <PanelLeftOpen className="size-3.5 text-muted-foreground" />
         </div>
-        <span className={`text-[11px] tabular-nums rounded-full px-1 ${
+        <span className={`text-xs tabular-nums rounded-full px-1 ${
           tasks.length > 0 ? "text-dim-foreground bg-accent" : "text-muted-foreground"
         }`}>
           {tasks.length}
         </span>
         <div className="flex-1 flex items-center justify-center">
           <span
-            className="text-[11px] font-semibold text-dim-foreground uppercase tracking-[0.5px]"
+            className="text-xs font-semibold text-dim-foreground uppercase tracking-[0.5px]"
             style={{ writingMode: "vertical-lr", textOrientation: "mixed" }}
           >
             {COLUMN_LABELS[status]}
@@ -189,11 +201,11 @@ const KanbanColumn = memo(function KanbanColumn({
       {/* Column header */}
       <div className="px-2.5 py-2 flex items-center justify-between border-b border-border/60">
         <div className="flex items-center gap-1.5">
-          <span className="text-[11px] font-semibold text-dim-foreground uppercase tracking-[0.5px]">
+          <span className="text-xs font-semibold text-dim-foreground uppercase tracking-[0.5px]">
             {COLUMN_LABELS[status]}
           </span>
           {blockedCount > 0 && (
-            <span className="text-[9px] text-warning bg-warning/10 px-1 rounded">
+            <span className="text-2xs text-warning bg-warning/10 px-1 rounded">
               {blockedCount} blocked
             </span>
           )}
@@ -216,7 +228,7 @@ const KanbanColumn = memo(function KanbanColumn({
                   <button
                     key={mode}
                     onClick={() => handleSortSelect(mode)}
-                    className="flex items-center gap-2 w-full px-2 py-1 text-[11px] text-left rounded hover:bg-accent/60 transition-colors"
+                    className="flex items-center gap-2 w-full px-2 py-1 text-xs text-left rounded hover:bg-accent/60 transition-colors"
                   >
                     <Check className={`size-3 ${sortMode === mode ? "opacity-100" : "opacity-0"}`} />
                     <span className={sortMode === mode ? "text-foreground font-medium" : "text-muted-foreground"}>
@@ -236,7 +248,7 @@ const KanbanColumn = memo(function KanbanColumn({
             <PanelLeftClose className="size-3" />
           </button>
           {/* Task count */}
-          <span className={`text-[11px] tabular-nums min-w-[1.25rem] text-center rounded-full px-1 ${
+          <span className={`text-xs tabular-nums min-w-[1.25rem] text-center rounded-full px-1 ${
             tasks.length > 0 ? "text-dim-foreground bg-accent" : "text-muted-foreground"
           }`}>
             {tasks.length}
@@ -246,7 +258,7 @@ const KanbanColumn = memo(function KanbanColumn({
 
       {/* Card list */}
       <div className="flex-1 min-h-0 overflow-y-auto p-1.5 flex flex-col gap-1.5">
-        {columnItems.map((item) => {
+        {columnItems.map((item, idx) => {
           if (item.type === "ghost") {
             return (
               <GhostParentCard
@@ -260,40 +272,58 @@ const KanbanColumn = memo(function KanbanColumn({
           const session = sessionMap.get(task.id) ?? null;
           const blocked = isTaskBlocked(task, taskMap);
           const deps = dependentsMap[task.id] ?? [];
+
+          // Check if we should render a dependency connector before this card
+          // (epic children that depend on the previous epic sibling)
+          const prevItem = idx > 0 ? columnItems[idx - 1] : null;
+          const showConnector =
+            depth > 0 &&
+            prevItem?.type === "task" &&
+            prevItem.depth > 0 &&
+            task.depends_on.includes(prevItem.task.id);
+
+          const isBeingDragged = activeDragId === task.id;
+
           return (
-            <TaskCardContextMenu
-              key={task.id}
-              task={task}
-              allLabels={allLabels}
-              onTaskClick={onTaskClick}
-              onStartSession={onStartSession}
-              onResearchSession={onResearchSession}
-              onBreakdownEpic={onBreakdownEpic}
-              onViewSession={onViewSession}
-            >
-              {(menuProps) => (
-                <TaskCard
-                  task={task}
-                  linkedSession={session}
-                  onClick={onTaskClick}
-                  onStartSession={onStartSession}
-                  onResearchSession={onResearchSession}
-                  onBreakdownEpic={onBreakdownEpic}
-                  onViewSession={onViewSession}
-                  onEpicClick={onEpicClick}
-                  variant={variant}
-                  taskMap={taskMap}
-                  allTasks={tasks}
-                  dependents={deps}
-                  isBlocked={blocked}
-                  treeDepth={depth}
-                  onContextMenu={menuProps.onContextMenu}
-                  isEditingTitle={menuProps.isEditingTitle}
-                  onTitleSave={menuProps.onTitleSave}
-                  onTitleEditCancel={menuProps.onTitleEditCancel}
-                />
+            <div key={task.id} className={isBeingDragged ? "opacity-0 pointer-events-none" : ""}>
+              {showConnector && (
+                <div style={{ marginLeft: `${depth * 12}px` }}>
+                  <EpicDepConnector />
+                </div>
               )}
-            </TaskCardContextMenu>
+              <TaskCardContextMenu
+                task={task}
+                allLabels={allLabels}
+                onTaskClick={onTaskClick}
+                onStartSession={onStartSession}
+                onResearchSession={onResearchSession}
+                onBreakdownEpic={onBreakdownEpic}
+                onViewSession={onViewSession}
+              >
+                {(menuProps) => (
+                  <TaskCard
+                    task={task}
+                    linkedSession={session}
+                    onClick={onTaskClick}
+                    onStartSession={onStartSession}
+                    onResearchSession={onResearchSession}
+                    onBreakdownEpic={onBreakdownEpic}
+                    onViewSession={onViewSession}
+                    onEpicClick={onEpicClick}
+                    variant={variant}
+                    taskMap={taskMap}
+                    allTasks={tasks}
+                    dependents={deps}
+                    isBlocked={blocked}
+                    treeDepth={depth}
+                    onContextMenu={menuProps.onContextMenu}
+                    isEditingTitle={menuProps.isEditingTitle}
+                    onTitleSave={menuProps.onTitleSave}
+                    onTitleEditCancel={menuProps.onTitleEditCancel}
+                  />
+                )}
+              </TaskCardContextMenu>
+            </div>
           );
         })}
       </div>

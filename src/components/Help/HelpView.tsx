@@ -146,7 +146,7 @@ export default function HelpView() {
                       {doc.title}
                     </div>
                     {doc.description && (
-                      <div className="text-[11px] text-muted-foreground truncate mt-0.5">
+                      <div className="text-xs text-muted-foreground truncate mt-0.5">
                         {doc.description}
                       </div>
                     )}

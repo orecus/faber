@@ -12,31 +12,12 @@ import {
   CirclePause,
   Minus,
 } from "lucide-react";
-import type { Task, Session, TaskStatus } from "../../types";
+import type { Task, Session } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { isTaskBlocked, buildDependentsMap } from "../../lib/taskSort";
+import { TASK_STATUS_DOT_COLORS, TASK_STATUS_LABELS } from "../../lib/taskStatusColors";
 import PriorityBadge from "./PriorityBadge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-
-// ── Status display ──
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  backlog: "bg-muted-foreground/50",
-  ready: "bg-blue-500",
-  "in-progress": "bg-amber-500",
-  "in-review": "bg-purple-500",
-  done: "bg-emerald-500",
-  archived: "bg-muted-foreground/30",
-};
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  backlog: "Backlog",
-  ready: "Ready",
-  "in-progress": "In Progress",
-  "in-review": "In Review",
-  done: "Done",
-  archived: "Archived",
-};
 
 // ── Build tree structure ──
 
@@ -214,7 +195,7 @@ function TreeRow({
         </button>
 
         {/* Status dot */}
-        <div className={`size-2 rounded-full shrink-0 mr-2 ${STATUS_COLORS[task.status]}`} />
+        <div className={`size-2 rounded-full shrink-0 mr-2 ${TASK_STATUS_DOT_COLORS[task.status]}`} />
 
         {/* Priority */}
         <div className="shrink-0 mr-1.5">
@@ -222,26 +203,26 @@ function TreeRow({
         </div>
 
         {/* Title */}
-        <span className="text-[12px] font-medium text-foreground truncate flex-1 leading-none">
+        <span className="text-xs font-medium text-foreground truncate flex-1 leading-none">
           {task.title}
         </span>
 
         {/* Blocked indicator */}
         {blocked && (
-          <span className="flex items-center gap-0.5 text-[10px] text-warning mr-2 shrink-0">
+          <span className="flex items-center gap-0.5 text-2xs text-warning mr-2 shrink-0">
             <Lock className="size-3" />
             blocked
           </span>
         )}
 
         {/* Status label */}
-        <span className="text-[10px] text-muted-foreground mr-2 shrink-0 w-16 text-right">
-          {STATUS_LABELS[task.status]}
+        <span className="text-2xs text-muted-foreground mr-2 shrink-0 w-16 text-right">
+          {TASK_STATUS_LABELS[task.status]}
         </span>
 
         {/* Agent */}
         {task.agent && (
-          <span className="text-[10px] text-muted-foreground mr-2 shrink-0 w-16 truncate text-right">
+          <span className="text-2xs text-muted-foreground mr-2 shrink-0 w-16 truncate text-right">
             {task.agent}
           </span>
         )}
@@ -259,7 +240,7 @@ function TreeRow({
               ) : (
                 <Loader2 className="size-3 text-primary animate-spin" />
               )}
-              <span className="text-[10px] text-muted-foreground truncate">
+              <span className="text-2xs text-muted-foreground truncate">
                 {mcpData.current_step != null && mcpData.total_steps != null
                   ? `${mcpData.current_step}/${mcpData.total_steps}`
                   : mcpData.message || "Working"}
@@ -268,7 +249,7 @@ function TreeRow({
           ) : isActive ? (
             <>
               <Loader2 className="size-3 text-primary animate-spin" />
-              <span className="text-[10px] text-muted-foreground">Starting</span>
+              <span className="text-2xs text-muted-foreground">Starting</span>
             </>
           ) : null}
         </div>
@@ -417,13 +398,13 @@ export default React.memo(function DependencyGraph({
     <div className="flex flex-col h-full min-h-0">
       {/* Tree toolbar */}
       <div className="flex items-center gap-3 px-2 py-1.5 border-b border-border/40 shrink-0">
-        <span className="text-[11px] text-muted-foreground">
+        <span className="text-xs text-muted-foreground">
           {stats.rootCount} root{stats.rootCount !== 1 ? "s" : ""}
         </span>
         {stats.depCount > 0 && (
           <>
             <span className="text-border">·</span>
-            <span className="text-[11px] text-muted-foreground">
+            <span className="text-xs text-muted-foreground">
               {stats.depCount} with dependencies
             </span>
           </>
@@ -431,7 +412,7 @@ export default React.memo(function DependencyGraph({
         {stats.blockedCount > 0 && (
           <>
             <span className="text-border">·</span>
-            <span className="text-[11px] text-warning">
+            <span className="text-xs text-warning">
               {stats.blockedCount} blocked
             </span>
           </>
@@ -439,13 +420,13 @@ export default React.memo(function DependencyGraph({
         <div className="flex-1" />
         <button
           onClick={handleExpandAll}
-          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          className="text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
         >
           Expand all
         </button>
         <button
           onClick={handleCollapseAll}
-          className="text-[10px] text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+          className="text-2xs text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
         >
           Collapse all
         </button>

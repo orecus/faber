@@ -88,7 +88,7 @@ function CommitRowInner({
         {refs?.branches.map((b) => (
           <span
             key={b}
-            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-[10px] font-medium leading-tight max-w-[120px] truncate bg-[color-mix(in_oklch,var(--primary)_15%,transparent)] text-primary border border-[color-mix(in_oklch,var(--primary)_25%,transparent)]"
+            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-2xs font-medium leading-tight max-w-[120px] truncate bg-primary/15 text-primary border border-primary/25"
           >
             {b}
           </span>
@@ -97,7 +97,7 @@ function CommitRowInner({
         {refs?.tags.map((t) => (
           <span
             key={t}
-            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-[10px] font-medium leading-tight max-w-[90px] truncate bg-[color-mix(in_oklch,var(--warning)_15%,transparent)] text-warning border border-[color-mix(in_oklch,var(--warning)_25%,transparent)]"
+            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-2xs font-medium leading-tight max-w-[90px] truncate bg-warning/15 text-warning border border-warning/25"
           >
             {t}
           </span>
@@ -116,10 +116,10 @@ function CommitRowInner({
             className="text-muted-foreground shrink-0"
           />
         )}
-        <span className="text-[11px] font-mono text-muted-foreground w-[52px] text-right">
+        <span className="text-xs font-mono text-muted-foreground w-[52px] text-right">
           {commit.short_hash}
         </span>
-        <span className="text-[10px] text-muted-foreground w-[28px] text-right tabular-nums">
+        <span className="text-2xs text-muted-foreground w-[28px] text-right tabular-nums">
           {formatRelativeTime(commit.timestamp)}
         </span>
       </div>

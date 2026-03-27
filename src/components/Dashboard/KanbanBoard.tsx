@@ -169,12 +169,20 @@ export default function KanbanBoard({
 
       <DragOverlay dropAnimation={null}>
         {activeTask && (
-          <div className="w-[200px]">
+          <div className="w-[260px]">
             <TaskCard
               task={activeTask}
               linkedSession={sessionMap.get(activeTask.id) ?? null}
               onClick={() => {}}
               isDragOverlay
+              variant={activeTask.status === "done" ? "compact" : activeTask.status === "in-progress" ? "detailed" : activeTask.status === "backlog" ? "tree-node" : "default"}
+              taskMap={taskMap}
+              allTasks={tasks}
+              dependents={dependentsMap[activeTask.id] ?? []}
+              isBlocked={activeTask.depends_on.some((depId) => {
+                const dep = taskMap.get(depId);
+                return dep != null && dep.status !== "done" && dep.status !== "archived";
+              })}
             />
           </div>
         )}

@@ -228,7 +228,7 @@ export default function DiffToolbar({
             onClick={onDelete}
             hoverEffect="scale"
             clickEffect="scale"
-            className="text-destructive hover:bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)]"
+            className="text-destructive hover:bg-destructive/10"
             leftIcon={<Trash2 className="size-3.5" />}
             title="Delete worktree"
           >

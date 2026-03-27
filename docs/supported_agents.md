@@ -167,7 +167,7 @@ Breakdown, Vibe, and Chat sessions have no completion tool — the user drives t
 
 ### Per-Project Defaults
 
-In **Settings > Projects > [Your Project]**, you can set a default agent and model. All new sessions will use this agent unless overridden at launch time.
+In **Settings > Project**, you can set a default agent and model. All new sessions will use this agent unless overridden at launch time.
 
 ### Per-Task Overrides
 

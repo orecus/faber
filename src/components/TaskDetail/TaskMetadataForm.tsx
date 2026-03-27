@@ -9,24 +9,12 @@ import {
 import type { TaskStatus, AgentInfo } from "../../types";
 import { useAppStore } from "../../store/appStore";
 import { DEFAULT_PRIORITIES, getPriorityLabel, getPriorityCssVar } from "../../lib/priorities";
+import { TASK_STATUS_CSS_COLORS, TASK_STATUS_LABELS } from "../../lib/taskStatusColors";
 
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "backlog", label: "Backlog" },
-  { value: "ready", label: "Ready" },
-  { value: "in-progress", label: "In Progress" },
-  { value: "in-review", label: "In Review" },
-  { value: "done", label: "Done" },
-  { value: "archived", label: "Archived" },
-];
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  "backlog": "var(--muted-foreground)",
-  "ready": "var(--primary)",
-  "in-progress": "var(--warning)",
-  "in-review": "var(--primary)",
-  "done": "var(--success)",
-  "archived": "var(--muted-foreground)",
-};
+const STATUS_OPTIONS: { value: TaskStatus; label: string }[] =
+  (["backlog", "ready", "in-progress", "in-review", "done", "archived"] as TaskStatus[]).map(
+    (v) => ({ value: v, label: TASK_STATUS_LABELS[v] }),
+  );
 
 export interface TaskFormData {
   title: string;
@@ -49,7 +37,7 @@ interface TaskMetadataFormProps {
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
   return (
-    <span className="mb-1 block text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+    <span className="mb-1 block text-xs font-medium uppercase tracking-wide text-muted-foreground">
       {children}
     </span>
   );
@@ -59,7 +47,7 @@ function ReadonlyField({ label, children }: { label: string; children: React.Rea
   return (
     <div>
       <FieldLabel>{label}</FieldLabel>
-      <div className="min-h-[32px] text-[13px] text-foreground">
+      <div className="min-h-[32px] text-sm text-foreground">
         {children}
       </div>
     </div>
@@ -88,7 +76,7 @@ export default function TaskMetadataForm({ data, onChange, editing, agents }: Ta
           <span className="inline-flex items-center gap-1.5">
             <span
               className="inline-block size-2 rounded-full"
-              style={{ background: STATUS_COLORS[data.status] }}
+              style={{ background: TASK_STATUS_CSS_COLORS[data.status] }}
             />
             {statusLabel}
           </span>

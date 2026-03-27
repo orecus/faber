@@ -933,11 +933,11 @@ function SuggestionOverlay({
               >
                 {cmd.icon}
                 <span className="text-xs font-medium">{cmd.label}</span>
-                <span className="text-[11px] text-muted-foreground flex-1 truncate">
+                <span className="text-xs text-muted-foreground flex-1 truncate">
                   {cmd.description}
                 </span>
                 {cmd.isAgentCommand && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-primary/60 shrink-0">
+                  <span className="flex items-center gap-0.5 text-2xs text-primary/60 shrink-0">
                     <Sparkles size={10} />
                     agent
                   </span>
@@ -964,7 +964,7 @@ function SuggestionOverlay({
                 )}
                 <span className="text-xs truncate">{file.path}</span>
                 {file.is_dir && (
-                  <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                  <span className="text-2xs text-muted-foreground/50 shrink-0">
                     dir
                   </span>
                 )}

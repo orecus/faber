@@ -127,13 +127,13 @@ function SessionPromptRow({ template, onSave }: { template: PromptTemplate; onSa
         className="w-full flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-accent/40 transition-colors"
       >
         <Icon size={15} className="text-muted-foreground shrink-0" />
-        <span className="text-[13px] font-medium text-foreground">{template.label}</span>
+        <span className="text-sm font-medium text-foreground">{template.label}</span>
         {template.session_mode && (
-          <Badge variant="secondary" className="text-[10px]">
+          <Badge variant="secondary" className="text-2xs">
             {template.session_mode}
           </Badge>
         )}
-        <Badge variant="outline" className="text-[10px] text-muted-foreground ml-auto mr-2">
+        <Badge variant="outline" className="text-2xs text-muted-foreground ml-auto mr-2">
           Protected
         </Badge>
         <ChevronDown
@@ -152,17 +152,17 @@ function SessionPromptRow({ template, onSave }: { template: PromptTemplate; onSa
               setDirty(true);
             }}
             rows={4}
-            className="text-[13px] font-mono"
+            className="text-sm font-mono"
           />
 
           {/* Variable reference */}
           <div className="rounded-md bg-popover/60 ring-1 ring-border/30 px-3 py-2">
-            <div className="text-[11px] font-medium text-muted-foreground mb-1.5">
+            <div className="text-xs font-medium text-muted-foreground mb-1.5">
               Available variables
             </div>
             <div className="flex flex-col gap-0.5">
               {relevantVars.map((v) => (
-                <div key={v.name} className="flex items-baseline gap-2 text-[11px]">
+                <div key={v.name} className="flex items-baseline gap-2 text-xs">
                   <code className="text-primary font-mono">{`{{${v.name}}}`}</code>
                   <span className="text-muted-foreground">{v.description}</span>
                 </div>
@@ -229,15 +229,15 @@ function QuickActionRow({
           className="flex items-center gap-3 flex-1 min-w-0 cursor-pointer"
         >
           <Icon size={15} className="text-muted-foreground shrink-0" />
-          <span className="text-[13px] font-medium text-foreground truncate">
+          <span className="text-sm font-medium text-foreground truncate">
             {template.label}
           </span>
           {template.builtin && (
-            <Badge variant="secondary" className="text-[10px] shrink-0">
+            <Badge variant="secondary" className="text-2xs shrink-0">
               Built-in
             </Badge>
           )}
-          <span className="text-[11px] text-muted-foreground truncate flex-1 text-left">
+          <span className="text-xs text-muted-foreground truncate flex-1 text-left">
             {template.prompt.length > 60
               ? template.prompt.slice(0, 60) + "..."
               : template.prompt}
@@ -245,7 +245,7 @@ function QuickActionRow({
         </button>
 
         <div className="flex items-center gap-2 shrink-0">
-          <label className="flex items-center gap-1.5 text-[11px] text-muted-foreground cursor-pointer" title="Show as quick action button on session panes">
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground cursor-pointer" title="Show as quick action button on session panes">
             <Checkbox
               checked={editedQuickAction}
               onCheckedChange={(checked) => {
@@ -281,28 +281,28 @@ function QuickActionRow({
         <div className="border-t border-border px-3 py-3 flex flex-col gap-3">
           {/* Label */}
           <div>
-            <label className="text-[11px] text-muted-foreground mb-1 block">Label</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Label</label>
             <input
               value={editedLabel}
               onChange={(e) => { setEditedLabel(e.target.value); setDirty(true); }}
-              className="w-full px-2.5 py-1.5 text-[13px] bg-transparent border border-border rounded-md text-foreground outline-none transition-[color,box-shadow] focus:ring-2 focus:ring-ring/50 focus:border-ring"
+              className="w-full px-2.5 py-1.5 text-sm bg-transparent border border-border rounded-md text-foreground outline-none transition-[color,box-shadow] focus:ring-2 focus:ring-ring/50 focus:border-ring"
             />
           </div>
 
           {/* Icon */}
           <div>
-            <label className="text-[11px] text-muted-foreground mb-1 block">Icon</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Icon</label>
             <IconPicker value={editedIcon} onChange={(v) => { setEditedIcon(v); setDirty(true); }} />
           </div>
 
           {/* Prompt */}
           <div>
-            <label className="text-[11px] text-muted-foreground mb-1 block">Prompt</label>
+            <label className="text-xs text-muted-foreground mb-1 block">Prompt</label>
             <Textarea
               value={editedPrompt}
               onChange={(e) => { setEditedPrompt(e.target.value); setDirty(true); }}
               rows={3}
-              className="text-[13px]"
+              className="text-sm"
             />
           </div>
 
@@ -369,34 +369,34 @@ function AddActionForm({ onAdd }: { onAdd: (t: Omit<PromptTemplate, "sort_order"
     <div className="rounded-lg bg-muted/20 ring-1 ring-border/30 p-3 flex flex-col gap-3">
       {/* Label */}
       <div>
-        <label className="text-[11px] text-muted-foreground mb-1 block">Label</label>
+        <label className="text-xs text-muted-foreground mb-1 block">Label</label>
         <input
           value={label}
           onChange={(e) => setLabel(e.target.value)}
           placeholder="e.g., Run Tests"
-          className="w-full px-2.5 py-1.5 text-[13px] bg-transparent border border-border rounded-md text-foreground outline-none transition-[color,box-shadow] focus:ring-2 focus:ring-ring/50 focus:border-ring"
+          className="w-full px-2.5 py-1.5 text-sm bg-transparent border border-border rounded-md text-foreground outline-none transition-[color,box-shadow] focus:ring-2 focus:ring-ring/50 focus:border-ring"
         />
       </div>
 
       {/* Icon */}
       <div>
-        <label className="text-[11px] text-muted-foreground mb-1 block">Icon</label>
+        <label className="text-xs text-muted-foreground mb-1 block">Icon</label>
         <IconPicker value={icon} onChange={setIcon} />
       </div>
 
       <div>
-        <label className="text-[11px] text-muted-foreground mb-1 block">Prompt</label>
+        <label className="text-xs text-muted-foreground mb-1 block">Prompt</label>
         <Textarea
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           placeholder="The prompt text to send to the agent..."
           rows={3}
-          className="text-[13px]"
+          className="text-sm"
         />
       </div>
 
       <div className="flex items-center justify-between">
-        <label className="flex items-center gap-1.5 text-[12px] text-dim-foreground cursor-pointer">
+        <label className="flex items-center gap-1.5 text-xs text-dim-foreground cursor-pointer">
           <Checkbox
             checked={quickAction}
             onCheckedChange={(checked) => setQuickAction(checked === true)}
@@ -469,7 +469,7 @@ export function PromptsTab() {
       {/* Session Prompts */}
       <section>
         <div className={sectionHeadingClass}>Session Prompts</div>
-        <p className="text-[11px] text-muted-foreground mb-3 -mt-1">
+        <p className="text-xs text-muted-foreground mb-3 -mt-1">
           Default prompts used when launching task, research, and continuous mode sessions.
           These cannot be deleted but can be customized.
         </p>
@@ -483,7 +483,7 @@ export function PromptsTab() {
       {/* Quick Actions */}
       <section>
         <div className={sectionHeadingClass}>Quick Actions</div>
-        <p className="text-[11px] text-muted-foreground mb-3 -mt-1">
+        <p className="text-xs text-muted-foreground mb-3 -mt-1">
           Action buttons shown on active session panes. Click to send the prompt to the agent.
         </p>
         <div className="flex flex-col gap-2">

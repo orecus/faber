@@ -28,24 +28,12 @@ import type { TaskFormData } from "./TaskMetadataForm";
 import { useAppStore } from "../../store/appStore";
 import type { AgentInfo, Task, TaskStatus, TaskType } from "../../types";
 import { DEFAULT_PRIORITIES, getPriorityLabel, getPriorityCssVar } from "../../lib/priorities";
+import { TASK_STATUS_CSS_COLORS, TASK_STATUS_LABELS } from "../../lib/taskStatusColors";
 
-const STATUS_OPTIONS: { value: TaskStatus; label: string }[] = [
-  { value: "backlog", label: "Backlog" },
-  { value: "ready", label: "Ready" },
-  { value: "in-progress", label: "In Progress" },
-  { value: "in-review", label: "In Review" },
-  { value: "done", label: "Done" },
-  { value: "archived", label: "Archived" },
-];
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  backlog: "var(--muted-foreground)",
-  ready: "var(--primary)",
-  "in-progress": "var(--warning)",
-  "in-review": "var(--primary)",
-  done: "var(--success)",
-  archived: "var(--muted-foreground)",
-};
+const STATUS_OPTIONS: { value: TaskStatus; label: string }[] =
+  (["backlog", "ready", "in-progress", "in-review", "done", "archived"] as TaskStatus[]).map(
+    (v) => ({ value: v, label: TASK_STATUS_LABELS[v] }),
+  );
 
 interface TaskMetadataSidebarProps {
   data: TaskFormData;
@@ -71,7 +59,7 @@ function SidebarSection({
 }) {
   return (
     <div className="space-y-1">
-      <span className="flex items-center gap-1.5 text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+      <span className="flex items-center gap-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
         {icon}
         {label}
       </span>
@@ -182,7 +170,7 @@ export default function TaskMetadataSidebar({
             <span className="flex items-center gap-2">
               <span
                 className="inline-block size-2 rounded-full shrink-0"
-                style={{ background: STATUS_COLORS[data.status] }}
+                style={{ background: TASK_STATUS_CSS_COLORS[data.status] }}
               />
               <SelectValue />
             </span>
@@ -193,7 +181,7 @@ export default function TaskMetadataSidebar({
                 <span className="flex items-center gap-2">
                   <span
                     className="inline-block size-2 rounded-full"
-                    style={{ background: STATUS_COLORS[opt.value] }}
+                    style={{ background: TASK_STATUS_CSS_COLORS[opt.value] }}
                   />
                   {opt.label}
                 </span>
@@ -202,7 +190,7 @@ export default function TaskMetadataSidebar({
           </SelectContent>
         </Select>
         {taskType === "epic" && (
-          <p className="text-[10px] text-muted-foreground mt-0.5">
+          <p className="text-2xs text-muted-foreground mt-0.5">
             Auto-derived from children
           </p>
         )}
@@ -273,7 +261,7 @@ export default function TaskMetadataSidebar({
                 <SelectItem key={e.id} value={e.id}>
                   <span className="flex items-center gap-1.5">
                     <Layers size={10} className="shrink-0 text-muted-foreground" />
-                    <span className="font-mono text-[10px] text-muted-foreground">
+                    <span className="font-mono text-2xs text-muted-foreground">
                       {e.id}
                     </span>
                     <span className="truncate">{e.title}</span>
@@ -430,7 +418,7 @@ export default function TaskMetadataSidebar({
               <Badge
                 key={label}
                 variant="secondary"
-                className="text-[10px] px-1.5 py-0"
+                className="text-2xs px-1.5 py-0"
               >
                 {label}
               </Badge>
@@ -460,9 +448,9 @@ export default function TaskMetadataSidebar({
               >
                 <span
                   className="inline-block size-1.5 rounded-full shrink-0 translate-y-[-0.5px]"
-                  style={{ background: STATUS_COLORS[t.status] }}
+                  style={{ background: TASK_STATUS_CSS_COLORS[t.status] }}
                 />
-                <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                <span className="font-mono text-2xs text-muted-foreground shrink-0">
                   {t.id}
                 </span>
                 <span className="truncate text-foreground/80 group-hover/dep:text-foreground">
@@ -481,7 +469,7 @@ export default function TaskMetadataSidebar({
                 <Badge
                   key={dep}
                   variant="outline"
-                  className="font-mono text-[10px] px-1.5 py-0"
+                  className="font-mono text-2xs px-1.5 py-0"
                 >
                   {dep}
                 </Badge>
@@ -511,9 +499,9 @@ export default function TaskMetadataSidebar({
               >
                 <span
                   className="inline-block size-1.5 rounded-full shrink-0 translate-y-[-0.5px]"
-                  style={{ background: STATUS_COLORS[t.status] }}
+                  style={{ background: TASK_STATUS_CSS_COLORS[t.status] }}
                 />
-                <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+                <span className="font-mono text-2xs text-muted-foreground shrink-0">
                   {t.id}
                 </span>
                 <span className="truncate text-foreground/80 group-hover/sub:text-foreground">

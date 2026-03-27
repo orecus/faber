@@ -355,14 +355,14 @@ export default function LaunchContinuousDialog({
                     checked={item.selected}
                     onCheckedChange={() => handleToggleTask(index)}
                   />
-                  <span className="text-[11px] tabular-nums text-muted-foreground w-4 text-center shrink-0">
+                  <span className="text-xs tabular-nums text-muted-foreground w-4 text-center shrink-0">
                     {item.selected ? selectedIndex : "-"}
                   </span>
                   <span className="text-xs text-foreground truncate flex-1">
                     {item.task.title}
                     {item.task.depends_on.length > 0 && (
                       <span
-                        className="ml-1 text-[10px] text-muted-foreground"
+                        className="ml-1 text-2xs text-muted-foreground"
                         title={`Depends on: ${item.task.depends_on.join(", ")}`}
                       >
                         (deps: {item.task.depends_on.filter((d) => orderedTasks.some((t) => t.task.id === d)).length})
@@ -371,14 +371,14 @@ export default function LaunchContinuousDialog({
                   </span>
                   {item.task.agent && item.task.agent !== selectedAgentName && (
                     <span
-                      className="shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-primary/15 text-primary"
+                      className="shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium bg-primary/15 text-primary"
                       title={`This task will use ${item.task.agent} instead of ${selectedAgentName}`}
                     >
                       {item.task.agent}
                     </span>
                   )}
                   <span
-                    className={`shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium ${getPriorityBadgeClass(item.task.priority, priorities)}`}
+                    className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium ${getPriorityBadgeClass(item.task.priority, priorities)}`}
                   >
                     {item.task.priority}
                   </span>
@@ -405,7 +405,7 @@ export default function LaunchContinuousDialog({
             })}
           </div>
           {selectedTaskIds.length < 2 && (
-            <p className="mt-1 text-[11px] text-warning">
+            <p className="mt-1 text-xs text-warning">
               Select at least 2 tasks to start continuous mode
             </p>
           )}
@@ -432,7 +432,7 @@ export default function LaunchContinuousDialog({
                 >
                   Independent
                 </span>
-                <div className="text-[11px] leading-snug text-muted-foreground mt-0.5">
+                <div className="text-xs leading-snug text-muted-foreground mt-0.5">
                   All tasks run in parallel, each branching from base
                 </div>
               </div>
@@ -452,14 +452,14 @@ export default function LaunchContinuousDialog({
                 >
                   Chained
                 </span>
-                <div className="text-[11px] leading-snug text-muted-foreground mt-0.5">
+                <div className="text-xs leading-snug text-muted-foreground mt-0.5">
                   Each branches from the previous
                 </div>
               </div>
             </button>
           </div>
           {dependencyAnalysis.hasDeps && (
-            <div className="mt-1.5 flex items-start gap-1.5 text-[11px] text-muted-foreground">
+            <div className="mt-1.5 flex items-start gap-1.5 text-xs text-muted-foreground">
               <Info className="size-3 shrink-0 mt-0.5 text-primary" />
               <span>
                 {dependencyAnalysis.reason}
@@ -516,7 +516,7 @@ export default function LaunchContinuousDialog({
                 Chat
               </button>
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {selectedTransport === "acp"
                 ? "Structured chat UI with tool calls and permission management"
                 : "Classic terminal session with PTY output"}
@@ -534,7 +534,7 @@ export default function LaunchContinuousDialog({
             onSelect={handleAgentSelect}
             accentColor={accentColor}
           />
-          <p className="mt-1.5 text-[11px] text-muted-foreground">
+          <p className="mt-1.5 text-xs text-muted-foreground">
             Tasks with their own agent set will use that agent instead of the one selected here.
           </p>
         </div>

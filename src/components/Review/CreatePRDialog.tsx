@@ -163,7 +163,7 @@ export default function CreatePRDialog({
         {stage === "done" && result ? (
           /* Success state */
           <div className="space-y-4">
-            <div className="rounded-md border border-success bg-[color-mix(in_oklch,var(--success)_10%,transparent)] px-4 py-3">
+            <div className="rounded-md border border-success bg-success/10 px-4 py-3">
               <p className="text-sm font-medium text-success">
                 PR #{result.number} created
               </p>

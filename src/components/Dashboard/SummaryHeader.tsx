@@ -81,7 +81,7 @@ const SummaryHeader = memo(function SummaryHeader({
   return (
     <>
       {/* Stats */}
-      <span className="text-[13px] font-medium mr-1 text-foreground">
+      <span className="text-sm font-medium mr-1 text-foreground">
         Dashboard
       </span>
 
@@ -126,7 +126,7 @@ const SummaryHeader = memo(function SummaryHeader({
       {archivedCount > 0 && onToggleArchived && (
         <button
           onClick={onToggleArchived}
-          className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium rounded-[var(--radius-element)] border transition-colors cursor-pointer ${
+          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-[var(--radius-element)] border transition-colors cursor-pointer ${
             showArchived
               ? "bg-accent text-foreground border-border"
               : "text-muted-foreground border-transparent hover:text-foreground hover:bg-accent/50"
@@ -135,7 +135,7 @@ const SummaryHeader = memo(function SummaryHeader({
         >
           <Archive className="size-3" />
           Archive
-          <span className="text-[10px] tabular-nums opacity-70">{archivedCount}</span>
+          <span className="text-2xs tabular-nums opacity-70">{archivedCount}</span>
         </button>
       )}
 
@@ -144,7 +144,7 @@ const SummaryHeader = memo(function SummaryHeader({
         <div className="flex items-center rounded-[var(--radius-element)] border border-border overflow-hidden">
           <button
             onClick={() => onDashboardModeChange("board")}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
               dashboardMode === "board"
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -157,7 +157,7 @@ const SummaryHeader = memo(function SummaryHeader({
           <div className="w-px h-4 bg-border" />
           <button
             onClick={() => onDashboardModeChange("graph")}
-            className={`flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
               dashboardMode === "graph"
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -181,7 +181,7 @@ const SummaryHeader = memo(function SummaryHeader({
         >
           <Button
             variant="outline"
-            size="sm"
+            size="xs"
             disabled={!continuousModeEnabled}
             onClick={onContinuousMode}
             leftIcon={<ListChecks className="size-3" />}
@@ -196,7 +196,7 @@ const SummaryHeader = memo(function SummaryHeader({
         <Button
           variant="color"
           color={accentColor}
-          size="sm"
+          size="xs"
           onClick={onNewTask}
           leftIcon={<Plus className="size-3" />}
           hoverEffect="scale-glow"

@@ -203,10 +203,10 @@ export default React.memo(function ActivityBar({
         {promptPending ? (
           <div className="flex items-center gap-1.5">
             <Loader2 size={11} className="animate-spin text-primary" />
-            <span className="text-[11px] text-primary font-medium">Processing…</span>
+            <span className="text-xs text-primary font-medium">Processing…</span>
           </div>
         ) : (
-          <span className="text-[11px] text-muted-foreground/50">
+          <span className="text-xs text-muted-foreground/50">
             Waiting for input
           </span>
         )}
@@ -230,12 +230,12 @@ function PlanSummarySection({
 
   return (
     <Collapsible defaultOpen>
-      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
         <span className="flex items-center gap-1.5">
           <ListChecks size={12} />
           Plan
         </span>
-        <span className="text-[10px] font-normal normal-case tracking-normal text-dim-foreground">
+        <span className="text-2xs font-normal normal-case tracking-normal text-dim-foreground">
           {completedCount}/{totalCount}
         </span>
       </CollapsibleTrigger>
@@ -261,7 +261,7 @@ function PlanSummarySection({
                 <PlanItemIcon status={entry.status} />
               </div>
               <span
-                className={`text-[11px] leading-snug ${
+                className={`text-xs leading-snug ${
                   entry.status === "completed"
                     ? "text-muted-foreground line-through"
                     : entry.status === "in_progress"
@@ -308,12 +308,12 @@ function FileEditSection({ fileEdits }: { fileEdits: FileEditEntry[] }) {
 
   return (
     <Collapsible defaultOpen>
-      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
+      <CollapsibleTrigger className="flex w-full items-center justify-between gap-2 px-3 py-1.5 text-xs font-semibold uppercase tracking-wider text-muted-foreground hover:text-foreground transition-colors cursor-pointer">
         <span className="flex items-center gap-1.5">
           <FileEdit size={12} />
           Files
         </span>
-        <span className="text-[10px] font-normal normal-case tracking-normal text-dim-foreground">
+        <span className="text-2xs font-normal normal-case tracking-normal text-dim-foreground">
           {fileEdits.length}
         </span>
       </CollapsibleTrigger>
@@ -321,19 +321,19 @@ function FileEditSection({ fileEdits }: { fileEdits: FileEditEntry[] }) {
         {/* Summary counts */}
         <div className="flex items-center gap-3 px-3 pb-1">
           {createdCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-success">
+            <span className="flex items-center gap-1 text-2xs text-success">
               <FilePlus2 size={10} />
               {createdCount} created
             </span>
           )}
           {modifiedCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-primary">
+            <span className="flex items-center gap-1 text-2xs text-primary">
               <FileEdit size={10} />
               {modifiedCount} modified
             </span>
           )}
           {deletedCount > 0 && (
-            <span className="flex items-center gap-1 text-[10px] text-destructive">
+            <span className="flex items-center gap-1 text-2xs text-destructive">
               <Trash2 size={10} />
               {deletedCount} deleted
             </span>
@@ -343,16 +343,16 @@ function FileEditSection({ fileEdits }: { fileEdits: FileEditEntry[] }) {
         {/* Total diff stats */}
         {(totalStats.added > 0 || totalStats.removed > 0) && (
           <div className="flex items-center gap-2 px-3 pb-1.5">
-            <span className="text-[10px] text-muted-foreground/50">
+            <span className="text-2xs text-muted-foreground/50">
               Total:
             </span>
             {totalStats.added > 0 && (
-              <span className="text-[10px] text-success font-medium">
+              <span className="text-2xs text-success font-medium">
                 +{totalStats.added}
               </span>
             )}
             {totalStats.removed > 0 && (
-              <span className="text-[10px] text-destructive font-medium">
+              <span className="text-2xs text-destructive font-medium">
                 −{totalStats.removed}
               </span>
             )}
@@ -375,7 +375,7 @@ function FileEditRow({ file }: { file: FileEditEntry }) {
 
   return (
     <div
-      className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-[11px] text-dim-foreground hover:bg-accent/50 transition-colors group/file"
+      className="flex items-center gap-1.5 rounded px-1.5 py-0.5 text-xs text-dim-foreground hover:bg-accent/50 transition-colors group/file"
       title={file.path}
     >
       {/* File type icon with status color overlay */}
@@ -395,17 +395,17 @@ function FileEditRow({ file }: { file: FileEditEntry }) {
       {/* Per-file diff stats */}
       <span className="flex items-center gap-1 shrink-0">
         {file.linesAdded > 0 && (
-          <span className="text-[9px] text-success/70 font-medium">
+          <span className="text-2xs text-success/70 font-medium">
             +{file.linesAdded}
           </span>
         )}
         {file.linesRemoved > 0 && (
-          <span className="text-[9px] text-destructive/70 font-medium">
+          <span className="text-2xs text-destructive/70 font-medium">
             −{file.linesRemoved}
           </span>
         )}
         {file.linesAdded === 0 && file.linesRemoved === 0 && file.edits > 1 && (
-          <span className="text-[9px] text-muted-foreground/50">
+          <span className="text-2xs text-muted-foreground/50">
             ×{file.edits}
           </span>
         )}

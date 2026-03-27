@@ -218,7 +218,7 @@ const SessionRow = React.memo(function SessionRow({
         {session.name || session.agent}
       </span>
       <span
-        className={`ml-auto shrink-0 flex items-center gap-1 text-[10px] ${isWaiting || isError ? "font-medium" : ""}`}
+        className={`ml-auto shrink-0 flex items-center gap-1 text-2xs ${isWaiting || isError ? "font-medium" : ""}`}
         style={{ color: derived.color }}
       >
         <StatusIcon label={derived.label} />
@@ -252,7 +252,7 @@ const ProjectSessionList = React.memo(function ProjectSessionList({
 
   return (
     <>
-      <div className="px-1 pt-2.5 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+      <div className="px-1 pt-2.5 pb-1.5 text-xs uppercase tracking-wide text-muted-foreground">
         Sessions
       </div>
       <div className="text-dim-foreground">
@@ -296,7 +296,7 @@ const ProjectWorktreeList = React.memo(function ProjectWorktreeList({
 
   return (
     <>
-      <div className="px-1 pt-2.5 pb-1.5 text-[11px] uppercase tracking-wide text-muted-foreground">
+      <div className="px-1 pt-2.5 pb-1.5 text-xs uppercase tracking-wide text-muted-foreground">
         Worktrees
       </div>
       <div className="pb-1">
@@ -425,17 +425,17 @@ const ProjectItem = React.memo(function ProjectItem({
           />
         )}
         <span
-          className={`text-[13px] truncate min-w-0 flex-1 ${isActive ? "text-foreground font-medium" : "text-dim-foreground"}`}
+          className={`text-sm truncate min-w-0 flex-1 ${isActive ? "text-foreground font-medium" : "text-dim-foreground"}`}
         >
           {project.name}
           {branch && (
             <>
               <span className="text-muted-foreground/60 mx-1">·</span>
-              <span className="text-[10px] text-muted-foreground font-normal">{branch}</span>
+              <span className="text-2xs text-muted-foreground font-normal">{branch}</span>
             </>
           )}
           {isActive && changeCount != null && changeCount > 0 && (
-            <span className="text-[10px] text-warning font-normal ml-1">{changeCount}∆</span>
+            <span className="text-2xs text-warning font-normal ml-1">{changeCount}∆</span>
           )}
         </span>
         <DropdownMenu>
@@ -545,7 +545,7 @@ export default function Sidebar() {
       <div className="flex items-center px-3 pt-1.5 pb-1 shrink-0">
         <div className="flex items-center gap-1.5 flex-1 min-w-0">
           <FaberLogo className="size-3.5 shrink-0 text-primary" />
-          <span className="text-[11px] font-medium text-foreground">Faber</span>
+          <span className="text-xs font-medium text-foreground">Faber</span>
         </div>
         <Button
           variant="ghost"
