@@ -13,6 +13,7 @@ import {
 import React, { useCallback, useEffect, useMemo, useState } from "react";
 
 import { useAppStore } from "../../store/appStore";
+import { Skeleton } from "../ui/skeleton";
 import type {
   McpSessionState,
   Session,
@@ -211,8 +212,19 @@ function HistorySection({
       <div className="flex items-center gap-1.5 text-2xs text-muted-foreground">
         <History size={10} className="opacity-60" />
         <span className="font-medium uppercase tracking-wider">History</span>
-        {loading && <Loader2 size={10} className="animate-spin ml-1" />}
       </div>
+
+      {loading && history.length === 0 && (
+        <div className="flex flex-col gap-2 py-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div key={i} className="flex items-center gap-1.5">
+              <Skeleton className="h-3 w-[38px] shrink-0" />
+              <Skeleton className="size-2.5 rounded-full shrink-0" />
+              <Skeleton className="h-3 flex-1" style={{ maxWidth: `${50 + (i % 3) * 15}%` }} />
+            </div>
+          ))}
+        </div>
+      )}
 
       <div className="flex flex-col">
         {grouped.map((group, gi) => (

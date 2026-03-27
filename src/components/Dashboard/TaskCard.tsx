@@ -8,6 +8,7 @@ import { DEFAULT_PRIORITIES, getPriorityBadgeClass } from "../../lib/priorities"
 import { TASK_STATUS_DOT_COLORS, TASK_STATUS_LABELS } from "../../lib/taskStatusColors";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { borderAccentColors } from "../ui/orecus.io/lib/color-utils";
+import { Skeleton } from "../ui/skeleton";
 
 export type TaskCardVariant = "default" | "compact" | "detailed" | "tree-node";
 
@@ -430,3 +431,37 @@ export default React.memo(function TaskCard({
     </div>
   );
 });
+
+// ── Skeleton variant for loading states ──
+
+export function TaskCardSkeleton({ variant = "default" }: { variant?: TaskCardVariant }) {
+  if (variant === "compact") {
+    return (
+      <div className="py-2 px-2.5 bg-card border border-border rounded-[10px]">
+        <div className="flex items-center gap-1.5">
+          <Skeleton className="h-3 w-5 rounded-[3px]" />
+          <Skeleton className="h-3 flex-1" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="p-3 bg-card border border-border rounded-[10px]">
+      {/* Top row: priority + ID */}
+      <div className="flex items-center gap-[5px] mb-1">
+        <Skeleton className="h-3.5 w-6 rounded-[3px]" />
+        <Skeleton className="h-3 w-10" />
+        <div className="flex-1" />
+      </div>
+      {/* Title */}
+      <Skeleton className="h-4 w-3/4 mb-0.5" />
+      <Skeleton className="h-4 w-1/2" />
+      {/* Labels */}
+      <div className="flex items-center gap-1 mt-1.5">
+        <Skeleton className="h-3.5 w-12 rounded-full" />
+        <Skeleton className="h-3.5 w-10 rounded-full" />
+      </div>
+    </div>
+  );
+}

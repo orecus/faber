@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Archive, ArchiveRestore, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2, Trash2 } from "lucide-react";
 
 import type { Task } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
@@ -29,14 +29,30 @@ export default function ArchivedTaskList({
   onDelete,
 }: ArchivedTaskListProps) {
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const deleteTask = deleteTaskId
     ? tasks.find((t) => t.id === deleteTaskId)
     : null;
 
-  const handleConfirmDelete = useCallback(() => {
+  const handleRestore = useCallback(async (taskId: string) => {
+    setRestoringId(taskId);
+    try {
+      await onRestore(taskId);
+    } finally {
+      setRestoringId(null);
+    }
+  }, [onRestore]);
+
+  const handleConfirmDelete = useCallback(async () => {
     if (deleteTaskId) {
-      onDelete(deleteTaskId);
+      setDeletingId(deleteTaskId);
       setDeleteTaskId(null);
+      try {
+        await onDelete(deleteTaskId);
+      } finally {
+        setDeletingId(null);
+      }
     }
   }, [deleteTaskId, onDelete]);
 
@@ -97,7 +113,7 @@ export default function ArchivedTaskList({
                 {formatDate(task.updated_at)}
               </span>
 
-              {/* Actions — visible on hover */}
+              {/* Actions — visible on hover, with inline loading */}
               <div className="flex items-center gap-0.5 opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                 <Button
                   variant="ghost"
@@ -105,12 +121,17 @@ export default function ArchivedTaskList({
                   hoverEffect="scale"
                   clickEffect="scale"
                   title="Restore to backlog"
+                  disabled={restoringId === task.id || deletingId === task.id}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onRestore(task.id);
+                    handleRestore(task.id);
                   }}
                 >
-                  <ArchiveRestore className="size-3" />
+                  {restoringId === task.id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ArchiveRestore className="size-3" />
+                  )}
                 </Button>
                 <Button
                   variant="ghost"
@@ -118,12 +139,17 @@ export default function ArchivedTaskList({
                   hoverEffect="scale"
                   clickEffect="scale"
                   title="Delete permanently"
+                  disabled={restoringId === task.id || deletingId === task.id}
                   onClick={(e) => {
                     e.stopPropagation();
                     setDeleteTaskId(task.id);
                   }}
                 >
-                  <Trash2 className="size-3 text-destructive" />
+                  {deletingId === task.id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3 text-destructive" />
+                  )}
                 </Button>
               </div>
             </div>
