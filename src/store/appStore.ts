@@ -132,6 +132,8 @@ interface AppState {
   acpModes: Record<string, string>;
   acpModels: Record<string, string>;
   acpPromptPending: Record<string, boolean>;
+  /** Turn ID that is currently pending — used to guard against stale completion events. */
+  acpPromptTurnId: Record<string, number>;
   /** Draft text per session (persisted across view switches). */
   acpDraftText: Record<string, string>;
   acpPermissionRequests: Record<string, import("../types").AcpPermissionRequest[]>;
@@ -221,6 +223,7 @@ interface AppState {
   setAcpMode: (sessionId: string, mode: string) => void;
   setAcpModel: (sessionId: string, model: string) => void;
   setAcpPromptPending: (sessionId: string, pending: boolean) => void;
+  clearAcpPromptIfCurrent: (sessionId: string) => void;
   setAcpDraftText: (sessionId: string, text: string) => void;
   addAcpPermissionRequest: (sessionId: string, request: import("../types").AcpPermissionRequest) => void;
   removeAcpPermissionRequest: (sessionId: string, requestId: string) => void;
@@ -339,6 +342,7 @@ export const useAppStore = create<AppState>()(
     acpModes: {},
     acpModels: {},
     acpPromptPending: {},
+    acpPromptTurnId: {},
     acpDraftText: {},
     acpPermissionRequests: {},
     acpAvailableCommands: {},
@@ -813,9 +817,40 @@ export const useAppStore = create<AppState>()(
       })),
 
     setAcpPromptPending: (sessionId, pending) =>
-      set((state) => ({
-        acpPromptPending: { ...state.acpPromptPending, [sessionId]: pending },
-      })),
+      set((state) => {
+        if (pending) {
+          // Snapshot the current turn counter so completion events from stale
+          // (cancelled) turns can be detected and ignored by clearAcpPromptIfCurrent.
+          const turnId = state.acpTurnCounter[sessionId] ?? 0;
+          return {
+            acpPromptPending: { ...state.acpPromptPending, [sessionId]: true },
+            acpPromptTurnId: { ...state.acpPromptTurnId, [sessionId]: turnId },
+          };
+        }
+        return {
+          acpPromptPending: { ...state.acpPromptPending, [sessionId]: false },
+        };
+      }),
+
+    /** Clear promptPending only if no newer prompt has been started.
+     *  setAcpPromptPending(true) snapshots acpTurnCounter into acpPromptTurnId.
+     *  doSend() calls addAcpUserMessage (bumps turn counter) then setAcpPromptPending(true)
+     *  (snapshots the new counter). If a stale completion event from a cancelled turn
+     *  arrives after a new prompt started, the snapshot will be behind the turn counter
+     *  and the clear is skipped. */
+    clearAcpPromptIfCurrent: (sessionId) =>
+      set((state) => {
+        if (!state.acpPromptPending[sessionId]) return state; // already idle
+        const promptTurn = state.acpPromptTurnId[sessionId] ?? 0;
+        const currentTurn = state.acpTurnCounter[sessionId] ?? 0;
+        if (promptTurn < currentTurn) {
+          console.log(`[ACP] ignoring stale completion for turn ${promptTurn}, current turn is ${currentTurn}`);
+          return state;
+        }
+        return {
+          acpPromptPending: { ...state.acpPromptPending, [sessionId]: false },
+        };
+      }),
 
     setAcpDraftText: (sessionId, text) =>
       set((state) => ({
@@ -865,6 +900,7 @@ export const useAppStore = create<AppState>()(
         const { [sessionId]: _d, ...modes } = state.acpModes;
         const { [sessionId]: _md, ...models } = state.acpModels;
         const { [sessionId]: _pp, ...pending } = state.acpPromptPending;
+        const { [sessionId]: _pti, ...promptTurnIds } = state.acpPromptTurnId;
         const { [sessionId]: _dt, ...drafts } = state.acpDraftText;
         const { [sessionId]: _pr, ...permReqs } = state.acpPermissionRequests;
         const { [sessionId]: _ac, ...availCmds } = state.acpAvailableCommands;
@@ -879,6 +915,7 @@ export const useAppStore = create<AppState>()(
           acpModes: modes,
           acpModels: models,
           acpPromptPending: pending,
+          acpPromptTurnId: promptTurnIds,
           acpDraftText: drafts,
           acpPermissionRequests: permReqs,
           acpAvailableCommands: availCmds,
@@ -1974,12 +2011,13 @@ export const useAppStore = create<AppState>()(
       eventCleanups.push(
         listen<AcpPromptComplete>("acp-prompt-complete", (event) => {
           if (disposed) return;
-          console.log("[ACP] prompt-complete", event.payload.session_id, event.payload.stop_reason);
+          const sid = event.payload.session_id;
+          console.log("[ACP] prompt-complete", sid, event.payload.stop_reason);
           // Flush any trailing thinking
-          get().flushAcpThinking(event.payload.session_id);
+          get().flushAcpThinking(sid);
           // Finalize all streaming entries
-          get().finalizeAcpStreaming(event.payload.session_id);
-          get().setAcpPromptPending(event.payload.session_id, false);
+          get().finalizeAcpStreaming(sid);
+          get().clearAcpPromptIfCurrent(sid);
         }),
       );
 
@@ -1988,7 +2026,7 @@ export const useAppStore = create<AppState>()(
           if (disposed) return;
           const { session_id, error } = event.payload;
           console.error("[ACP] error", session_id, error);
-          get().setAcpPromptPending(session_id, false);
+          get().clearAcpPromptIfCurrent(session_id);
           get().finalizeAcpStreaming(session_id);
 
           // Inject error as a visible agent-text entry in the chat timeline

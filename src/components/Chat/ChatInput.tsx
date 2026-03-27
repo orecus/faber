@@ -505,13 +505,14 @@ export default React.memo(function ChatInput({
       console.error("Failed to cancel ACP session:", e);
     }
 
-    // Wait for promptPending to clear (cancel triggers acp-prompt-complete/error event)
-    // Poll briefly — the event usually fires within a few hundred ms
+    // Wait for promptPending to clear (cancel triggers acp-prompt-complete/error event).
+    // Timeout after 5s to avoid polling forever if the cancel event is lost.
     const waitForIdle = () =>
       new Promise<void>((resolve) => {
+        const deadline = Date.now() + 5000;
         const check = () => {
           const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
-          if (!pending) {
+          if (!pending || Date.now() >= deadline) {
             resolve();
           } else {
             setTimeout(check, 50);
