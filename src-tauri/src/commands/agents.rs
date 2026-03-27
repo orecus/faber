@@ -41,7 +41,7 @@ pub async fn install_acp_adapter(
         .to_string();
 
     // When a target version is specified (update), pin the install to that exact version.
-    // e.g. "npm install -g @zed-industries/claude-agent-acp" → "npm install -g @zed-industries/claude-agent-acp@0.24.1"
+    // e.g. "npm install -g @agentclientprotocol/claude-agent-acp" → "npm install -g @agentclientprotocol/claude-agent-acp@0.24.1"
     let install_cmd = if let Some(ref version) = target_version {
         if !package.is_empty() && package != "unknown" {
             base_install_cmd.replace(&package, &format!("{package}@{version}"))

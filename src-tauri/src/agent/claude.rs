@@ -3,8 +3,8 @@ use super::{is_command_in_path, AgentAdapter, AgentLaunchConfig, AgentLaunchSpec
 pub struct ClaudeCodeAdapter;
 
 /// The external ACP adapter binary from Zed.
-/// Install via: `npm install -g @zed-industries/claude-agent-acp`
-/// Or download from: https://github.com/zed-industries/claude-agent-acp/releases
+/// Install via: `npm install -g @agentclientprotocol/claude-agent-acp`
+/// Or download from: https://github.com/agentclientprotocol/claude-agent-acp/releases
 pub const CLAUDE_ACP_ADAPTER_COMMAND: &str = "claude-agent-acp";
 
 impl AgentAdapter for ClaudeCodeAdapter {
@@ -75,11 +75,11 @@ impl AgentAdapter for ClaudeCodeAdapter {
     }
 
     fn acp_install_command(&self) -> Option<&str> {
-        Some("npm install -g @zed-industries/claude-agent-acp")
+        Some("npm install -g @agentclientprotocol/claude-agent-acp")
     }
 
     fn acp_adapter_package(&self) -> Option<&str> {
-        Some("@zed-industries/claude-agent-acp")
+        Some("@agentclientprotocol/claude-agent-acp")
     }
 
     fn cli_install_url(&self) -> Option<&str> {
