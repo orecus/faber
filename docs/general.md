@@ -204,6 +204,7 @@ Settings are organized into **App** (global) and **Project** (per-project) secti
 - **Color Mode** — Switch between Dark and Light themes
 - **Glass Effect** — Toggle the translucent glass UI style (not available on macOS)
 - **Show Project Icons** — Show or hide project icons in the sidebar
+- **Reduce Motion** — Respects the OS "prefer reduced motion" setting. When enabled, animations and transitions throughout the app are minimized
 - **Notifications** — Master toggle plus per-event toggles (Session Complete, Session Error, Input Needed). Clicking a notification takes you directly to the relevant session.
 - **Updates** — Check for app updates, enable auto-checking, and set the check frequency (hourly to daily). An advanced option lets you point to a custom update endpoint.
 

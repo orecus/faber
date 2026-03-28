@@ -17,17 +17,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Task Dependency Indicators** — Task cards show per-dependency met/unmet dots (filled green for met, outlined amber for unmet) and a dependents badge showing how many other tasks depend on this one
 - **Epic Dependency Connectors** — Kanban columns now render small vertical connector arrows between epic children that have dependency relationships, making chains visible directly on the board
 - **Searchable Filter Dropdowns** — Unbounded filter lists (Labels, Agents, Epics) in the Dashboard filter bar now use searchable dropdown popovers instead of inline chips, with count badges on the trigger buttons and active filter pills displayed below the bar
-- **Task Status Color Module** — Centralized `taskStatusColors.ts` exports canonical dot colors, CSS colors, and labels for all task statuses, eliminating duplicate definitions across components
+- **Session History Sidebar** — Session history is now a global tab in the right sidebar (Files | Session History), accessible from any view instead of being buried inside Chat and Sessions
+- **Skeleton Loaders** — Views now show skeleton placeholders that match content layout while loading (commit graph, rules, agent activity, Kanban cards) instead of bare spinners. Archive actions show inline loading spinners with disabled states
+- **Empty States** — Contextual hints, icons, and call-to-action buttons throughout the app when views have no content — Kanban columns, dependency graph, commit graph, file list, review panel, and more
+- **Motion & Accessibility** — Respects the OS "reduce motion" preference. Icon-only buttons now have screen-reader labels, custom buttons show focus-visible outlines, and error/warning banners are announced to assistive technology
 - **Success Toasts** — Green flash notifications (3-second auto-dismiss) for confirming actions like ACP adapter installs and session renames
-- **Editor Detection** — Backend probes PATH for 8 known editors and exposes `detect_editors` / `open_in_editor` IPC commands
-- **Project File Indexing** — New `index_project_files` Rust command recursively indexes project files (skipping hidden dirs, node_modules, target, .git) for fast client-side search
 
 ### Changed
 
 - **Settings Architecture** — Moved all settings from sidebar dialog modals into the new dedicated Settings view. Sidebar gear icon and Ctrl+, both navigate to the settings page. Git & Worktrees settings (branch naming, instruction files) now have their own tab instead of being buried in the Project tab
-- **ToggleRow Component** — Replaced repetitive inline Checkbox + label patterns across settings tabs with a shared `ToggleRow` component using the Switch primitive
 - **ACP Adapter Updates** — Install command now pins to the exact registry version (e.g., `npm install -g @package@0.24.1`), invalidates npm and registry caches after install, and extracts user-friendly error messages from npm stderr instead of dumping raw output
-- **Agent Registry Logging** — Enhanced diagnostic logging throughout the registry (debug for cache hits, info for version checks) with improved error handling for non-semver formats and npm non-zero exit codes
 - **Focus-Within Accessibility** — Action buttons on task cards, chat messages, dependency graph rows, quick action bar, and task body now appear on focus-within (not just hover) for keyboard accessibility
 - **Session Grid Resize Handles** — Column and row resize handles now show centered dot indicators on hover for better discoverability
 - **Session Pane** — Removed reorder arrows (drag-and-drop is the primary method); added brief "Saved" indicator after session rename; wider rename input field
@@ -36,12 +35,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Typography Scale** — Standardized all text sizes across 100+ components to a canonical scale (`text-micro` 8px, `text-2xs` 10px, `text-xs` 12px, `text-sm` 14px, `text-base` 16px), replacing ad-hoc `text-[Npx]` values with new custom Tailwind utilities
 - **Filter Bar Architecture** — Status and Priority filters remain as inline toggle chips; Labels, Agents, and Epics now use collapsible searchable dropdowns for better usability in large projects
 - **DnD Visual Feedback** — Dragged Kanban cards now fully hide (opacity-0) during drag instead of showing a faded ghost, for cleaner drag-and-drop
-- **Priority Badge Styling** — Compact inline priority badges with smaller font and renamed helper (`getPriorityBadgeClass`)
+- **GitHub View Polish** — Resizable detail panels, two-line PR/Issue rows with overflow-safe label capping, retry buttons on error banners, and improved commit graph merge indicator contrast
+- **Responsive Layout** — Toolbars wrap gracefully on narrower windows (1024px+), filter bar sections stay grouped, and detail panels clamp to a sensible max width
+- **ACP Adapter Package** — Claude Code ACP adapter moved from `@zed-industries/claude-agent-acp` to `@agentclientprotocol/claude-agent-acp` — install commands and error hints updated automatically
+- **Launch Dialog Toggles** — "Create worktree" option in Launch Task and Launch Session dialogs now uses a Switch toggle instead of a checkbox
+- **Project Creation** — Improved validation and welcome screen polish
+- **Priority Badge Styling** — Compact inline priority badges with smaller font
 - **Task Card Layout** — Increased padding, improved visual hierarchy, and inline action buttons hidden by default (revealed on hover/focus)
 
 ### Fixed
 
 - **ACP Adapter Install on Windows** — npm install now hides the console window (CREATE_NO_WINDOW flag) to prevent a flash of a terminal window
+- **GITHUB_TOKEN on macOS** — Faber now picks up GITHUB_TOKEN/GH_TOKEN from shell profiles, fixing GitHub auth failures in GUI-launched apps
+- **Stale ACP Working Indicator** — Cancelling and resending a prompt no longer causes the working indicator to disappear prematurely
+- **Task Card Context Menu Position** — Context menu now appears at the cursor instead of the top-left corner of the card
+- **Branch Display Sync** — Sidebar and chat branch indicators now stay in sync when branches change outside the app (e.g., via terminal)
 
 ## [0.9.1] - 2026-03-xx WIP
 
