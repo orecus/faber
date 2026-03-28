@@ -273,8 +273,9 @@ export default function FileList({
         {changesExpanded && (
           <div className="py-1">
             {!hasChanges ? (
-              <div className="px-3 py-3 text-center text-xs text-muted-foreground">
-                No uncommitted changes
+              <div className="flex flex-col items-center gap-1.5 px-3 py-4 text-center">
+                <CheckCircle2 className="size-5 text-muted-foreground opacity-30" />
+                <span className="text-xs text-muted-foreground">No uncommitted changes</span>
               </div>
             ) : (
               changedFiles.map((file) => (

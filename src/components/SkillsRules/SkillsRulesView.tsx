@@ -1,4 +1,4 @@
-import { ArrowUpCircle, Blocks, Bot } from "lucide-react";
+import { ArrowUpCircle, Blocks, Bot, BookOpen, Sparkles } from "lucide-react";
 import { useMemo, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
@@ -62,8 +62,8 @@ export default function SkillsRulesView() {
           fullWidth={false}
           className="p-0"
         >
-          <Tabs.Tab value="rules">Rules</Tabs.Tab>
-          <Tabs.Tab value="skills">Skills</Tabs.Tab>
+          <Tabs.Tab value="rules" icon={<BookOpen size={13} />}>Rules</Tabs.Tab>
+          <Tabs.Tab value="skills" icon={<Sparkles size={13} />}>Skills</Tabs.Tab>
           <Tabs.Tab
             value="plugins"
             icon={<AgentIcon agent="claude-code" size={13} />}

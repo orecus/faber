@@ -6,6 +6,7 @@ import {
   Globe,
   Loader2,
   Package,
+  Search,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
@@ -30,12 +31,14 @@ interface Props {
   projectId: string;
   refreshKey: number;
   onRemove: (skillName: string, global: boolean) => void;
+  onSearchClick?: () => void;
 }
 
 export default function InstalledSkillsList({
   projectId,
   refreshKey,
   onRemove,
+  onSearchClick,
 }: Props) {
   const [data, setData] = useState<InstalledSkillsResponse | null>(null);
   const [loading, setLoading] = useState(true);
@@ -103,6 +106,19 @@ export default function InstalledSkillsList({
         <p className="text-xs opacity-70">
           Search above to find and install skills from skills.sh
         </p>
+        {onSearchClick && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSearchClick}
+            leftIcon={<Search className="size-3" />}
+            hoverEffect="scale"
+            clickEffect="scale"
+            className="mt-1"
+          >
+            Search Skills
+          </Button>
+        )}
       </div>
     );
   }

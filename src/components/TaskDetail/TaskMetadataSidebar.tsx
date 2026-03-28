@@ -485,11 +485,11 @@ export default function TaskMetadataSidebar({
       </SidebarSection>
 
       {/* Sub-tasks (children that depend on this task) */}
-      {subTasks.length > 0 && (
-        <SidebarSection
-          label="Sub-tasks"
-          icon={<CornerDownRight size={10} className="opacity-60" />}
-        >
+      <SidebarSection
+        label="Sub-tasks"
+        icon={<CornerDownRight size={10} className="opacity-60" />}
+      >
+        {subTasks.length > 0 ? (
           <div className="flex flex-col gap-0.5">
             {subTasks.map((t) => (
               <button
@@ -510,8 +510,12 @@ export default function TaskMetadataSidebar({
               </button>
             ))}
           </div>
-        </SidebarSection>
-      )}
+        ) : (
+          <p className="text-2xs text-muted-foreground py-0.5">
+            No sub-tasks — add this task as a dependency on others
+          </p>
+        )}
+      </SidebarSection>
     </div>
   );
 }

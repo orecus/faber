@@ -6,7 +6,7 @@ import {
   Package,
   Search,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { highlightMatch } from "../../lib/highlightMatch";
 
 import { open } from "@tauri-apps/plugin-shell";
@@ -39,6 +39,12 @@ export default function SkillsTab({ projectId }: Props) {
   const [installing, setInstalling] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSearchClick = useMemo(
+    () => () => searchInputRef.current?.focus(),
+    [],
+  );
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -128,6 +134,7 @@ export default function SkillsTab({ projectId }: Props) {
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50 shrink-0">
         <Search size={14} className="text-muted-foreground shrink-0" />
         <input
+          ref={searchInputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -228,6 +235,7 @@ export default function SkillsTab({ projectId }: Props) {
           projectId={projectId}
           refreshKey={refreshKey}
           onRemove={handleRemove}
+          onSearchClick={handleSearchClick}
         />
       </div>
     </div>

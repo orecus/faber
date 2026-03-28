@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   CirclePause,
   Minus,
+  Network,
 } from "lucide-react";
 import type { Task, Session } from "../../types";
 import { useAppStore } from "../../store/appStore";
@@ -388,8 +389,10 @@ export default React.memo(function DependencyGraph({
 
   if (tasks.length === 0) {
     return (
-      <div className="flex items-center justify-center h-full text-muted-foreground text-sm">
-        No tasks to display
+      <div className="flex flex-col items-center justify-center h-full gap-2">
+        <Network className="size-8 text-muted-foreground opacity-30" />
+        <p className="text-sm text-muted-foreground">No tasks to display</p>
+        <p className="text-xs text-muted-foreground/70">Add dependencies between tasks to see the graph</p>
       </div>
     );
   }

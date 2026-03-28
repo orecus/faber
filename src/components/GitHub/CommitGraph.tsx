@@ -6,6 +6,7 @@ import {
   RAIL_WIDTH,
   maxColumn,
 } from "../../lib/graphLayout";
+import { GitCommitHorizontal } from "lucide-react";
 import type { RefInfo } from "../../types";
 import GraphCanvas from "./GraphCanvas";
 import CommitRow from "./CommitRow";
@@ -80,6 +81,16 @@ export default function CommitGraph({
     if (!el) return;
     handleScroll();
   }, [handleScroll]);
+
+  if (!loading && nodes.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-2">
+        <GitCommitHorizontal className="size-8 text-muted-foreground opacity-30" />
+        <p className="text-sm text-muted-foreground">No commits found</p>
+        <p className="text-xs text-muted-foreground/70">Commits will appear here once the repository has history</p>
+      </div>
+    );
+  }
 
   if (loading && nodes.length === 0) {
     return (

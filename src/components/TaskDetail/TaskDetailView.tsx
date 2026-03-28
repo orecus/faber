@@ -148,10 +148,12 @@ export default function TaskDetailView() {
   if (!activeTaskId) {
     return (
       <div
-        className="flex items-center justify-center text-sm text-muted-foreground"
+        className="flex flex-col items-center justify-center gap-2"
         style={{ gridArea: "content" }}
       >
-        No task selected
+        <FileText className="size-8 text-muted-foreground opacity-30" />
+        <p className="text-sm text-muted-foreground">No task selected</p>
+        <p className="text-xs text-muted-foreground/70">Select a task from the dashboard to view details</p>
       </div>
     );
   }

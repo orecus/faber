@@ -60,7 +60,7 @@ export default function ArchivedTaskList({
   if (tasks.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-        <Archive className="size-8 opacity-40" />
+        <Archive className="size-8 opacity-30" />
         <p className="text-sm">No archived tasks</p>
       </div>
     );

@@ -258,6 +258,17 @@ const KanbanColumn = memo(function KanbanColumn({
 
       {/* Card list */}
       <div className="flex-1 min-h-0 overflow-y-auto p-1.5 flex flex-col gap-1.5">
+        {columnItems.length === 0 && (
+          <p className="text-2xs text-muted-foreground text-center py-6 select-none">
+            {status === "done"
+              ? "Completed tasks appear here"
+              : status === "in-review"
+                ? "Tasks awaiting review appear here"
+                : status === "in-progress"
+                  ? "Start a session to move tasks here"
+                  : "Drop tasks here"}
+          </p>
+        )}
         {columnItems.map((item, idx) => {
           if (item.type === "ghost") {
             return (
