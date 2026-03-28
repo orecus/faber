@@ -89,19 +89,19 @@ export default function TaskCardContextMenu({
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
 
-  // Hidden trigger element — positioned at right-click coordinates
-  const triggerRef = useRef<HTMLButtonElement>(null);
+  // Virtual anchor positioned at right-click coordinates
+  const cursorPos = useRef({ x: 0, y: 0 });
+  const getAnchor = useCallback(() => ({
+    getBoundingClientRect: () => new DOMRect(cursorPos.current.x, cursorPos.current.y, 0, 0),
+  }), []);
 
   // Prevent context menu when editing title
   const handleContextMenu = useCallback((e: React.MouseEvent) => {
     if (isEditingTitle) return;
     e.preventDefault();
     e.stopPropagation();
-    // Position hidden trigger at cursor
-    if (triggerRef.current) {
-      triggerRef.current.style.left = `${e.clientX}px`;
-      triggerRef.current.style.top = `${e.clientY}px`;
-    }
+    // Update cursor position for virtual anchor
+    cursorPos.current = { x: e.clientX, y: e.clientY };
     setMenuOpen(true);
   }, [isEditingTitle]);
 
@@ -288,9 +288,8 @@ export default function TaskCardContextMenu({
 
       {/* Context menu */}
       <MenuPrimitive.Root open={menuOpen} onOpenChange={setMenuOpen}>
-        {/* Hidden trigger — must be a real MenuPrimitive.Trigger for submenu focus tracking */}
+        {/* Hidden trigger — required by Base UI for submenu focus tracking */}
         <MenuPrimitive.Trigger
-          ref={triggerRef}
           render={<span />}
           tabIndex={-1}
           style={{ position: "fixed", left: 0, top: 0, width: 0, height: 0, pointerEvents: "none", opacity: 0 }}
@@ -298,6 +297,7 @@ export default function TaskCardContextMenu({
         <MenuPrimitive.Portal>
           <MenuPrimitive.Positioner
             className="isolate z-50 outline-none"
+            anchor={getAnchor}
             side="bottom"
             align="start"
             sideOffset={4}

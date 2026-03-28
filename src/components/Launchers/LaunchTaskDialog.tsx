@@ -8,7 +8,7 @@ import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
-import { Checkbox } from "../ui/checkbox";
+import { ToggleRow } from "../Settings/shared";
 import {
   Dialog,
   DialogClose,
@@ -279,18 +279,12 @@ export default function LaunchTaskDialog({
         )}
 
         {/* Worktree toggle */}
-        <div>
-          <label className="flex cursor-pointer items-center gap-2 text-sm text-dim-foreground">
-            <Checkbox
-              checked={createWorktree}
-              onCheckedChange={(checked) => setCreateWorktree(checked === true)}
-            />
-            Create worktree
-          </label>
-          <p className="mt-1 ml-6 text-xs text-muted-foreground">
-            Isolates work in a separate git worktree with its own branch
-          </p>
-        </div>
+        <ToggleRow
+          label="Create worktree"
+          description="Isolates work in a separate git worktree with its own branch"
+          checked={createWorktree}
+          onChange={setCreateWorktree}
+        />
 
         {/* Base branch (only when worktree enabled) */}
         {createWorktree && (
