@@ -37,6 +37,8 @@ const ApplicationBar = memo(function ApplicationBar() {
 
   return (
     <div
+      role="toolbar"
+      aria-label="Application toolbar"
       onMouseDown={handleDragRegionMouseDown}
       className="flex items-center border-b border-border select-none bg-card/60"
       style={{ gridArea: "topbar" }}
@@ -44,7 +46,9 @@ const ApplicationBar = memo(function ApplicationBar() {
       {/* Left sidebar toggle */}
       <button
         onClick={() => setSidebarCollapsed(!sidebarCollapsed)}
-        className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-accent ml-1 ${
+        aria-label="Toggle left sidebar"
+        aria-pressed={!sidebarCollapsed}
+        className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ml-1 ${
           !sidebarCollapsed ? "text-primary" : "text-muted-foreground"
         }`}
         title="Toggle sidebar (Ctrl+Shift+B)"
@@ -92,7 +96,9 @@ const ApplicationBar = memo(function ApplicationBar() {
       {/* Right sidebar toggle + separator */}
       <button
         onClick={toggleRightSidebar}
-        className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-accent ${
+        aria-label="Toggle right sidebar"
+        aria-pressed={rightSidebarOpen}
+        className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           rightSidebarOpen ? "text-primary" : "text-muted-foreground"
         }`}
         title="Toggle sidebar (Ctrl+B)"

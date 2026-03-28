@@ -1,4 +1,4 @@
-import { useState, useCallback, useMemo } from "react";
+import { useState, useCallback, useMemo, useEffect } from "react";
 import {
   DndContext,
   DragOverlay,
@@ -13,6 +13,7 @@ import { topoSortTasks, buildDependentsMap, sortTasksByMode, type ColumnSortMode
 import { useAppStore } from "../../store/appStore";
 import { DEFAULT_PRIORITIES } from "../../lib/priorities";
 import { usePersistedString, usePersistedBoolean } from "../../hooks/usePersistedState";
+import { useGridNavigation } from "../../hooks/useGridNavigation";
 import KanbanColumn from "./KanbanColumn";
 import TaskCard from "./TaskCard";
 
@@ -135,6 +136,58 @@ export default function KanbanBoard({
     return map;
   }, [tasks, sortMode, priorities]);
 
+  // ── Keyboard grid navigation ──
+  // Build a column-major grid of task IDs for arrow key navigation
+  const navGrid = useMemo(() => {
+    return BOARD_COLUMNS.map((status) => {
+      const colTasks = columnTasks.get(status) ?? [];
+      return colTasks.map((t) => t.id);
+    });
+  }, [columnTasks]);
+
+  const handleNavActivate = useCallback(
+    (id: string) => onTaskClick(id),
+    [onTaskClick],
+  );
+
+  const handleNavAction = useCallback(
+    (key: string, id: string) => {
+      switch (key) {
+        case "l":
+          onStartSession(id);
+          break;
+        case "m": {
+          // Move to next status
+          const task = taskMap.get(id);
+          if (!task) break;
+          const colIdx = BOARD_COLUMNS.indexOf(task.status);
+          if (colIdx < BOARD_COLUMNS.length - 1) {
+            onStatusChange(id, BOARD_COLUMNS[colIdx + 1]);
+          }
+          break;
+        }
+      }
+    },
+    [onStartSession, onStatusChange, taskMap],
+  );
+
+  const { activeId: navActiveId, handleKeyDown: handleGridKeyDown } = useGridNavigation({
+    grid: navGrid,
+    onActivate: handleNavActivate,
+    onAction: handleNavAction,
+    actionKeys: ["l", "m"],
+  });
+
+  // When grid nav changes active item, scroll & focus the DOM element
+  useEffect(() => {
+    if (!navActiveId) return;
+    const el = document.querySelector<HTMLElement>(`[data-grid-item="${navActiveId}"]`);
+    if (el) {
+      el.scrollIntoView({ block: "nearest", behavior: "smooth" });
+      el.focus();
+    }
+  }, [navActiveId]);
+
   return (
     <DndContext
       sensors={sensors}
@@ -142,7 +195,8 @@ export default function KanbanBoard({
       onDragEnd={handleDragEnd}
       onDragCancel={handleDragCancel}
     >
-      <div className="flex gap-2 flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-px">
+      {/* eslint-disable-next-line jsx-a11y/no-static-element-interactions */}
+      <div className="flex gap-2 flex-1 min-h-0 overflow-x-auto overflow-y-hidden p-px" onKeyDown={handleGridKeyDown}>
         {BOARD_COLUMNS.map((status) => (
           <KanbanColumn
             key={status}

@@ -77,6 +77,14 @@ export default React.memo(function TaskCard({
   allTasks, dependents = [], isBlocked = false, treeDepth = 0, onContextMenu,
   isEditingTitle = false, onTitleSave, onTitleEditCancel,
 }: TaskCardProps) {
+  const handleCardKeyDown = useCallback((e: React.KeyboardEvent) => {
+    if (e.key === "Enter" || e.key === " ") {
+      e.preventDefault();
+      e.stopPropagation();
+      if (task.task_type === "epic" && onEpicClick) onEpicClick(task.id);
+      else onClick(task.id);
+    }
+  }, [task.id, task.task_type, onClick, onEpicClick]);
   const accentColor = useProjectAccentColor();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const priorities = useAppStore((s) =>
@@ -168,7 +176,7 @@ export default React.memo(function TaskCard({
     return (
       <div
         ref={setNodeRef}
-        className={`relative group py-2 px-2.5 shrink-0 bg-card border rounded-[10px] select-none overflow-hidden transition-all duration-150 opacity-50 ${
+        className={`relative group py-2 px-2.5 shrink-0 bg-card border rounded-[10px] select-none overflow-hidden transition-all duration-150 opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           isDragOverlay
             ? `${borderAccentColors[accentColor]} shadow-[0_8px_24px_rgba(0,0,0,0.3)] cursor-grabbing opacity-100`
             : "border-border cursor-grab hover:opacity-70"
@@ -179,7 +187,12 @@ export default React.memo(function TaskCard({
         }}
         {...listeners}
         {...attributes}
+        tabIndex={isDragOverlay ? undefined : 0}
+        role="button"
+        aria-label={`${task.title} — ${task.priority}`}
+        data-grid-item={task.id}
         onClick={(e) => { e.stopPropagation(); onClick(task.id); }}
+        onKeyDown={handleCardKeyDown}
         onContextMenu={onContextMenu}
       >
         <div className="flex items-center gap-1.5">
@@ -220,7 +233,7 @@ export default React.memo(function TaskCard({
   return (
     <div
       ref={setNodeRef}
-      className={`relative group p-3 shrink-0 bg-card border rounded-[10px] select-none overflow-hidden transition-all duration-150 ${
+      className={`relative group p-3 shrink-0 bg-card border rounded-[10px] select-none overflow-hidden transition-all duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
         isEpic ? "border-l-[3px] border-l-primary" : ""
       } ${
         isDragOverlay
@@ -237,12 +250,17 @@ export default React.memo(function TaskCard({
       }}
       {...listeners}
       {...attributes}
+      tabIndex={isDragOverlay ? undefined : 0}
+      role="button"
+      aria-label={`${task.title} — ${task.priority}${isBlocked ? ", blocked" : ""}${isSessionActive ? ", session active" : ""}`}
+      data-grid-item={task.id}
       onClick={(e) => {
         if (isEditingTitle) return;
         e.stopPropagation();
         if (isEpic && onEpicClick) onEpicClick(task.id);
         else onClick(task.id);
       }}
+      onKeyDown={handleCardKeyDown}
       onContextMenu={onContextMenu}
     >
       {/* Card layout: content left, optional ring right */}
@@ -398,7 +416,7 @@ export default React.memo(function TaskCard({
 
       {/* ── Activity strip (replaces old MCP footer) ── */}
       {showActivityStrip && (
-        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-border">
+        <div className="flex items-center gap-2 mt-2.5 pt-2 border-t border-border" aria-live="polite" aria-atomic="true">
           {/* Pulse dot + activity label */}
           <div className="flex items-center gap-1 shrink-0">
             <span className={`size-[5px] rounded-full animate-pulse ${activityColor === "warning" ? "bg-warning" : "bg-primary"}`} />

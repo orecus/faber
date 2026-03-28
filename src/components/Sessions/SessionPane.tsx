@@ -150,8 +150,12 @@ export default React.memo(function SessionPane({
   return (
     <div
       ref={setDropRef}
+      tabIndex={0}
+      role="region"
+      aria-label={`${displayName} session — ${session.status}`}
+      data-session-pane={session.id}
       onClick={handlePaneClick}
-      className={`flex flex-col min-h-0 min-w-0 rounded-[var(--radius-panel)] overflow-hidden relative transition-shadow duration-200 ease-in-out ${glassStyles[isGlass ? "subtle" : "solid"]} ${
+      className={`flex flex-col min-h-0 min-w-0 rounded-[var(--radius-panel)] overflow-hidden relative transition-shadow duration-200 ease-in-out focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${glassStyles[isGlass ? "subtle" : "solid"]} ${
         showPermissionState
           ? isFocused ? "ring-2 ring-warning shadow-md shadow-warning/15" : "ring-2 ring-warning/60 shadow-sm shadow-warning/10"
           : showErrorState
@@ -234,6 +238,7 @@ export default React.memo(function SessionPane({
               e.stopPropagation();
               startEditing();
             }}
+            aria-label="Rename session"
             title="Rename session"
             className="text-muted-foreground opacity-30 group-hover/header:opacity-100 group-focus-within/header:opacity-100 hover:!opacity-100 shrink-0"
           >
@@ -266,7 +271,7 @@ export default React.memo(function SessionPane({
         )}
 
         {/* Status dot + waiting/error message */}
-        <span className="flex items-center gap-1.5 shrink-0 min-w-0 max-w-[40%]">
+        <span className="flex items-center gap-1.5 shrink-0 min-w-0 max-w-[40%]" aria-live="polite" aria-atomic="true">
           <span
             title={
               showPermissionState
@@ -311,6 +316,7 @@ export default React.memo(function SessionPane({
             e.stopPropagation();
             onStop(session.id);
           }}
+          aria-label="Close session"
           title="Close session"
           className="text-muted-foreground hover:text-destructive"
         >

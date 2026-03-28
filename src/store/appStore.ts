@@ -1541,6 +1541,12 @@ export const useAppStore = create<AppState>()(
           e.preventDefault();
           get().toggleCommandPalette();
         }
+        // Ctrl+Shift+B — toggle left sidebar
+        if ((e.ctrlKey || e.metaKey) && e.shiftKey && e.key === "B") {
+          e.preventDefault();
+          set({ sidebarCollapsed: !get().sidebarCollapsed });
+          return;
+        }
         if ((e.ctrlKey || e.metaKey) && e.key === "b") {
           e.preventDefault();
           get().toggleRightSidebar();
@@ -1551,6 +1557,32 @@ export const useAppStore = create<AppState>()(
         }
         if (e.key === "Escape" && get().commandPaletteOpen) {
           get().closeCommandPalette();
+        }
+        // Alt+1..5 — view switching
+        if (e.altKey && !e.ctrlKey && !e.metaKey && !e.shiftKey) {
+          const viewMap: Record<string, ViewId> = {
+            "1": "dashboard",
+            "2": "sessions",
+            "3": "chat",
+            "4": "github",
+            "5": "skills-rules",
+          };
+          const view = viewMap[e.key];
+          if (view) {
+            e.preventDefault();
+            get().setActiveView(view);
+          }
+        }
+        // ? key — show help view (when not in an input)
+        if (e.key === "?" && !e.ctrlKey && !e.metaKey && !e.altKey) {
+          const el = document.activeElement;
+          if (
+            el instanceof HTMLInputElement ||
+            el instanceof HTMLTextAreaElement ||
+            (el instanceof HTMLElement && el.isContentEditable)
+          ) return;
+          e.preventDefault();
+          get().setActiveView("help");
         }
       }
       window.addEventListener("keydown", handleKeyDown);

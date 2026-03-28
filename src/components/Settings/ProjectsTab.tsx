@@ -134,6 +134,7 @@ function ProjectRow({
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Delete project"
             title="Delete project"
             onClick={() => setConfirmDelete(true)}
           >

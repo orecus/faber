@@ -199,12 +199,23 @@ const SessionRow = React.memo(function SessionRow({
 
   return (
     <div
+      tabIndex={0}
+      role="button"
+      aria-label={`${session.name || session.agent} session — ${derived.label}`}
       onClick={() => {
         if (!isProjectActive) onSelect();
         setActiveView("sessions");
         setGridLayout({ focusedPaneId: session.id });
       }}
-      className={`flex items-center gap-2 px-1 h-7 text-xs rounded-[var(--radius-element)] cursor-pointer hover:bg-accent ${isWaiting ? "bg-warning/10 text-warning" : isError ? "bg-destructive/10 text-destructive" : "text-dim-foreground"}`}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          if (!isProjectActive) onSelect();
+          setActiveView("sessions");
+          setGridLayout({ focusedPaneId: session.id });
+        }
+      }}
+      className={`flex items-center gap-2 px-1 h-7 text-xs rounded-[var(--radius-element)] cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isWaiting ? "bg-warning/10 text-warning" : isError ? "bg-destructive/10 text-destructive" : "text-dim-foreground"}`}
     >
       <AgentIcon
         agent={session.mode === "shell" ? "shell" : session.agent}
@@ -312,11 +323,22 @@ const ProjectWorktreeList = React.memo(function ProjectWorktreeList({
             return (
               <div
                 key={w.path}
+                tabIndex={0}
+                role="button"
+                aria-label={`Worktree: ${w.branch ?? w.path.split("/").pop() ?? "worktree"}${isActiveWorktree ? " (active)" : ""}`}
+                aria-current={isActiveWorktree ? "true" : undefined}
                 onClick={() => {
                   onSelect();
                   navigateToReview(w.path);
                 }}
-                className={`flex items-center gap-1.5 px-1 h-7 text-xs rounded-[var(--radius-element)] cursor-pointer hover:bg-accent ${isActiveWorktree ? "bg-accent text-foreground" : "text-dim-foreground"}`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onSelect();
+                    navigateToReview(w.path);
+                  }
+                }}
+                className={`flex items-center gap-1.5 px-1 h-7 text-xs rounded-[var(--radius-element)] cursor-pointer hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${isActiveWorktree ? "bg-accent text-foreground" : "text-dim-foreground"}`}
               >
                 <GitFork
                   size={12}
@@ -408,8 +430,13 @@ const ProjectItem = React.memo(function ProjectItem({
     <div>
       {/* Project header */}
       <div
+        tabIndex={0}
+        role="button"
+        aria-expanded={expanded}
+        aria-label={`${project.name}${isActive ? " (active)" : ""}`}
         onClick={onSelect}
-        className={`group flex items-center gap-1.5 px-2 h-8 cursor-pointer transition-colors duration-150 ${
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onSelect(); } }}
+        className={`group flex items-center gap-1.5 px-2 h-8 cursor-pointer transition-colors duration-150 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset ${
           isActive ? "bg-accent/50" : "hover:bg-accent/30"
         }`}
       >
@@ -442,6 +469,8 @@ const ProjectItem = React.memo(function ProjectItem({
           <DropdownMenuTrigger
             render={
               <span
+                role="button"
+                aria-label="Project actions"
                 onClick={(e) => e.stopPropagation()}
                 className="cursor-pointer text-muted-foreground hover:text-foreground opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0 inline-flex items-center justify-center size-5 rounded-sm hover:bg-accent/50"
               />
@@ -462,11 +491,16 @@ const ProjectItem = React.memo(function ProjectItem({
           </DropdownMenuContent>
         </DropdownMenu>
         <span
+          role="button"
+          tabIndex={0}
+          aria-label={expanded ? "Collapse project" : "Expand project"}
+          aria-expanded={expanded}
           onClick={(e) => {
             e.stopPropagation();
             setExpanded((prev) => !prev);
           }}
-          className="inline-flex w-4 justify-center shrink-0 text-muted-foreground hover:text-foreground"
+          onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); e.stopPropagation(); setExpanded((prev) => !prev); } }}
+          className="inline-flex w-4 justify-center shrink-0 text-muted-foreground hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
         >
           {expanded ? <ChevronDown size={12} /> : <ChevronRight size={12} />}
         </span>
@@ -538,6 +572,8 @@ export default function Sidebar() {
 
   return (
     <div
+      role="navigation"
+      aria-label="Project navigation"
       className="relative flex flex-col overflow-hidden select-none border-r border-border bg-card/60"
       style={{ gridArea: "sidebar" }}
     >
@@ -553,6 +589,7 @@ export default function Sidebar() {
           hoverEffect="none"
           clickEffect="none"
           onClick={() => setManageProjectsOpen(true)}
+          aria-label="Manage projects"
           title="Manage projects"
         >
           <Settings size={13} />
@@ -565,6 +602,7 @@ export default function Sidebar() {
                 size="icon-sm"
                 hoverEffect="none"
                 clickEffect="none"
+                aria-label="Add project"
                 title="Add project"
               />
             }
