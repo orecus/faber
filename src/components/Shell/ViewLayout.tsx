@@ -29,7 +29,7 @@ function Toolbar({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
-      className={cn("flex items-center gap-3 h-10 shrink-0", className)}
+      className={cn("flex items-center gap-3 min-h-10 shrink-0 flex-wrap", className)}
       {...props}
     >
       {children}

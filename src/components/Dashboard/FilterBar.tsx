@@ -274,40 +274,43 @@ export default function FilterBar({
           )}
         </div>
 
-        <Separator orientation="vertical" className="mx-0.5 self-stretch" />
+        {/* Priority toggles — grouped with separator so they wrap together */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Separator orientation="vertical" className="mx-0.5 self-stretch" />
+          <span className="text-xs text-muted-foreground mr-0.5">
+            Priority:
+          </span>
+          {priorities.map((p) => (
+            <ToggleChip
+              key={p.id}
+              label={p.id}
+              active={filters.priorities.has(p.id)}
+              color={getPriorityCssVar(p.id, priorities)}
+              onClick={() => dispatchFilter({ type: "TOGGLE_PRIORITY", priority: p.id })}
+            />
+          ))}
+        </div>
 
-        {/* Priority toggles — bounded, always inline */}
-        <span className="text-xs text-muted-foreground mr-0.5">
-          Priority:
-        </span>
-        {priorities.map((p) => (
-          <ToggleChip
-            key={p.id}
-            label={p.id}
-            active={filters.priorities.has(p.id)}
-            color={getPriorityCssVar(p.id, priorities)}
-            onClick={() => dispatchFilter({ type: "TOGGLE_PRIORITY", priority: p.id })}
-          />
-        ))}
+        {/* Status toggles — grouped with separator */}
+        <div className="flex items-center gap-2 shrink-0">
+          <Separator orientation="vertical" className="mx-0.5 self-stretch" />
+          <span className="text-xs text-muted-foreground mr-0.5">
+            Status:
+          </span>
+          {STATUSES.map((s) => (
+            <ToggleChip
+              key={s.value}
+              label={s.label}
+              active={filters.statuses.has(s.value)}
+              color={accentHex}
+              onClick={() => dispatchFilter({ type: "TOGGLE_STATUS", status: s.value })}
+            />
+          ))}
+        </div>
 
-        {/* Status toggles — bounded, always inline */}
-        <Separator orientation="vertical" className="mx-0.5 self-stretch" />
-        <span className="text-xs text-muted-foreground mr-0.5">
-          Status:
-        </span>
-        {STATUSES.map((s) => (
-          <ToggleChip
-            key={s.value}
-            label={s.label}
-            active={filters.statuses.has(s.value)}
-            color={accentHex}
-            onClick={() => dispatchFilter({ type: "TOGGLE_STATUS", status: s.value })}
-          />
-        ))}
-
-        {/* Dropdown filters — compact triggers for unbounded lists */}
+        {/* Dropdown filters — grouped with separator */}
         {(allLabels.length > 0 || allAgents.length > 0 || allEpics.length > 0) && (
-          <>
+          <div className="flex items-center gap-2 shrink-0">
             <Separator orientation="vertical" className="mx-0.5 self-stretch" />
 
             {allLabels.length > 0 && (
@@ -342,7 +345,7 @@ export default function FilterBar({
                 placeholder="Search epics…"
               />
             )}
-          </>
+          </div>
         )}
 
         {/* Clear all */}

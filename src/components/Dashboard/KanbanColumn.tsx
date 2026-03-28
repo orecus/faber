@@ -192,7 +192,7 @@ const KanbanColumn = memo(function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
-      className={`flex-1 min-w-[180px] min-h-0 flex flex-col rounded-[var(--radius-panel)] overflow-hidden transition-all duration-150 ${
+      className={`flex-1 min-w-40 min-h-0 flex flex-col rounded-[var(--radius-panel)] overflow-hidden transition-all duration-150 ${
         isOver
           ? `ring-1 ${ringColors[accentColor]} bg-accent/50`
           : "ring-1 ring-border/40 bg-card/50"

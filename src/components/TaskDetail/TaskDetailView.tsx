@@ -233,65 +233,68 @@ export default function TaskDetailView() {
           </button>
         )}
 
-        <div className="flex-1" />
+        <div className="flex-1 min-w-4" />
 
-        {/* Task actions (status-aware: start, research, view session, create PR, archive, reopen) — hidden for epics */}
-        {currentTask && activeProjectId && !isEpic && (
-          <TaskDetailActions task={currentTask} projectId={activeProjectId} />
-        )}
+        {/* Right-side actions — grouped so they wrap as a unit */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Task actions (status-aware: start, research, view session, create PR, archive, reopen) — hidden for epics */}
+          {currentTask && activeProjectId && !isEpic && (
+            <TaskDetailActions task={currentTask} projectId={activeProjectId} />
+          )}
 
-        {/* Sync to GitHub (when issue is linked) */}
-        {formData.github_issue && (
+          {/* Sync to GitHub (when issue is linked) */}
+          {formData.github_issue && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={syncing || isDirty}
+              onClick={() => setSyncDialogOpen(true)}
+              title={isDirty ? "Save changes before syncing to GitHub" : undefined}
+              leftIcon={
+                syncing ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : syncSuccess ? (
+                  <Check className="size-3.5 text-success" />
+                ) : (
+                  <RefreshCw className="size-3.5" />
+                )
+              }
+              hoverEffect="scale"
+              clickEffect="scale"
+            >
+              {syncSuccess ? "Synced!" : "Sync"}
+            </Button>
+          )}
+
+          {/* Save */}
           <Button
-            variant="outline"
+            variant="color"
+            color={accentColor}
             size="sm"
-            disabled={syncing || isDirty}
-            onClick={() => setSyncDialogOpen(true)}
-            title={isDirty ? "Save changes before syncing to GitHub" : undefined}
-            leftIcon={
-              syncing ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : syncSuccess ? (
-                <Check className="size-3.5 text-success" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )
-            }
+            disabled={!isDirty || saving}
+            loading={saving}
+            onClick={handleSave}
+            leftIcon={<Save className="size-3.5" />}
+            hoverEffect="scale-glow"
+            clickEffect="scale"
+          >
+            Save
+          </Button>
+
+          {/* Delete */}
+          <Button
+            variant={confirmDelete ? "destructive" : "ghost"}
+            size="sm"
+            disabled={deleting}
+            loading={deleting}
+            onClick={handleDeleteClick}
+            leftIcon={<Trash2 className="size-3.5" />}
             hoverEffect="scale"
             clickEffect="scale"
           >
-            {syncSuccess ? "Synced!" : "Sync"}
+            {confirmDelete ? "Confirm?" : "Delete"}
           </Button>
-        )}
-
-        {/* Save */}
-        <Button
-          variant="color"
-          color={accentColor}
-          size="sm"
-          disabled={!isDirty || saving}
-          loading={saving}
-          onClick={handleSave}
-          leftIcon={<Save className="size-3.5" />}
-          hoverEffect="scale-glow"
-          clickEffect="scale"
-        >
-          Save
-        </Button>
-
-        {/* Delete */}
-        <Button
-          variant={confirmDelete ? "destructive" : "ghost"}
-          size="sm"
-          disabled={deleting}
-          loading={deleting}
-          onClick={handleDeleteClick}
-          leftIcon={<Trash2 className="size-3.5" />}
-          hoverEffect="scale"
-          clickEffect="scale"
-        >
-          {confirmDelete ? "Confirm?" : "Delete"}
-        </Button>
+        </div>
       </ViewLayout.Toolbar>
 
       {/* ── Error banner ── */}

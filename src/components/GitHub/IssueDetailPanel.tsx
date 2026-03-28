@@ -78,7 +78,7 @@ export default function IssueDetailPanel({
 
   return (
     <div
-      className={`relative shrink-0 flex flex-col border-l border-border overflow-hidden ${glassStyles[isGlass ? "normal" : "solid"]}`}
+      className={`relative shrink-0 flex flex-col border-l border-border overflow-hidden max-w-[40%] ${glassStyles[isGlass ? "normal" : "solid"]}`}
       style={{ width: panelWidth }}
     >
       <DetailPanelResizeHandle onResize={onResize} />

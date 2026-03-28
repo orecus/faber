@@ -1241,7 +1241,7 @@ export default function PluginsTab({ projectId: _projectId }: Props) {
 
       {/* Detail panel — slides in from right */}
       {selected && (
-        <div className="w-[380px] shrink-0 border-l border-border/40 overflow-hidden">
+        <div className="w-[380px] max-w-[40%] shrink-0 border-l border-border/40 overflow-hidden">
           <PluginDetailDrawer
             selected={selected}
             onClose={() => setSelected(null)}

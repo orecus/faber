@@ -78,7 +78,7 @@ export default function TaskTitle({ title, onChange, compact }: TaskTitleProps) 
   return (
     <button
       onClick={() => setEditing(true)}
-      className={`group/title flex cursor-pointer items-center gap-1.5 rounded-md text-left transition-colors hover:bg-accent/50 ${compact ? "min-w-0 max-w-[400px] py-0.5 px-1.5" : "w-full -mx-1 px-1 py-0.5"}`}
+      className={`group/title flex cursor-pointer items-center gap-1.5 rounded-md text-left transition-colors hover:bg-accent/50 ${compact ? "min-w-0 max-w-80 py-0.5 px-1.5" : "w-full -mx-1 px-1 py-0.5"}`}
     >
       <span className={`flex-1 font-semibold text-foreground ${compact ? "truncate text-sm leading-none" : "text-lg leading-snug"}`}>
         {title}
