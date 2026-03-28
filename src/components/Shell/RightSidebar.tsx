@@ -182,6 +182,9 @@ export default function RightSidebar() {
           resumingId={history.resuming}
           hasData={history.sessionHistory !== null}
           chatSessionActive={chatSessionActive}
+          acpAgents={history.acpAgents}
+          selectedAgentName={history.selectedAgentName}
+          onAgentSelect={history.handleAgentSelect}
         />
       )}
 

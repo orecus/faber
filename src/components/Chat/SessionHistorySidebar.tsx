@@ -11,8 +11,15 @@ import {
 import { memo, useCallback, useMemo, useRef, useState } from "react";
 
 import type { FaberSessionMeta } from "../../hooks/useSessionHistory";
-import type { AgentSessionInfo } from "../../types";
+import type { AgentInfo, AgentSessionInfo } from "../../types";
 import { cn } from "@/lib/utils";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 
 // ============================================================================
 // Helpers
@@ -271,6 +278,12 @@ export interface SessionHistoryContentProps {
   hasData: boolean;
   /** Whether "Resume in Chat" should be disabled (e.g. a chat session is already active) */
   chatSessionActive?: boolean;
+  /** Available ACP agents for the selector (only shown when 2+) */
+  acpAgents?: AgentInfo[];
+  /** Currently selected agent name */
+  selectedAgentName?: string;
+  /** Callback when user picks a different agent */
+  onAgentSelect?: (name: string) => void;
 }
 
 /**
@@ -293,6 +306,9 @@ export const SessionHistoryContent = memo(function SessionHistoryContent({
   resumingId,
   hasData,
   chatSessionActive = false,
+  acpAgents,
+  selectedAgentName,
+  onAgentSelect,
 }: SessionHistoryContentProps) {
   const searchRef = useRef<HTMLInputElement>(null);
   const [collapsedGroups, setCollapsedGroups] = useState<
@@ -323,24 +339,60 @@ export const SessionHistoryContent = memo(function SessionHistoryContent({
     return groups;
   }, [sessions, searchFilter]);
 
+  const showAgentSelector =
+    acpAgents && acpAgents.length > 1 && onAgentSelect;
+  const selectedAgent = acpAgents?.find((a) => a.name === selectedAgentName);
+
   return (
     <>
-      {/* Toolbar: count + refresh */}
-      <div className="flex items-center gap-2 px-3 h-[33px] shrink-0 border-b border-border">
-        <span className="text-xs text-muted-foreground">
-          {hasData && sessions.length > 0
-            ? `${sessions.length} session${sessions.length !== 1 ? "s" : ""}`
-            : "Previous Sessions"}
-        </span>
-        <div className="flex-1" />
-        <button
-          onClick={onRefresh}
-          disabled={isLoading}
-          className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50 cursor-pointer"
-          title="Refresh session list"
-        >
-          <RefreshCw size={12} className={cn(isLoading && "animate-spin")} />
-        </button>
+      {/* Toolbar: agent selector / count + refresh */}
+      <div className={cn(
+        "flex items-center gap-2 px-3 shrink-0 border-b border-border",
+        showAgentSelector ? "py-2" : "h-[33px]",
+      )}>
+        {showAgentSelector ? (
+          <Select
+            value={selectedAgentName ?? ""}
+            onValueChange={(v) => v && onAgentSelect(v)}
+            items={acpAgents.map((a) => ({ value: a.name, label: a.display_name }))}
+          >
+            <SelectTrigger
+              size="sm"
+              className="min-w-0 flex-1 h-7 text-xs border-border bg-muted/50"
+            >
+              <SelectValue placeholder="Select agent" />
+            </SelectTrigger>
+            <SelectContent>
+              {acpAgents.map((agent) => (
+                <SelectItem key={agent.name} value={agent.name}>
+                  {agent.display_name}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        ) : (
+          <span className="text-xs text-muted-foreground truncate min-w-0">
+            {selectedAgent?.display_name ??
+              (hasData && sessions.length > 0
+                ? `${sessions.length} session${sessions.length !== 1 ? "s" : ""}`
+                : "Previous Sessions")}
+          </span>
+        )}
+        <div className="flex items-center gap-1 shrink-0">
+          {hasData && sessions.length > 0 && showAgentSelector && (
+            <span className="text-2xs text-muted-foreground/60 tabular-nums">
+              {sessions.length}
+            </span>
+          )}
+          <button
+            onClick={onRefresh}
+            disabled={isLoading}
+            className="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50 cursor-pointer"
+            title="Refresh session list"
+          >
+            <RefreshCw size={12} className={cn(isLoading && "animate-spin")} />
+          </button>
+        </div>
       </div>
 
       {/* Search bar — always visible when supported (shown during loading for layout stability) */}
