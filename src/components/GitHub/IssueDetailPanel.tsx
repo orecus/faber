@@ -12,11 +12,9 @@ import {
   Check,
 } from "lucide-react";
 
-import { useTheme } from "../../contexts/ThemeContext";
 import type { GitHubIssueDetail } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
-import DetailPanelResizeHandle from "./DetailPanelResizeHandle";
+import SidePanel from "../ui/SidePanel";
 
 interface IssueDetailPanelProps {
   detail: GitHubIssueDetail | null;
@@ -62,8 +60,6 @@ export default function IssueDetailPanel({
   onClose,
   onImport,
 }: IssueDetailPanelProps) {
-  const { isGlass } = useTheme();
-
   const handleOpenInGitHub = useCallback(() => {
     if (detail?.issue.url) {
       open(detail.issue.url);
@@ -77,13 +73,16 @@ export default function IssueDetailPanel({
   }, [detail, onImport]);
 
   return (
-    <div
-      className={`relative shrink-0 flex flex-col border-l border-border overflow-hidden max-w-[40%] ${glassStyles[isGlass ? "normal" : "solid"]}`}
-      style={{ width: panelWidth }}
+    <SidePanel
+      side="right"
+      width="wide"
+      resizable
+      resizeWidth={panelWidth}
+      onResize={onResize}
+      maxWidthClass="max-w-[40%]"
     >
-      <DetailPanelResizeHandle onResize={onResize} />
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+      <SidePanel.Header className="justify-between">
         <span className="text-xs font-medium text-foreground">
           Issue Detail
         </span>
@@ -95,7 +94,7 @@ export default function IssueDetailPanel({
         >
           <X size={14} />
         </button>
-      </div>
+      </SidePanel.Header>
 
       {loading && !detail && (
         <div className="flex-1 flex items-center justify-center">
@@ -104,7 +103,7 @@ export default function IssueDetailPanel({
       )}
 
       {detail && (
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+        <SidePanel.Content className="px-3 py-2 space-y-3">
           {/* State + title + number */}
           <div className="space-y-1">
             <div className="flex items-center gap-1.5">
@@ -247,12 +246,12 @@ export default function IssueDetailPanel({
               </div>
             ))}
           </div>
-        </div>
+        </SidePanel.Content>
       )}
 
       {/* Action buttons */}
       {detail && (
-        <div className="border-t border-border px-3 py-2 space-y-2">
+        <SidePanel.Footer className="space-y-2">
           {/* Import button (if not already imported) */}
           {!detail.already_imported && (
             <Button
@@ -284,8 +283,8 @@ export default function IssueDetailPanel({
           >
             Open in GitHub
           </Button>
-        </div>
+        </SidePanel.Footer>
       )}
-    </div>
+    </SidePanel>
   );
 }

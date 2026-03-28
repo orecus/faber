@@ -9,12 +9,10 @@ import {
   FileSymlink,
   Loader2,
 } from "lucide-react";
-import { useTheme } from "../../contexts/ThemeContext";
 import type { CommitDetail } from "../../types";
 import { RAIL_COLORS } from "../../lib/graphLayout";
 import type { GraphNode } from "../../lib/graphLayout";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
-import DetailPanelResizeHandle from "./DetailPanelResizeHandle";
+import SidePanel from "../ui/SidePanel";
 
 interface CommitDetailPanelProps {
   detail: CommitDetail | null;
@@ -88,7 +86,6 @@ export default function CommitDetailPanel({
   onResize,
   onClose,
 }: CommitDetailPanelProps) {
-  const { isGlass } = useTheme();
   const [copied, setCopied] = useState(false);
 
   const copyHash = useCallback(() => {
@@ -102,13 +99,16 @@ export default function CommitDetailPanel({
   const railColor = node?.railColor ?? RAIL_COLORS[0];
 
   return (
-    <div
-      className={`relative shrink-0 flex flex-col border-l border-border overflow-hidden max-w-[40%] ${glassStyles[isGlass ? "normal" : "solid"]}`}
-      style={{ width: panelWidth }}
+    <SidePanel
+      side="right"
+      width="wide"
+      resizable
+      resizeWidth={panelWidth}
+      onResize={onResize}
+      maxWidthClass="max-w-[40%]"
     >
-      <DetailPanelResizeHandle onResize={onResize} />
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+      <SidePanel.Header className="justify-between">
         <span className="text-xs font-medium text-foreground">
           Commit Detail
         </span>
@@ -120,7 +120,7 @@ export default function CommitDetailPanel({
         >
           <X size={14} />
         </button>
-      </div>
+      </SidePanel.Header>
 
       {loading && !detail && (
         <div className="flex-1 flex items-center justify-center">
@@ -129,7 +129,7 @@ export default function CommitDetailPanel({
       )}
 
       {detail && (
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+        <SidePanel.Content className="px-3 py-2 space-y-3">
           {/* Hash + dot */}
           <div className="flex items-center gap-2">
             <span
@@ -229,8 +229,8 @@ export default function CommitDetailPanel({
               )}
             </div>
           )}
-        </div>
+        </SidePanel.Content>
       )}
-    </div>
+    </SidePanel>
   );
 }

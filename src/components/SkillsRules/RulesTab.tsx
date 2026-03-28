@@ -6,6 +6,7 @@ import { useAppStore } from "../../store/appStore";
 import type { AgentRuleGroup, RuleFileInfo } from "../../types";
 import { Skeleton } from "../ui/skeleton";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import SidePanel from "../ui/SidePanel";
 import CreateRuleDialog from "./CreateRuleDialog";
 import RuleEditor from "./RuleEditor";
 import RulesTreePanel from "./RulesTreePanel";
@@ -137,14 +138,14 @@ export default function RulesTab({ projectId }: Props) {
         className={`flex-1 min-h-0 overflow-hidden rounded-lg ring-1 ring-border/40 flex ${glassStyles[isGlass ? "normal" : "solid"]}`}
       >
         {/* Left: Tree panel */}
-        <div className="w-56 shrink-0 border-r border-border/40 overflow-hidden flex flex-col">
+        <SidePanel side="left" width="narrow" className="bg-transparent backdrop-blur-none">
           <RulesTreePanel
             groups={filteredGroups}
             selectedPath={selectedRelPath}
             onSelect={handleSelect}
             onCreateClick={handleCreateClick}
           />
-        </div>
+        </SidePanel>
 
         {/* Right: Editor panel */}
         <div className="flex-1 min-w-0 flex flex-col">

@@ -12,11 +12,9 @@ import {
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 
-import { useTheme } from "../../contexts/ThemeContext";
 import type { GitHubPRDetail } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
-import DetailPanelResizeHandle from "./DetailPanelResizeHandle";
+import SidePanel from "../ui/SidePanel";
 
 interface PullRequestDetailPanelProps {
   detail: GitHubPRDetail | null;
@@ -103,7 +101,6 @@ export default function PullRequestDetailPanel({
   onMerge,
   onClosePR,
 }: PullRequestDetailPanelProps) {
-  const { isGlass } = useTheme();
   const [mergeMethod, setMergeMethod] = useState("squash");
   const [showMergeOptions, setShowMergeOptions] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -139,13 +136,16 @@ export default function PullRequestDetailPanel({
   }, [detail]);
 
   return (
-    <div
-      className={`relative shrink-0 flex flex-col border-l border-border overflow-hidden max-w-[40%] ${glassStyles[isGlass ? "normal" : "solid"]}`}
-      style={{ width: panelWidth }}
+    <SidePanel
+      side="right"
+      width="wide"
+      resizable
+      resizeWidth={panelWidth}
+      onResize={onResize}
+      maxWidthClass="max-w-[40%]"
     >
-      <DetailPanelResizeHandle onResize={onResize} />
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+      <SidePanel.Header className="justify-between">
         <span className="text-xs font-medium text-foreground">
           Pull Request Detail
         </span>
@@ -157,7 +157,7 @@ export default function PullRequestDetailPanel({
         >
           <X size={14} />
         </button>
-      </div>
+      </SidePanel.Header>
 
       {loading && !detail && (
         <div className="flex-1 flex items-center justify-center">
@@ -166,7 +166,7 @@ export default function PullRequestDetailPanel({
       )}
 
       {detail && (
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+        <SidePanel.Content className="px-3 py-2 space-y-3">
           {/* Title + number + state */}
           <div className="space-y-1">
             <div className="flex items-center gap-1.5">
@@ -346,12 +346,12 @@ export default function PullRequestDetailPanel({
               )}
             </div>
           )}
-        </div>
+        </SidePanel.Content>
       )}
 
       {/* Action buttons */}
       {detail && detail.state.toUpperCase() === "OPEN" && (
-        <div className="border-t border-border px-3 py-2 space-y-2">
+        <SidePanel.Footer className="space-y-2">
           {/* Merge with method selector */}
           <div className="flex items-center gap-1.5">
             <Button
@@ -429,8 +429,8 @@ export default function PullRequestDetailPanel({
               Open
             </Button>
           </div>
-        </div>
+        </SidePanel.Footer>
       )}
-    </div>
+    </SidePanel>
   );
 }

@@ -22,6 +22,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
+import SidePanel from "../ui/SidePanel";
 import AgentActivityTab from "./AgentActivityTab";
 import EpicChildTasks from "./EpicChildTasks";
 import EpicProgressBar from "./EpicProgressBar";
@@ -382,8 +383,8 @@ export default function TaskDetailView() {
         </div>
 
         {/* Right — Metadata sidebar */}
-        <div className="w-[260px] shrink-0 overflow-y-auto border-l border-border/40">
-          <div className="px-3 py-1">
+        <SidePanel side="right" width="medium">
+          <SidePanel.Content className="px-3 py-1">
             <TaskMetadataSidebar
               data={formData}
               onChange={setFormData}
@@ -396,8 +397,8 @@ export default function TaskDetailView() {
               onCreateGitHubIssue={ghAuthOk && hasRemote ? handleCreateGitHubIssue : undefined}
               creatingIssue={creatingIssue}
             />
-          </div>
-        </div>
+          </SidePanel.Content>
+        </SidePanel>
       </div>
 
       {/* Sync to GitHub confirmation dialog */}

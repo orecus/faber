@@ -22,6 +22,8 @@ import {
   streamdownTheme,
 } from "../../lib/markdown";
 import { ViewLayout } from "../Shell/ViewLayout";
+import SidePanel from "../ui/SidePanel";
+import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 
 import type { DocContent, DocEntry } from "../../types";
 import type { LucideIcon } from "lucide-react";
@@ -103,17 +105,13 @@ export default function HelpView() {
 
       <div className="flex flex-1 min-h-0 gap-2">
         {/* Left panel — doc list */}
-        <div
-          className={`w-56 shrink-0 flex flex-col rounded-lg overflow-hidden ring-1 ring-border/40 ${
-            isGlass ? "bg-card/60 backdrop-blur-sm" : "bg-card"
-          }`}
-        >
-          <div className="px-3 py-2 border-b border-border">
+        <SidePanel side="left" width="narrow" className="rounded-lg ring-1 ring-border/40 border-r-0">
+          <SidePanel.Header>
             <span className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
               Guides
             </span>
-          </div>
-          <div className="flex-1 overflow-y-auto p-1">
+          </SidePanel.Header>
+          <SidePanel.Content className="p-1">
             {loading ? (
               <div className="flex items-center justify-center py-8">
                 <Loader2
@@ -154,15 +152,11 @@ export default function HelpView() {
                 </button>
               ))
             )}
-          </div>
-        </div>
+          </SidePanel.Content>
+        </SidePanel>
 
         {/* Right panel — markdown reader */}
-        <div
-          className={`flex-1 min-w-0 flex flex-col rounded-lg overflow-hidden ring-1 ring-border/40 ${
-            isGlass ? "bg-card/60 backdrop-blur-sm" : "bg-card"
-          }`}
-        >
+        <div className={`flex-1 min-w-0 flex flex-col rounded-lg overflow-hidden ring-1 ring-border/40 ${glassStyles[isGlass ? "normal" : "solid"]}`}>
           {contentLoading ? (
             <div className="flex-1 flex items-center justify-center">
               <Loader2

@@ -14,10 +14,9 @@ import {
 import { useCallback, useState } from "react";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 
-import { useTheme } from "../../contexts/ThemeContext";
 import { Checkbox } from "../ui/checkbox";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import SidePanel from "../ui/SidePanel";
 
 import type { ChangedFile } from "../../types";
 import type { FileSection } from "./useDiffData";
@@ -144,7 +143,6 @@ export default function FileList({
   onToggleStage,
   onRefresh,
 }: FileListProps) {
-  const { isGlass } = useTheme();
   const accentColor = useProjectAccentColor();
   const [commitMsg, setCommitMsg] = useState("");
   const [committing, setCommitting] = useState(false);
@@ -199,11 +197,9 @@ export default function FileList({
   const hasChanges = changedFiles.length > 0;
 
   return (
-    <div
-      className={`flex h-full w-[250px] shrink-0 flex-col border-r border-border ${glassStyles[isGlass ? "normal" : "solid"]}`}
-    >
+    <SidePanel side="left" width={250} className="h-full">
       {/* Scrollable file sections */}
-      <div className="flex-1 overflow-y-auto">
+      <SidePanel.Content>
         {/* Committed section */}
         {hasCommitted && (
           <>
@@ -294,10 +290,10 @@ export default function FileList({
             )}
           </div>
         )}
-      </div>
+      </SidePanel.Content>
 
       {/* Commit bar */}
-      <div className="border-t border-border p-2">
+      <SidePanel.Footer>
         <div className="flex gap-1.5">
           <input
             type="text"
@@ -338,7 +334,7 @@ export default function FileList({
         {commitError && (
           <p className="mt-1 text-2xs text-destructive">{commitError}</p>
         )}
-      </div>
-    </div>
+      </SidePanel.Footer>
+    </SidePanel>
   );
 }
