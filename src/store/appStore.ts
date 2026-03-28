@@ -132,6 +132,8 @@ interface AppState {
   acpModes: Record<string, string>;
   acpModels: Record<string, string>;
   acpPromptPending: Record<string, boolean>;
+  /** Turn ID that is currently pending — used to guard against stale completion events. */
+  acpPromptTurnId: Record<string, number>;
   /** Draft text per session (persisted across view switches). */
   acpDraftText: Record<string, string>;
   acpPermissionRequests: Record<string, import("../types").AcpPermissionRequest[]>;
@@ -155,6 +157,7 @@ interface AppState {
 
   backgroundTasks: string[];
   errorFlash: string | null;
+  successFlash: string | null;
   sidebarCollapsed: boolean;
   sidebarWidth: number;
   rightSidebarOpen: boolean;
@@ -220,6 +223,7 @@ interface AppState {
   setAcpMode: (sessionId: string, mode: string) => void;
   setAcpModel: (sessionId: string, model: string) => void;
   setAcpPromptPending: (sessionId: string, pending: boolean) => void;
+  clearAcpPromptIfCurrent: (sessionId: string) => void;
   setAcpDraftText: (sessionId: string, text: string) => void;
   addAcpPermissionRequest: (sessionId: string, request: import("../types").AcpPermissionRequest) => void;
   removeAcpPermissionRequest: (sessionId: string, requestId: string) => void;
@@ -240,6 +244,7 @@ interface AppState {
   addBackgroundTask: (label: string) => void;
   removeBackgroundTask: (label: string) => void;
   flashError: (message: string) => void;
+  flashSuccess: (message: string) => void;
 
   // Research → Implementation flow
   /** Session IDs of research sessions that have completed (for showing the "Continue to Implementation" bar). */
@@ -337,6 +342,7 @@ export const useAppStore = create<AppState>()(
     acpModes: {},
     acpModels: {},
     acpPromptPending: {},
+    acpPromptTurnId: {},
     acpDraftText: {},
     acpPermissionRequests: {},
     acpAvailableCommands: {},
@@ -349,6 +355,7 @@ export const useAppStore = create<AppState>()(
     agentSessionListFetchedAt: {},
     backgroundTasks: [],
     errorFlash: null,
+    successFlash: null,
     sidebarCollapsed: false,
     sidebarWidth: 260,
     rightSidebarOpen: false,
@@ -810,9 +817,40 @@ export const useAppStore = create<AppState>()(
       })),
 
     setAcpPromptPending: (sessionId, pending) =>
-      set((state) => ({
-        acpPromptPending: { ...state.acpPromptPending, [sessionId]: pending },
-      })),
+      set((state) => {
+        if (pending) {
+          // Snapshot the current turn counter so completion events from stale
+          // (cancelled) turns can be detected and ignored by clearAcpPromptIfCurrent.
+          const turnId = state.acpTurnCounter[sessionId] ?? 0;
+          return {
+            acpPromptPending: { ...state.acpPromptPending, [sessionId]: true },
+            acpPromptTurnId: { ...state.acpPromptTurnId, [sessionId]: turnId },
+          };
+        }
+        return {
+          acpPromptPending: { ...state.acpPromptPending, [sessionId]: false },
+        };
+      }),
+
+    /** Clear promptPending only if no newer prompt has been started.
+     *  setAcpPromptPending(true) snapshots acpTurnCounter into acpPromptTurnId.
+     *  doSend() calls addAcpUserMessage (bumps turn counter) then setAcpPromptPending(true)
+     *  (snapshots the new counter). If a stale completion event from a cancelled turn
+     *  arrives after a new prompt started, the snapshot will be behind the turn counter
+     *  and the clear is skipped. */
+    clearAcpPromptIfCurrent: (sessionId) =>
+      set((state) => {
+        if (!state.acpPromptPending[sessionId]) return state; // already idle
+        const promptTurn = state.acpPromptTurnId[sessionId] ?? 0;
+        const currentTurn = state.acpTurnCounter[sessionId] ?? 0;
+        if (promptTurn < currentTurn) {
+          console.log(`[ACP] ignoring stale completion for turn ${promptTurn}, current turn is ${currentTurn}`);
+          return state;
+        }
+        return {
+          acpPromptPending: { ...state.acpPromptPending, [sessionId]: false },
+        };
+      }),
 
     setAcpDraftText: (sessionId, text) =>
       set((state) => ({
@@ -862,6 +900,7 @@ export const useAppStore = create<AppState>()(
         const { [sessionId]: _d, ...modes } = state.acpModes;
         const { [sessionId]: _md, ...models } = state.acpModels;
         const { [sessionId]: _pp, ...pending } = state.acpPromptPending;
+        const { [sessionId]: _pti, ...promptTurnIds } = state.acpPromptTurnId;
         const { [sessionId]: _dt, ...drafts } = state.acpDraftText;
         const { [sessionId]: _pr, ...permReqs } = state.acpPermissionRequests;
         const { [sessionId]: _ac, ...availCmds } = state.acpAvailableCommands;
@@ -876,6 +915,7 @@ export const useAppStore = create<AppState>()(
           acpModes: modes,
           acpModels: models,
           acpPromptPending: pending,
+          acpPromptTurnId: promptTurnIds,
           acpDraftText: drafts,
           acpPermissionRequests: permReqs,
           acpAvailableCommands: availCmds,
@@ -995,6 +1035,11 @@ export const useAppStore = create<AppState>()(
     flashError: (message) => {
       set({ errorFlash: message });
       setTimeout(() => set({ errorFlash: null }), 4000);
+    },
+
+    flashSuccess: (message) => {
+      set({ successFlash: message });
+      setTimeout(() => set({ successFlash: null }), 3000);
     },
 
     // ── Research → Implementation flow ──
@@ -1332,6 +1377,17 @@ export const useAppStore = create<AppState>()(
       }, 300_000);
       cleanups.push(() => clearInterval(usageInterval));
 
+      // Poll branch names every 15s so external git operations are reflected
+      const branchInterval = setInterval(() => {
+        get().refreshProjectBranches();
+      }, 15_000);
+      cleanups.push(() => clearInterval(branchInterval));
+
+      // Refresh branches immediately when window regains focus
+      const handleFocus = () => get().refreshProjectBranches();
+      window.addEventListener("focus", handleFocus);
+      cleanups.push(() => window.removeEventListener("focus", handleFocus));
+
       // Check GitHub CLI auth status (tracked as background task)
       addBackgroundTask("Checking GitHub auth");
       invoke<GhAuthStatus>("check_gh_auth")
@@ -1361,15 +1417,19 @@ export const useAppStore = create<AppState>()(
           const sorted = [...projects].sort((a, b) => a.name.localeCompare(b.name));
           const allIds = sorted.map((p) => p.id);
 
-          // Restore persisted open projects, falling back to all
-          let openProjectIds = allIds;
+          // Restore persisted open projects, or open all on first launch
+          let openProjectIds: string[];
           if (savedOpenIds) {
             try {
               const parsed: string[] = JSON.parse(savedOpenIds);
-              // Filter to only valid project IDs
-              const valid = parsed.filter((id) => allIds.includes(id));
-              if (valid.length > 0) openProjectIds = valid;
-            } catch { /* fall back to all */ }
+              openProjectIds = parsed.filter((id) => allIds.includes(id));
+            } catch {
+              openProjectIds = allIds;
+            }
+          } else {
+            // No saved state (first launch) — auto-open all projects
+            // (if only 1 project exists, it skips the welcome screen automatically)
+            openProjectIds = allIds;
           }
 
           set({
@@ -1485,6 +1545,10 @@ export const useAppStore = create<AppState>()(
           e.preventDefault();
           get().toggleRightSidebar();
         }
+        if ((e.ctrlKey || e.metaKey) && e.key === ",") {
+          e.preventDefault();
+          get().setActiveView("settings");
+        }
         if (e.key === "Escape" && get().commandPaletteOpen) {
           get().closeCommandPalette();
         }
@@ -1524,6 +1588,8 @@ export const useAppStore = create<AppState>()(
             if (pid) {
               refreshProject(pid);
             }
+            // Refresh branch names — session start/stop may involve branch operations
+            get().refreshProjectBranches();
             // For ACP sessions with an initial prompt (task/research), set
             // promptPending so the chat UI shows a thinking indicator immediately.
             // Chat and vibe sessions start without a prompt — they wait for user input.
@@ -1945,12 +2011,13 @@ export const useAppStore = create<AppState>()(
       eventCleanups.push(
         listen<AcpPromptComplete>("acp-prompt-complete", (event) => {
           if (disposed) return;
-          console.log("[ACP] prompt-complete", event.payload.session_id, event.payload.stop_reason);
+          const sid = event.payload.session_id;
+          console.log("[ACP] prompt-complete", sid, event.payload.stop_reason);
           // Flush any trailing thinking
-          get().flushAcpThinking(event.payload.session_id);
+          get().flushAcpThinking(sid);
           // Finalize all streaming entries
-          get().finalizeAcpStreaming(event.payload.session_id);
-          get().setAcpPromptPending(event.payload.session_id, false);
+          get().finalizeAcpStreaming(sid);
+          get().clearAcpPromptIfCurrent(sid);
         }),
       );
 
@@ -1959,7 +2026,7 @@ export const useAppStore = create<AppState>()(
           if (disposed) return;
           const { session_id, error } = event.payload;
           console.error("[ACP] error", session_id, error);
-          get().setAcpPromptPending(session_id, false);
+          get().clearAcpPromptIfCurrent(session_id);
           get().finalizeAcpStreaming(session_id);
 
           // Inject error as a visible agent-text entry in the chat timeline

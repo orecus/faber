@@ -14,7 +14,7 @@ export default function PriorityBadge({ priority }: { priority: Priority }) {
     <Badge
       variant="secondary"
       title={getPriorityLabel(priority, priorities)}
-      className={`h-auto py-px px-1.5 text-[10px] font-bold tracking-wide rounded-[var(--radius-element)] bg-accent ${getPriorityTextClass(priority, priorities)}`}
+      className={`h-auto py-px px-1.5 text-2xs font-bold tracking-wide rounded-[var(--radius-element)] bg-accent ${getPriorityTextClass(priority, priorities)}`}
     >
       {priority}
     </Badge>

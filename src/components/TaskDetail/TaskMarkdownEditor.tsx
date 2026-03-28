@@ -26,7 +26,7 @@ export default function TaskMarkdownEditor({ body, onChange }: TaskMarkdownEdito
       value={body}
       onChange={(e) => onChange(e.target.value)}
       placeholder={PLACEHOLDER}
-      className="min-h-0 flex-1 resize-none font-mono text-[13px] leading-relaxed [field-sizing:fixed]"
+      className="min-h-0 flex-1 resize-none font-mono text-sm leading-relaxed [field-sizing:fixed]"
     />
   );
 }

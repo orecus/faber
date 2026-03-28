@@ -65,14 +65,14 @@ const UsageProgressBar = React.memo(function UsageProgressBar({
     <div className="px-3 py-0.5">
       {/* Label row */}
       <div className="flex items-center justify-between gap-2 mb-0.5">
-        <span className="text-[10px] text-dim-foreground truncate">
+        <span className="text-2xs text-dim-foreground truncate">
           {label}
-          <span className={`ml-1 text-[11px] font-medium ${textColorClass(clamped)}`}>
+          <span className={`ml-1 text-xs font-medium ${textColorClass(clamped)}`}>
             {Math.round(clamped)}%
           </span>
         </span>
         {resetLabel && (
-          <span className="text-[10px] text-muted-foreground shrink-0">
+          <span className="text-2xs text-muted-foreground shrink-0">
             {resetLabel}
           </span>
         )}

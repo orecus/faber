@@ -32,7 +32,7 @@ export default function BranchFilter({
         <button
           onClick={() => onToggle(true)}
           title="Show all branches"
-          className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors ${
             allBranches
               ? "bg-accent text-foreground"
               : "text-muted-foreground hover:text-dim-foreground"
@@ -45,7 +45,7 @@ export default function BranchFilter({
         <button
           onClick={() => onToggle(false)}
           title="Show current branch only"
-          className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors ${
+          className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors ${
             !allBranches
               ? "bg-accent text-foreground"
               : "text-muted-foreground hover:text-dim-foreground"

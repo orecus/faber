@@ -1,6 +1,6 @@
 import { useDraggable, useDroppable } from "@dnd-kit/core";
 import { invoke } from "@tauri-apps/api/core";
-import { ChevronLeft, ChevronRight, Pencil, RotateCcw, X } from "lucide-react";
+import { Pencil, RotateCcw, X } from "lucide-react";
 import React, { useCallback, useEffect, useRef, useState } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
@@ -42,10 +42,6 @@ interface SessionPaneProps {
   onDismiss: (sessionId: string) => void;
   onStop: (sessionId: string) => void;
   onRelaunch: (sessionId: string) => void;
-  index: number;
-  totalCount: number;
-  onMoveLeft: (sessionId: string) => void;
-  onMoveRight: (sessionId: string) => void;
   dragDisabled?: boolean;
 }
 
@@ -57,10 +53,6 @@ export default React.memo(function SessionPane({
   onDismiss,
   onStop,
   onRelaunch,
-  index,
-  totalCount,
-  onMoveLeft,
-  onMoveRight,
   dragDisabled,
 }: SessionPaneProps) {
   const { isGlass } = useTheme();
@@ -82,6 +74,7 @@ export default React.memo(function SessionPane({
 
   const [isEditing, setIsEditing] = useState(false);
   const [editValue, setEditValue] = useState("");
+  const [showSaved, setShowSaved] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const {
@@ -129,6 +122,9 @@ export default React.memo(function SessionPane({
           projSessions.map((s) => (s.id === updated.id ? updated : s)),
         );
       }
+      // Flash "Saved" indicator
+      setShowSaved(true);
+      setTimeout(() => setShowSaved(false), 1500);
     } catch {
       // Ignore rename errors
     }
@@ -150,7 +146,6 @@ export default React.memo(function SessionPane({
   }, [isEditing]);
 
   const displayName = session.name || session.agent;
-  const showArrows = totalCount > 1;
 
   return (
     <div
@@ -205,18 +200,25 @@ export default React.memo(function SessionPane({
             onKeyDown={handleKeyDown}
             onPointerDown={(e) => e.stopPropagation()}
             placeholder={session.agent}
-            className="text-xs bg-transparent border border-border rounded px-1 py-0 text-foreground outline-none focus:border-primary min-w-0 w-24"
+            className="text-xs bg-transparent border border-border rounded px-1 py-0 text-foreground outline-none focus:border-primary min-w-0 w-auto min-w-24 max-w-48"
           />
         ) : (
-          <span
-            className="text-xs text-foreground overflow-hidden text-ellipsis whitespace-nowrap shrink-0"
-            title={
-              session.name
-                ? `${session.name} (${session.agent})`
-                : session.agent
-            }
-          >
-            {displayName}
+          <span className="flex items-center gap-1 shrink-0 min-w-0">
+            <span
+              className="text-xs text-foreground overflow-hidden text-ellipsis whitespace-nowrap"
+              title={
+                session.name
+                  ? `${session.name} (${session.agent})`
+                  : session.agent
+              }
+            >
+              {displayName}
+            </span>
+            {showSaved && (
+              <span className="text-2xs text-success font-medium animate-in fade-in duration-200">
+                Saved
+              </span>
+            )}
           </span>
         )}
 
@@ -233,7 +235,7 @@ export default React.memo(function SessionPane({
               startEditing();
             }}
             title="Rename session"
-            className="text-muted-foreground opacity-0 group-hover/header:opacity-100 hover:!opacity-100 shrink-0"
+            className="text-muted-foreground opacity-30 group-hover/header:opacity-100 group-focus-within/header:opacity-100 hover:!opacity-100 shrink-0"
           >
             <Pencil size={10} />
           </Button>
@@ -241,14 +243,14 @@ export default React.memo(function SessionPane({
 
         {/* MCP Progress + Status Message */}
         {mcpData?.current_step != null && mcpData.total_steps != null && (
-          <span className="text-[11px] text-dim-foreground overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">
+          <span className="text-xs text-dim-foreground overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">
             Step {mcpData.current_step}/{mcpData.total_steps}
             {mcpData.description ? `: ${mcpData.description}` : ""}
             {mcpData.message ? ` — ${mcpData.message}` : ""}
           </span>
         )}
         {mcpData && mcpData.current_step == null && mcpData.message && !isMcpError && !isMcpWaiting && (
-          <span className="text-[11px] overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0 text-muted-foreground">
+          <span className="text-xs overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0 text-muted-foreground">
             {mcpData.message}
           </span>
         )}
@@ -258,7 +260,7 @@ export default React.memo(function SessionPane({
 
         {/* Permission badge (when ACP permission requests are pending) */}
         {showPermissionState && (
-          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-warning/20 ring-1 ring-warning/30 text-[10px] font-bold text-warning uppercase tracking-wider shrink-0">
+          <span className="flex items-center gap-1 px-1.5 py-0.5 rounded-md bg-warning/20 ring-1 ring-warning/30 text-2xs font-bold text-warning uppercase tracking-wider shrink-0">
             Approval needed
           </span>
         )}
@@ -287,56 +289,16 @@ export default React.memo(function SessionPane({
             }}
           />
           {showErrorState && mcpData?.error_message && (
-            <span className="text-[11px] text-destructive font-medium overflow-hidden text-ellipsis whitespace-nowrap" title={mcpData.error_message}>
+            <span className="text-xs text-destructive font-medium overflow-hidden text-ellipsis whitespace-nowrap" title={mcpData.error_message}>
               {mcpData.error_message}
             </span>
           )}
           {showWaitingState && mcpData?.waiting_question && (
-            <span className="text-[11px] text-warning font-medium overflow-hidden text-ellipsis whitespace-nowrap animate-pulse" title={mcpData.waiting_question}>
+            <span className="text-xs text-warning font-medium overflow-hidden text-ellipsis whitespace-nowrap animate-pulse" title={mcpData.waiting_question}>
               {mcpData.waiting_question}
             </span>
           )}
         </span>
-
-        {/* Arrow reorder buttons */}
-        {showArrows && (
-          <>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              hoverEffect="none"
-              clickEffect="none"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveLeft(session.id);
-              }}
-              title="Move left"
-              className={`${
-                index === 0 ? "opacity-0 pointer-events-none" : ""
-              } text-muted-foreground`}
-            >
-              <ChevronLeft size={12} />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon-xs"
-              hoverEffect="none"
-              clickEffect="none"
-              onPointerDown={(e) => e.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onMoveRight(session.id);
-              }}
-              title="Move right"
-              className={`${
-                index === totalCount - 1 ? "opacity-0 pointer-events-none" : ""
-              } text-muted-foreground`}
-            >
-              <ChevronRight size={12} />
-            </Button>
-          </>
-        )}
 
         {/* Action buttons */}
         <Button
@@ -384,7 +346,7 @@ export default React.memo(function SessionPane({
 
         {/* Session Ended Overlay */}
         {isEnded && (
-          <div className="absolute inset-0 z-10 bg-black/60 flex flex-col items-center justify-center gap-3">
+          <div className="absolute inset-0 z-10 bg-black/40 backdrop-blur-sm flex flex-col items-center justify-center gap-3">
             <div
               className="text-sm font-medium"
               style={{

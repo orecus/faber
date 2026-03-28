@@ -22,6 +22,7 @@ import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
+import SidePanel from "../ui/SidePanel";
 import AgentActivityTab from "./AgentActivityTab";
 import EpicChildTasks from "./EpicChildTasks";
 import EpicProgressBar from "./EpicProgressBar";
@@ -148,10 +149,12 @@ export default function TaskDetailView() {
   if (!activeTaskId) {
     return (
       <div
-        className="flex items-center justify-center text-sm text-muted-foreground"
+        className="flex flex-col items-center justify-center gap-2"
         style={{ gridArea: "content" }}
       >
-        No task selected
+        <FileText className="size-8 text-muted-foreground opacity-30" />
+        <p className="text-sm text-muted-foreground">No task selected</p>
+        <p className="text-xs text-muted-foreground/70">Select a task from the dashboard to view details</p>
       </div>
     );
   }
@@ -206,7 +209,7 @@ export default function TaskDetailView() {
           Back
         </Button>
 
-        <Badge variant="outline" className="font-mono text-[11px]">
+        <Badge variant="outline" className="font-mono text-xs">
           {isEpic && <Layers size={10} className="mr-1 inline" />}
           {activeTaskId}
         </Badge>
@@ -224,7 +227,7 @@ export default function TaskDetailView() {
         {formData.github_issue && (
           <button
             onClick={handleOpenIssue}
-            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-mono bg-[color-mix(in_oklch,var(--primary)_10%,transparent)] text-primary hover:bg-[color-mix(in_oklch,var(--primary)_18%,transparent)] transition-colors cursor-pointer"
+            className="inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-mono bg-primary/10 text-primary hover:bg-primary/18 transition-colors cursor-pointer"
             title="Open issue on GitHub"
           >
             <Github size={11} />
@@ -233,65 +236,68 @@ export default function TaskDetailView() {
           </button>
         )}
 
-        <div className="flex-1" />
+        <div className="flex-1 min-w-4" />
 
-        {/* Task actions (status-aware: start, research, view session, create PR, archive, reopen) — hidden for epics */}
-        {currentTask && activeProjectId && !isEpic && (
-          <TaskDetailActions task={currentTask} projectId={activeProjectId} />
-        )}
+        {/* Right-side actions — grouped so they wrap as a unit */}
+        <div className="flex items-center gap-3 shrink-0">
+          {/* Task actions (status-aware: start, research, view session, create PR, archive, reopen) — hidden for epics */}
+          {currentTask && activeProjectId && !isEpic && (
+            <TaskDetailActions task={currentTask} projectId={activeProjectId} />
+          )}
 
-        {/* Sync to GitHub (when issue is linked) */}
-        {formData.github_issue && (
+          {/* Sync to GitHub (when issue is linked) */}
+          {formData.github_issue && (
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={syncing || isDirty}
+              onClick={() => setSyncDialogOpen(true)}
+              title={isDirty ? "Save changes before syncing to GitHub" : undefined}
+              leftIcon={
+                syncing ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : syncSuccess ? (
+                  <Check className="size-3.5 text-success" />
+                ) : (
+                  <RefreshCw className="size-3.5" />
+                )
+              }
+              hoverEffect="scale"
+              clickEffect="scale"
+            >
+              {syncSuccess ? "Synced!" : "Sync"}
+            </Button>
+          )}
+
+          {/* Save */}
           <Button
-            variant="outline"
+            variant="color"
+            color={accentColor}
             size="sm"
-            disabled={syncing || isDirty}
-            onClick={() => setSyncDialogOpen(true)}
-            title={isDirty ? "Save changes before syncing to GitHub" : undefined}
-            leftIcon={
-              syncing ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : syncSuccess ? (
-                <Check className="size-3.5 text-success" />
-              ) : (
-                <RefreshCw className="size-3.5" />
-              )
-            }
+            disabled={!isDirty || saving}
+            loading={saving}
+            onClick={handleSave}
+            leftIcon={<Save className="size-3.5" />}
+            hoverEffect="scale-glow"
+            clickEffect="scale"
+          >
+            Save
+          </Button>
+
+          {/* Delete */}
+          <Button
+            variant={confirmDelete ? "destructive" : "ghost"}
+            size="sm"
+            disabled={deleting}
+            loading={deleting}
+            onClick={handleDeleteClick}
+            leftIcon={<Trash2 className="size-3.5" />}
             hoverEffect="scale"
             clickEffect="scale"
           >
-            {syncSuccess ? "Synced!" : "Sync"}
+            {confirmDelete ? "Confirm?" : "Delete"}
           </Button>
-        )}
-
-        {/* Save */}
-        <Button
-          variant="color"
-          color={accentColor}
-          size="sm"
-          disabled={!isDirty || saving}
-          loading={saving}
-          onClick={handleSave}
-          leftIcon={<Save className="size-3.5" />}
-          hoverEffect="scale-glow"
-          clickEffect="scale"
-        >
-          Save
-        </Button>
-
-        {/* Delete */}
-        <Button
-          variant={confirmDelete ? "destructive" : "ghost"}
-          size="sm"
-          disabled={deleting}
-          loading={deleting}
-          onClick={handleDeleteClick}
-          leftIcon={<Trash2 className="size-3.5" />}
-          hoverEffect="scale"
-          clickEffect="scale"
-        >
-          {confirmDelete ? "Confirm?" : "Delete"}
-        </Button>
+        </div>
       </ViewLayout.Toolbar>
 
       {/* ── Error banner ── */}
@@ -377,8 +383,8 @@ export default function TaskDetailView() {
         </div>
 
         {/* Right — Metadata sidebar */}
-        <div className="w-[260px] shrink-0 overflow-y-auto border-l border-border/40">
-          <div className="px-3 py-1">
+        <SidePanel side="right" width="medium">
+          <SidePanel.Content className="px-3 py-1">
             <TaskMetadataSidebar
               data={formData}
               onChange={setFormData}
@@ -391,8 +397,8 @@ export default function TaskDetailView() {
               onCreateGitHubIssue={ghAuthOk && hasRemote ? handleCreateGitHubIssue : undefined}
               creatingIssue={creatingIssue}
             />
-          </div>
-        </div>
+          </SidePanel.Content>
+        </SidePanel>
       </div>
 
       {/* Sync to GitHub confirmation dialog */}

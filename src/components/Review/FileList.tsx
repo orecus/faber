@@ -12,11 +12,11 @@ import {
   Loader2,
 } from "lucide-react";
 import { useCallback, useState } from "react";
+import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 
-import { useTheme } from "../../contexts/ThemeContext";
 import { Checkbox } from "../ui/checkbox";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import SidePanel from "../ui/SidePanel";
 
 import type { ChangedFile } from "../../types";
 import type { FileSection } from "./useDiffData";
@@ -111,9 +111,9 @@ function FileRow({
         onClick={onSelect}
         className="flex min-w-0 flex-1 items-baseline gap-1 truncate text-left"
       >
-        <span className="truncate font-mono text-[12px]">{fileName}</span>
+        <span className="truncate font-mono text-xs">{fileName}</span>
         {dirPath && (
-          <span className="truncate text-[10px] text-muted-foreground">
+          <span className="truncate text-2xs text-muted-foreground">
             {dirPath}
           </span>
         )}
@@ -121,7 +121,7 @@ function FileRow({
 
       {/* Status badge */}
       <span
-        className="shrink-0 rounded px-1 py-px text-[10px] font-bold leading-none"
+        className="shrink-0 rounded px-1 py-px text-2xs font-bold leading-none"
         style={{
           color: config.color,
           background: `color-mix(in oklch, ${config.color} 15%, transparent)`,
@@ -143,7 +143,7 @@ export default function FileList({
   onToggleStage,
   onRefresh,
 }: FileListProps) {
-  const { isGlass } = useTheme();
+  const accentColor = useProjectAccentColor();
   const [commitMsg, setCommitMsg] = useState("");
   const [committing, setCommitting] = useState(false);
   const [commitError, setCommitError] = useState<string | null>(null);
@@ -197,11 +197,9 @@ export default function FileList({
   const hasChanges = changedFiles.length > 0;
 
   return (
-    <div
-      className={`flex h-full w-[250px] shrink-0 flex-col border-r border-border ${glassStyles[isGlass ? "normal" : "solid"]}`}
-    >
+    <SidePanel side="left" width={250} className="h-full">
       {/* Scrollable file sections */}
-      <div className="flex-1 overflow-y-auto">
+      <SidePanel.Content>
         {/* Committed section */}
         {hasCommitted && (
           <>
@@ -215,10 +213,10 @@ export default function FileList({
                 <ChevronRight className="size-3 shrink-0 text-muted-foreground" />
               )}
               <CheckCircle2 className="size-3 text-success opacity-60" />
-              <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+              <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                 Committed
               </span>
-              <span className="ml-auto text-[11px] text-muted-foreground">
+              <span className="ml-auto text-xs text-muted-foreground">
                 {committedFiles.length}
               </span>
             </div>
@@ -260,10 +258,10 @@ export default function FileList({
               className="size-3.5"
             />
           )}
-          <span className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+          <span className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
             Changes
           </span>
-          <span className="ml-auto text-[11px] text-muted-foreground">
+          <span className="ml-auto text-xs text-muted-foreground">
             {someStaged && `${stagedFiles.length}/`}
             {changedFiles.length}
           </span>
@@ -271,8 +269,9 @@ export default function FileList({
         {changesExpanded && (
           <div className="py-1">
             {!hasChanges ? (
-              <div className="px-3 py-3 text-center text-[11px] text-muted-foreground">
-                No uncommitted changes
+              <div className="flex flex-col items-center gap-1.5 px-3 py-4 text-center">
+                <CheckCircle2 className="size-5 text-muted-foreground opacity-30" />
+                <span className="text-xs text-muted-foreground">No uncommitted changes</span>
               </div>
             ) : (
               changedFiles.map((file) => (
@@ -291,10 +290,10 @@ export default function FileList({
             )}
           </div>
         )}
-      </div>
+      </SidePanel.Content>
 
       {/* Commit bar */}
-      <div className="border-t border-border p-2">
+      <SidePanel.Footer>
         <div className="flex gap-1.5">
           <input
             type="text"
@@ -310,11 +309,11 @@ export default function FileList({
                 : "Stage files to commit"
             }
             disabled={!someStaged || committing}
-            className="min-w-0 flex-1 rounded-[var(--radius-element)] border border-border bg-popover px-2 py-1 text-[11px] text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
+            className="min-w-0 flex-1 rounded-[var(--radius-element)] border border-border bg-popover px-2 py-1 text-xs text-foreground placeholder:text-muted-foreground focus:border-primary focus:outline-none disabled:opacity-50"
           />
           <Button
             variant="color"
-            color="green"
+            color={accentColor}
             size="sm"
             disabled={!someStaged || !commitMsg.trim() || committing}
             onClick={handleCommit}
@@ -327,15 +326,15 @@ export default function FileList({
             }
             hoverEffect="scale-glow"
             clickEffect="scale"
-            className="shrink-0 px-2 text-[11px]"
+            className="shrink-0 px-2 text-xs"
           >
             Commit
           </Button>
         </div>
         {commitError && (
-          <p className="mt-1 text-[10px] text-destructive">{commitError}</p>
+          <p className="mt-1 text-2xs text-destructive">{commitError}</p>
         )}
-      </div>
-    </div>
+      </SidePanel.Footer>
+    </SidePanel>
   );
 }

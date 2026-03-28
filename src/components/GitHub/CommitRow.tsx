@@ -52,16 +52,27 @@ function CommitRowInner({
       {/* Graph dot area */}
       <div className="shrink-0 relative" style={{ width: graphWidth }}>
         <svg width={graphWidth} height={ROW_HEIGHT} className="block">
-          {/* Merge inner circle */}
+          {/* Merge inner circle — thicker stroke + slight fill for dark theme contrast */}
           {isMerge && (
-            <circle
-              cx={cx}
-              cy={cy}
-              r={dotRadius}
-              fill="var(--background)"
-              stroke={railColor}
-              strokeWidth={2.5}
-            />
+            <>
+              <circle
+                cx={cx}
+                cy={cy}
+                r={dotRadius + 1}
+                fill="none"
+                stroke={railColor}
+                strokeWidth={2}
+                opacity={0.3}
+              />
+              <circle
+                cx={cx}
+                cy={cy}
+                r={dotRadius}
+                fill="var(--background)"
+                stroke={railColor}
+                strokeWidth={3}
+              />
+            </>
           )}
           {/* Main dot */}
           {!isMerge && (
@@ -76,7 +87,7 @@ function CommitRowInner({
               fill="none"
               stroke="var(--foreground)"
               strokeWidth={1.5}
-              opacity={0.8}
+              opacity={0.9}
             />
           )}
         </svg>
@@ -88,7 +99,7 @@ function CommitRowInner({
         {refs?.branches.map((b) => (
           <span
             key={b}
-            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-[10px] font-medium leading-tight max-w-[120px] truncate bg-[color-mix(in_oklch,var(--primary)_15%,transparent)] text-primary border border-[color-mix(in_oklch,var(--primary)_25%,transparent)]"
+            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-2xs font-medium leading-tight max-w-[120px] truncate bg-primary/15 text-primary border border-primary/25"
           >
             {b}
           </span>
@@ -97,7 +108,7 @@ function CommitRowInner({
         {refs?.tags.map((t) => (
           <span
             key={t}
-            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-[10px] font-medium leading-tight max-w-[90px] truncate bg-[color-mix(in_oklch,var(--warning)_15%,transparent)] text-warning border border-[color-mix(in_oklch,var(--warning)_25%,transparent)]"
+            className="shrink-0 inline-flex items-center rounded-[3px] px-1.5 py-px text-2xs font-medium leading-tight max-w-[90px] truncate bg-warning/15 text-warning border border-warning/25"
           >
             {t}
           </span>
@@ -113,13 +124,13 @@ function CommitRowInner({
         {isMerge && (
           <GitMerge
             size={11}
-            className="text-muted-foreground shrink-0"
+            className="text-dim-foreground shrink-0"
           />
         )}
-        <span className="text-[11px] font-mono text-muted-foreground w-[52px] text-right">
+        <span className="text-xs font-mono text-muted-foreground w-[52px] text-right">
           {commit.short_hash}
         </span>
-        <span className="text-[10px] text-muted-foreground w-[28px] text-right tabular-nums">
+        <span className="text-2xs text-muted-foreground w-[28px] text-right tabular-nums">
           {formatRelativeTime(commit.timestamp)}
         </span>
       </div>

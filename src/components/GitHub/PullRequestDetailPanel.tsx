@@ -12,16 +12,17 @@ import {
 } from "lucide-react";
 import { useState, useCallback, useRef, useEffect } from "react";
 
-import { useTheme } from "../../contexts/ThemeContext";
 import type { GitHubPRDetail } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import SidePanel from "../ui/SidePanel";
 
 interface PullRequestDetailPanelProps {
   detail: GitHubPRDetail | null;
   loading: boolean;
   merging: boolean;
   closing: boolean;
+  panelWidth: number;
+  onResize: (width: number) => void;
   onClose: () => void;
   onMerge: (number: number, method: string) => Promise<void>;
   onClosePR: (number: number) => Promise<void>;
@@ -94,11 +95,12 @@ export default function PullRequestDetailPanel({
   loading,
   merging,
   closing,
+  panelWidth,
+  onResize,
   onClose,
   onMerge,
   onClosePR,
 }: PullRequestDetailPanelProps) {
-  const { isGlass } = useTheme();
   const [mergeMethod, setMergeMethod] = useState("squash");
   const [showMergeOptions, setShowMergeOptions] = useState(false);
   const [confirmClose, setConfirmClose] = useState(false);
@@ -134,22 +136,28 @@ export default function PullRequestDetailPanel({
   }, [detail]);
 
   return (
-    <div
-      className={`w-[350px] shrink-0 flex flex-col border-l border-border overflow-hidden ${glassStyles[isGlass ? "normal" : "solid"]}`}
+    <SidePanel
+      side="right"
+      width="wide"
+      resizable
+      resizeWidth={panelWidth}
+      onResize={onResize}
+      maxWidthClass="max-w-[40%]"
     >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+      <SidePanel.Header className="justify-between">
         <span className="text-xs font-medium text-foreground">
           Pull Request Detail
         </span>
         <button
           onClick={onClose}
-          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Close detail panel"
+          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title="Close detail panel"
         >
           <X size={14} />
         </button>
-      </div>
+      </SidePanel.Header>
 
       {loading && !detail && (
         <div className="flex-1 flex items-center justify-center">
@@ -158,12 +166,12 @@ export default function PullRequestDetailPanel({
       )}
 
       {detail && (
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+        <SidePanel.Content className="px-3 py-2 space-y-3">
           {/* Title + number + state */}
           <div className="space-y-1">
             <div className="flex items-center gap-1.5">
               <span
-                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-[10px] font-medium"
+                className="inline-flex items-center gap-1 rounded-full px-1.5 py-0.5 text-2xs font-medium"
                 style={{
                   backgroundColor: `color-mix(in oklch, ${stateColor(detail.state)} 15%, transparent)`,
                   color: stateColor(detail.state),
@@ -172,7 +180,7 @@ export default function PullRequestDetailPanel({
                 {detail.state.toLowerCase()}
               </span>
               {detail.is_draft && (
-                <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium bg-muted text-muted-foreground">
+                <span className="inline-flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium bg-muted text-muted-foreground">
                   Draft
                 </span>
               )}
@@ -180,18 +188,18 @@ export default function PullRequestDetailPanel({
             <div className="text-xs font-medium text-foreground">
               {detail.title}
             </div>
-            <div className="text-[11px] text-muted-foreground font-mono">
+            <div className="text-xs text-muted-foreground font-mono">
               #{detail.number}
             </div>
           </div>
 
           {/* Author + date */}
           <div className="space-y-1">
-            <div className="text-[11px] text-dim-foreground">
+            <div className="text-xs text-dim-foreground">
               {detail.author.login} opened{" "}
               {formatRelativeTime(detail.created_at)}
             </div>
-            <div className="flex items-center gap-1 text-[11px] text-muted-foreground font-mono">
+            <div className="flex items-center gap-1 text-xs text-muted-foreground font-mono">
               <span className="text-primary">{detail.head_ref_name}</span>
               <span>→</span>
               <span>{detail.base_ref_name}</span>
@@ -204,7 +212,7 @@ export default function PullRequestDetailPanel({
             if (!rd) return null;
             return (
               <div
-                className="text-[11px] font-medium"
+                className="text-xs font-medium"
                 style={{ color: rd.color }}
               >
                 {rd.label}
@@ -215,19 +223,19 @@ export default function PullRequestDetailPanel({
           {/* Body */}
           {detail.body && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Description
               </div>
-              <div className="text-[11px] text-dim-foreground whitespace-pre-wrap leading-relaxed">
+              <div className="text-xs text-dim-foreground whitespace-pre-wrap leading-relaxed">
                 {detail.body}
               </div>
             </div>
           )}
 
           {/* Stats */}
-          <div className="flex items-center gap-3 text-[11px]">
-            <span className="text-success">+{detail.additions}</span>
-            <span className="text-destructive">-{detail.deletions}</span>
+          <div className="flex items-center gap-3 text-xs" aria-label={`${detail.additions} additions, ${detail.deletions} deletions, ${detail.changed_files} file${detail.changed_files !== 1 ? "s" : ""} changed`}>
+            <span className="text-success" aria-hidden="true">+{detail.additions}</span>
+            <span className="text-destructive" aria-hidden="true">-{detail.deletions}</span>
             <span className="text-muted-foreground">
               {detail.changed_files} file
               {detail.changed_files !== 1 ? "s" : ""}
@@ -237,17 +245,17 @@ export default function PullRequestDetailPanel({
           {/* Reviews */}
           {detail.reviews.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Reviews
               </div>
               {detail.reviews.map((r, i) => (
                 <div
                   key={`${r.author}-${i}`}
-                  className="flex items-center gap-1.5 text-[11px]"
+                  className="flex items-center gap-1.5 text-xs"
                 >
                   <span className="text-dim-foreground">{r.author}</span>
                   <span
-                    className="text-[10px] font-medium"
+                    className="text-2xs font-medium"
                     style={{
                       color:
                         r.state === "APPROVED"
@@ -270,7 +278,7 @@ export default function PullRequestDetailPanel({
               {detail.labels.map((label) => (
                 <span
                   key={label.name}
-                  className="inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium border"
+                  className="inline-flex items-center rounded-full px-1.5 py-px text-2xs font-medium border"
                   style={{
                     backgroundColor: `#${label.color}20`,
                     borderColor: `#${label.color}40`,
@@ -286,13 +294,13 @@ export default function PullRequestDetailPanel({
           {/* Files */}
           {detail.files.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Files changed ({detail.files.length})
               </div>
               {Array.from(groupByDirectory(detail.files)).map(
                 ([dir, files]) => (
                   <div key={dir}>
-                    <div className="text-[10px] text-muted-foreground mb-0.5 font-mono">
+                    <div className="text-2xs text-muted-foreground mb-0.5 font-mono">
                       {dir}/
                     </div>
                     {files.map((f) => {
@@ -321,13 +329,13 @@ export default function PullRequestDetailPanel({
                             className="shrink-0"
                             style={{ color: iconColor }}
                           />
-                          <span className="text-[11px] text-dim-foreground truncate font-mono flex-1">
+                          <span className="text-xs text-dim-foreground truncate font-mono flex-1">
                             {fileName}
                           </span>
-                          <span className="text-[10px] text-success shrink-0">
+                          <span className="text-2xs text-success shrink-0">
                             +{f.additions}
                           </span>
-                          <span className="text-[10px] text-destructive shrink-0">
+                          <span className="text-2xs text-destructive shrink-0">
                             -{f.deletions}
                           </span>
                         </div>
@@ -338,12 +346,12 @@ export default function PullRequestDetailPanel({
               )}
             </div>
           )}
-        </div>
+        </SidePanel.Content>
       )}
 
       {/* Action buttons */}
       {detail && detail.state.toUpperCase() === "OPEN" && (
-        <div className="border-t border-border px-3 py-2 space-y-2">
+        <SidePanel.Footer className="space-y-2">
           {/* Merge with method selector */}
           <div className="flex items-center gap-1.5">
             <Button
@@ -379,7 +387,7 @@ export default function PullRequestDetailPanel({
                         setMergeMethod(m);
                         setShowMergeOptions(false);
                       }}
-                      className={`w-full text-left px-2 py-1 text-[11px] rounded-[var(--radius-element)] transition-colors capitalize ${
+                      className={`w-full text-left px-2 py-1 text-xs rounded-[var(--radius-element)] transition-colors capitalize ${
                         mergeMethod === m
                           ? "bg-accent text-foreground"
                           : "text-dim-foreground hover:text-foreground hover:bg-accent"
@@ -421,8 +429,8 @@ export default function PullRequestDetailPanel({
               Open
             </Button>
           </div>
-        </div>
+        </SidePanel.Footer>
       )}
-    </div>
+    </SidePanel>
   );
 }

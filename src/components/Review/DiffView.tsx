@@ -111,16 +111,18 @@ export default function DiffView({
   // Feedback banner
   const feedbackBanner = feedback && (
     <div
+      role="alert"
       className={`flex items-center justify-between px-3 py-1.5 text-xs shrink-0 ${
         feedback.type === "success"
-          ? "bg-[color-mix(in_oklch,var(--success)_10%,transparent)] text-success"
-          : "bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive"
+          ? "bg-success/10 text-success"
+          : "bg-destructive/10 text-destructive"
       }`}
     >
       <span>{feedback.text}</span>
       <button
         onClick={onDismissFeedback}
-        className="ml-2 opacity-60 hover:opacity-100"
+        aria-label="Dismiss feedback"
+        className="ml-2 opacity-60 hover:opacity-100 rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         dismiss
       </button>

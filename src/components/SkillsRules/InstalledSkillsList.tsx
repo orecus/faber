@@ -6,10 +6,13 @@ import {
   Globe,
   Loader2,
   Package,
+  Search,
   Trash2,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
+import ConfirmDialog from "../Review/ConfirmDialog";
+import { Skeleton } from "../ui/skeleton";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 
 interface SkillInfo {
@@ -28,16 +31,19 @@ interface Props {
   projectId: string;
   refreshKey: number;
   onRemove: (skillName: string, global: boolean) => void;
+  onSearchClick?: () => void;
 }
 
 export default function InstalledSkillsList({
   projectId,
   refreshKey,
   onRemove,
+  onSearchClick,
 }: Props) {
   const [data, setData] = useState<InstalledSkillsResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [removing, setRemoving] = useState<string | null>(null);
+  const [pendingRemove, setPendingRemove] = useState<SkillInfo | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Record<string, boolean>>({});
 
   const loadSkills = useCallback(async () => {
@@ -74,8 +80,16 @@ export default function InstalledSkillsList({
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center py-8">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      <div className="px-3 py-3 space-y-2">
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center gap-2.5 px-3 py-2 rounded-md bg-accent/20">
+            <Skeleton className="size-[13px] rounded-sm shrink-0" />
+            <div className="flex-1 space-y-1.5">
+              <Skeleton className="h-3.5 w-1/3" />
+              <Skeleton className="h-3 w-2/3" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -92,6 +106,19 @@ export default function InstalledSkillsList({
         <p className="text-xs opacity-70">
           Search above to find and install skills from skills.sh
         </p>
+        {onSearchClick && (
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={onSearchClick}
+            leftIcon={<Search className="size-3" />}
+            hoverEffect="scale"
+            clickEffect="scale"
+            className="mt-1"
+          >
+            Search Skills
+          </Button>
+        )}
       </div>
     );
   }
@@ -120,7 +147,7 @@ export default function InstalledSkillsList({
           <span className="text-xs font-medium text-muted-foreground uppercase tracking-wider">
             {title}
           </span>
-          <span className="text-[10px] text-muted-foreground/70 bg-accent/40 px-1.5 py-0.5 rounded-full">
+          <span className="text-2xs text-muted-foreground/70 bg-accent/40 px-1.5 py-0.5 rounded-full">
             {skills.length}
           </span>
         </button>
@@ -145,7 +172,7 @@ export default function InstalledSkillsList({
                 <Button
                   variant="ghost"
                   size="sm"
-                  onClick={() => handleRemove(skill)}
+                  onClick={() => setPendingRemove(skill)}
                   disabled={removing === skill.name}
                   leftIcon={
                     removing === skill.name ? (
@@ -186,6 +213,21 @@ export default function InstalledSkillsList({
         "Global",
         <Globe size={12} className="text-muted-foreground" />,
         globalSkills
+      )}
+
+      {pendingRemove && (
+        <ConfirmDialog
+          variant="danger"
+          title="Remove skill?"
+          message={`This will remove "${pendingRemove.name}" from your ${pendingRemove.is_global ? "global" : "project"} skills.`}
+          confirmLabel="Remove"
+          onConfirm={() => {
+            const skill = pendingRemove;
+            setPendingRemove(null);
+            handleRemove(skill);
+          }}
+          onCancel={() => setPendingRemove(null)}
+        />
       )}
     </div>
   );

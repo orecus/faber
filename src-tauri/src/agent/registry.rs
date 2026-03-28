@@ -32,28 +32,74 @@ fn get_global_npm_versions() -> HashMap<String, String> {
     if let Ok(guard) = NPM_VERSION_CACHE.lock() {
         if let Some(ref entry) = *guard {
             if entry.fetched_at.elapsed() < NPM_CACHE_TTL {
+                tracing::debug!(
+                    age_secs = entry.fetched_at.elapsed().as_secs(),
+                    count = entry.versions.len(),
+                    "npm version cache hit"
+                );
                 return entry.versions.clone();
             }
         }
     }
 
+    tracing::debug!("npm version cache miss — querying npm list -g");
+
     let mut versions = HashMap::new();
 
-    let output = crate::cmd_no_window(if cfg!(windows) { "npm.cmd" } else { "npm" })
+    let npm_cmd = if cfg!(windows) { "npm.cmd" } else { "npm" };
+    let output = crate::cmd_no_window(npm_cmd)
         .args(["list", "-g", "--json", "--depth=0"])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .output();
 
-    if let Ok(output) = output {
-        if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&output.stdout) {
-            if let Some(deps) = json.get("dependencies").and_then(|d| d.as_object()) {
-                for (pkg_name, pkg_info) in deps {
-                    if let Some(ver) = pkg_info.get("version").and_then(|v| v.as_str()) {
-                        versions.insert(pkg_name.clone(), ver.to_string());
+    match output {
+        Ok(ref result) if result.status.success() => {
+            match serde_json::from_slice::<serde_json::Value>(&result.stdout) {
+                Ok(json) => {
+                    if let Some(deps) = json.get("dependencies").and_then(|d| d.as_object()) {
+                        for (pkg_name, pkg_info) in deps {
+                            if let Some(ver) = pkg_info.get("version").and_then(|v| v.as_str()) {
+                                versions.insert(pkg_name.clone(), ver.to_string());
+                            }
+                        }
                     }
+                    tracing::debug!(count = versions.len(), "Parsed global npm packages");
+                }
+                Err(e) => {
+                    tracing::warn!(%e, "Failed to parse npm list JSON output");
                 }
             }
+        }
+        Ok(ref result) => {
+            let stderr = String::from_utf8_lossy(&result.stderr);
+            tracing::warn!(
+                exit_code = ?result.status.code(),
+                stderr = %stderr.trim(),
+                "npm list -g exited with non-zero status"
+            );
+            // npm list returns exit code 1 when there are peer dep warnings
+            // but still outputs valid JSON — try parsing anyway
+            if let Ok(json) = serde_json::from_slice::<serde_json::Value>(&result.stdout) {
+                if let Some(deps) = json.get("dependencies").and_then(|d| d.as_object()) {
+                    for (pkg_name, pkg_info) in deps {
+                        if let Some(ver) = pkg_info.get("version").and_then(|v| v.as_str()) {
+                            versions.insert(pkg_name.clone(), ver.to_string());
+                        }
+                    }
+                }
+                tracing::debug!(
+                    count = versions.len(),
+                    "Parsed global npm packages from non-zero exit output"
+                );
+            }
+        }
+        Err(e) => {
+            tracing::warn!(
+                error = %e,
+                command = %npm_cmd,
+                "Failed to run npm list -g — npm may not be installed"
+            );
         }
     }
 
@@ -72,14 +118,47 @@ fn get_global_npm_versions() -> HashMap<String, String> {
 /// Returns `true` if the registry version is strictly newer.
 fn is_update_available(installed_version: &str, registry_version: &str) -> bool {
     // Try parsing as semver
-    if let (Ok(installed), Ok(registry)) = (
+    match (
         semver::Version::parse(installed_version),
         semver::Version::parse(registry_version),
     ) {
-        return registry > installed;
+        (Ok(installed), Ok(registry)) => {
+            let has_update = registry > installed;
+            tracing::debug!(
+                %installed_version,
+                %registry_version,
+                has_update,
+                "Semver version comparison"
+            );
+            has_update
+        }
+        (installed_result, registry_result) => {
+            // Log parse failures for diagnostics
+            if let Err(ref e) = installed_result {
+                tracing::debug!(
+                    version = %installed_version,
+                    error = %e,
+                    "Failed to parse installed version as semver"
+                );
+            }
+            if let Err(ref e) = registry_result {
+                tracing::debug!(
+                    version = %registry_version,
+                    error = %e,
+                    "Failed to parse registry version as semver"
+                );
+            }
+            // Fallback: simple string comparison — only flag if they differ
+            let has_update = installed_version != registry_version;
+            tracing::debug!(
+                %installed_version,
+                %registry_version,
+                has_update,
+                "Fallback string version comparison"
+            );
+            has_update
+        }
     }
-    // Fallback: simple string comparison — only flag if they differ
-    installed_version != registry_version
 }
 
 // ── Constants ──
@@ -228,6 +307,24 @@ fn registry_id_to_faber() -> HashMap<&'static str, &'static str> {
 
 // ── Public API ──
 
+/// Invalidate the npm version cache so the next `fetch_registry` call re-queries
+/// globally installed packages.  Called after an adapter install/update.
+pub fn invalidate_npm_cache() {
+    if let Ok(mut guard) = NPM_VERSION_CACHE.lock() {
+        *guard = None;
+        tracing::debug!("NPM version cache invalidated");
+    }
+}
+
+/// Invalidate the registry cache so the next `fetch_registry` call re-fetches
+/// from the CDN and re-checks installed versions.
+pub fn invalidate_registry_cache() {
+    if let Ok(mut guard) = REGISTRY_CACHE.lock() {
+        *guard = None;
+        tracing::debug!("ACP registry cache invalidated");
+    }
+}
+
 /// Fetch the ACP registry, filter to Faber-supported agents, and enrich
 /// with local installation status. Uses a 1-hour in-memory cache.
 pub async fn fetch_registry(force_refresh: bool) -> Result<Vec<AcpRegistryInfo>, String> {
@@ -308,10 +405,24 @@ pub async fn fetch_registry(force_refresh: bool) -> Result<Vec<AcpRegistryInfo>,
                 let npm_versions = get_global_npm_versions();
                 if let Some(installed_ver) = npm_versions.get(local_pkg.as_str()) {
                     let has_update = is_update_available(installed_ver, &agent.version);
+                    tracing::info!(
+                        agent = %faber_name,
+                        package = %local_pkg,
+                        installed = %installed_ver,
+                        registry = %agent.version,
+                        update_available = has_update,
+                        "Version check for ACP adapter"
+                    );
                     (Some(installed_ver.clone()), has_update)
                 } else {
                     // Package is installed (detected by file existence) but npm doesn't report it.
                     // Don't flag as update available — could be a non-npm install method.
+                    tracing::info!(
+                        agent = %faber_name,
+                        package = %local_pkg,
+                        registry = %agent.version,
+                        "ACP adapter detected but not found in npm list — skipping version check"
+                    );
                     (None, false)
                 }
             } else {

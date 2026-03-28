@@ -6,6 +6,8 @@ import { motion } from "motion/react";
 import type { CSSProperties, ElementType, JSX } from "react";
 import { memo, useMemo } from "react";
 
+import { useReducedMotion } from "@/components/ui/orecus.io/lib/use-reduced-motion";
+
 type MotionHTMLProps = MotionProps & Record<string, unknown>;
 
 // Cache motion components at module level to avoid creating during render
@@ -38,6 +40,7 @@ const ShimmerComponent = ({
   duration = 2,
   spread = 2,
 }: TextShimmerProps) => {
+  const prefersReducedMotion = useReducedMotion();
   const MotionComponent = getMotionComponent(
     Component as keyof JSX.IntrinsicElements
   );
@@ -46,6 +49,20 @@ const ShimmerComponent = ({
     () => (children?.length ?? 0) * spread,
     [children, spread]
   );
+
+  // When reduced motion is preferred, render static text without animation
+  if (prefersReducedMotion) {
+    return (
+      <MotionComponent
+        className={cn(
+          "relative inline-block text-muted-foreground",
+          className
+        )}
+      >
+        {children}
+      </MotionComponent>
+    );
+  }
 
   return (
     <MotionComponent

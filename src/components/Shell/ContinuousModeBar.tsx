@@ -101,7 +101,7 @@ export default function ContinuousModeBar({ projectId }: ContinuousModeBarProps)
       <div className="flex flex-col flex-1 min-w-0 gap-0.5">
         <div className="flex items-center gap-1.5">
           {isCompleted ? (
-            <span className="text-[11px] font-medium text-success shrink-0">
+            <span className="text-xs font-medium text-success shrink-0">
               All {completedCount}/{totalCount} tasks completed
               {errorCount > 0 && (
                 <span className="text-destructive ml-1">
@@ -111,35 +111,35 @@ export default function ContinuousModeBar({ projectId }: ContinuousModeBarProps)
             </span>
           ) : isIndependent ? (
             <>
-              <span className="text-[11px] font-medium tabular-nums text-foreground shrink-0">
+              <span className="text-xs font-medium tabular-nums text-foreground shrink-0">
                 {completedCount}/{totalCount} done
               </span>
               {runningCount > 0 && (
-                <span className="text-[11px] text-dim-foreground shrink-0">
+                <span className="text-xs text-dim-foreground shrink-0">
                   ({runningCount} running)
                 </span>
               )}
               {errorCount > 0 && (
-                <span className="text-[11px] text-destructive shrink-0">
+                <span className="text-xs text-destructive shrink-0">
                   ({errorCount} failed)
                 </span>
               )}
             </>
           ) : (
             <>
-              <span className="text-[11px] font-medium tabular-nums text-foreground shrink-0">
+              <span className="text-xs font-medium tabular-nums text-foreground shrink-0">
                 Task {completedCount + (isRunning || isPaused ? 1 : 0)}/{totalCount}
               </span>
               {currentTask && (
                 <>
-                  <span className="text-[11px] text-muted-foreground shrink-0">
+                  <span className="text-xs text-muted-foreground shrink-0">
                     —
                   </span>
-                  <span className="text-[11px] text-dim-foreground truncate">
+                  <span className="text-xs text-dim-foreground truncate">
                     {currentTask.title}
                   </span>
                   {currentItem?.agent_name && currentItem.agent_name !== run.agent_name && (
-                    <span className="shrink-0 rounded px-1 py-px text-[10px] font-medium bg-primary/15 text-primary">
+                    <span className="shrink-0 rounded px-1 py-px text-2xs font-medium bg-primary/15 text-primary">
                       {currentItem.agent_name}
                     </span>
                   )}
@@ -147,10 +147,10 @@ export default function ContinuousModeBar({ projectId }: ContinuousModeBarProps)
               )}
               {hasError && currentItem?.error && (
                 <>
-                  <span className="text-[11px] text-muted-foreground shrink-0">
+                  <span className="text-xs text-muted-foreground shrink-0">
                     —
                   </span>
-                  <span className="text-[11px] text-destructive truncate">
+                  <span className="text-xs text-destructive truncate">
                     {currentItem.error}
                   </span>
                 </>
@@ -189,7 +189,7 @@ export default function ContinuousModeBar({ projectId }: ContinuousModeBarProps)
             title="Dismiss and close all related sessions"
           >
             <X className="size-3" />
-            <span className="text-[11px]">Dismiss</span>
+            <span className="text-xs">Dismiss</span>
           </Button>
         ) : (
           <>

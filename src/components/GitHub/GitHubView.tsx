@@ -9,7 +9,7 @@ import {
   Github,
   Loader2,
   RefreshCw,
-  Settings,
+  RotateCw,
 } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 
@@ -23,8 +23,6 @@ import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
 import { Tabs } from "../ui/orecus.io/navigation/tabs";
 import BranchSelect from "../ui/BranchSelect";
-import { GitHubTab as GitHubSettingsTab } from "../Settings/GitHubTab";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "../ui/dialog";
 import BranchFilter from "./BranchFilter";
 import ChangesTab from "./ChangesTab";
 import CommitDetailPanel from "./CommitDetailPanel";
@@ -35,16 +33,19 @@ import { useGitHubData } from "./useGitHubData";
 
 type GitHubTab = "changes" | "commits" | "pull-requests" | "issues";
 
+const DEFAULT_DETAIL_WIDTH = 350;
+
 export default function GitHubView() {
   const { isGlass } = useTheme();
   const accentColor = useProjectAccentColor();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const projectInfo = useAppStore((s) => s.projectInfo);
   const setProjectInfo = useAppStore((s) => s.setProjectInfo);
+  const setActiveView = useAppStore((s) => s.setActiveView);
   const [activeTab, setActiveTab] = useState<GitHubTab>("changes");
-  const [settingsOpen, setSettingsOpen] = useState(false);
+  const [commitDetailWidth, setCommitDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
 
-  const handleOpenSettings = useCallback(() => setSettingsOpen(true), []);
+  const handleOpenSettings = useCallback(() => setActiveView("settings"), [setActiveView]);
 
   // Sync status
   const [syncStatus, setSyncStatus] = useState<SyncStatus | null>(null);
@@ -182,7 +183,7 @@ export default function GitHubView() {
       >
         <Github className="mb-3 size-10 opacity-30" />
         <p className="text-sm">Select a project to view git history</p>
-        <p className="mt-1 text-xs opacity-60">
+        <p className="mt-1 text-xs text-muted-foreground">
           Open a project tab to get started
         </p>
       </div>
@@ -193,7 +194,7 @@ export default function GitHubView() {
     <ViewLayout>
       {/* Header */}
       <ViewLayout.Toolbar>
-        <span className="text-[13px] font-medium text-foreground mr-1">
+        <span className="text-sm font-medium text-foreground mr-1">
           Git
         </span>
 
@@ -209,6 +210,7 @@ export default function GitHubView() {
           barRadius="md"
           tabRadius="md"
           fullWidth={false}
+          className="p-0"
         >
           <Tabs.Tab value="changes" icon={<FileCode size={13} />}>
             Changes
@@ -219,7 +221,7 @@ export default function GitHubView() {
           <Tabs.Tab value="issues" icon={<CircleDot size={13} />}>
             <span className="flex items-center gap-1">
               Issues
-              <Github size={10} className="opacity-40" />
+              <Github size={10} className="opacity-30" />
             </span>
           </Tabs.Tab>
           <Tabs.Tab
@@ -228,7 +230,7 @@ export default function GitHubView() {
           >
             <span className="flex items-center gap-1">
               Pull Requests
-              <Github size={10} className="opacity-40" />
+              <Github size={10} className="opacity-30" />
             </span>
           </Tabs.Tab>
         </Tabs>
@@ -247,7 +249,7 @@ export default function GitHubView() {
         {/* Pull button */}
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={handlePull}
           disabled={pulling || !hasRemote}
           leftIcon={
@@ -263,7 +265,7 @@ export default function GitHubView() {
         >
           Pull
           {hasRemote && syncStatus && syncStatus.behind > 0 && (
-            <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary/15 px-1.5 py-px text-[10px] font-medium text-primary">
+            <span className="ml-1 inline-flex items-center justify-center rounded-full bg-primary/15 px-1.5 py-px text-2xs font-medium text-primary">
               {syncStatus.behind}
             </span>
           )}
@@ -272,7 +274,7 @@ export default function GitHubView() {
         {/* Push button */}
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={handlePush}
           disabled={pushing || !hasRemote}
           leftIcon={
@@ -288,7 +290,7 @@ export default function GitHubView() {
         >
           Push
           {hasRemote && syncStatus && syncStatus.ahead > 0 && (
-            <span className="ml-1 inline-flex items-center justify-center rounded-full bg-success/15 px-1.5 py-px text-[10px] font-medium text-success">
+            <span className="ml-1 inline-flex items-center justify-center rounded-full bg-success/15 px-1.5 py-px text-2xs font-medium text-success">
               {syncStatus.ahead}
             </span>
           )}
@@ -297,7 +299,7 @@ export default function GitHubView() {
         {/* Refresh button */}
         <Button
           variant="outline"
-          size="sm"
+          size="xs"
           onClick={refresh}
           leftIcon={<RefreshCw className="size-3" />}
           hoverEffect="scale"
@@ -307,30 +309,7 @@ export default function GitHubView() {
           Refresh
         </Button>
 
-        {/* GitHub settings */}
-        <Button
-          variant="ghost"
-          size="icon-sm"
-          onClick={handleOpenSettings}
-          title="GitHub settings"
-          hoverEffect="scale"
-          clickEffect="scale"
-        >
-          <Settings className="size-3.5" />
-        </Button>
       </ViewLayout.Toolbar>
-
-      {/* GitHub Settings Dialog */}
-      <Dialog open={settingsOpen} onOpenChange={setSettingsOpen}>
-        <DialogContent className="sm:max-w-xl">
-          <DialogHeader>
-            <DialogTitle>GitHub Settings</DialogTitle>
-          </DialogHeader>
-          <div className="max-h-[70vh] overflow-y-auto -mx-6 px-6">
-            <GitHubSettingsTab />
-          </div>
-        </DialogContent>
-      </Dialog>
 
       {/* Content card */}
       <div
@@ -353,8 +332,15 @@ export default function GitHubView() {
 
             {/* Error banner */}
             {error && (
-              <div className="px-3 py-1.5 text-xs bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive">
-                {error}
+              <div className="flex items-center gap-2 px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
+                <span className="flex-1">{error}</span>
+                <button
+                  onClick={refresh}
+                  className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-destructive/15 transition-colors"
+                >
+                  <RotateCw size={10} />
+                  Retry
+                </button>
               </div>
             )}
 
@@ -378,6 +364,8 @@ export default function GitHubView() {
                   detail={selectedDetail}
                   node={selectedNode}
                   loading={!selectedDetail}
+                  panelWidth={commitDetailWidth}
+                  onResize={setCommitDetailWidth}
                   onClose={() => selectCommit(null)}
                 />
               )}

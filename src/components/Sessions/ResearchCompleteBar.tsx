@@ -122,11 +122,11 @@ export default React.memo(function ResearchCompleteBar({
                   Research complete
                 </span>
                 {mcpSummary ? (
-                  <p className="text-[11px] text-dim-foreground truncate mt-0.5">
+                  <p className="text-xs text-dim-foreground truncate mt-0.5">
                     {mcpSummary}
                   </p>
                 ) : task ? (
-                  <p className="text-[11px] text-muted-foreground truncate mt-0.5">
+                  <p className="text-xs text-muted-foreground truncate mt-0.5">
                     {task.title}
                   </p>
                 ) : null}
@@ -143,7 +143,7 @@ export default React.memo(function ResearchCompleteBar({
                 leftIcon={<ArrowRight className="size-3.5" />}
                 hoverEffect="scale-glow"
                 clickEffect="scale"
-                className="h-7 text-[12px]"
+                className="h-7 text-xs"
               >
                 Continue to Implementation
               </Button>
@@ -152,7 +152,7 @@ export default React.memo(function ResearchCompleteBar({
                 size="sm"
                 onClick={handleCloseSession}
                 leftIcon={<Power className="size-3" />}
-                className="h-7 text-[12px] text-muted-foreground"
+                className="h-7 text-xs text-muted-foreground"
                 title="Close session"
               >
                 Close

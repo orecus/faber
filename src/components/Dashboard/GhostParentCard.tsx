@@ -1,24 +1,7 @@
 import { memo } from "react";
-import { GitBranch } from "lucide-react";
-import type { Task, TaskStatus } from "../../types";
-
-const STATUS_LABELS: Record<TaskStatus, string> = {
-  backlog: "Backlog",
-  ready: "Ready",
-  "in-progress": "In Progress",
-  "in-review": "In Review",
-  done: "Done",
-  archived: "Archived",
-};
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  backlog: "bg-muted-foreground/30",
-  ready: "bg-blue-500/60",
-  "in-progress": "bg-amber-500/60",
-  "in-review": "bg-purple-500/60",
-  done: "bg-success/60",
-  archived: "bg-muted-foreground/20",
-};
+import { ExternalLink } from "lucide-react";
+import type { Task } from "../../types";
+import { TASK_STATUS_DOT_COLORS, TASK_STATUS_LABELS } from "../../lib/taskStatusColors";
 
 interface GhostParentCardProps {
   parentTask: Task;
@@ -36,24 +19,26 @@ const GhostParentCard = memo(function GhostParentCard({
 }: GhostParentCardProps) {
   return (
     <div
-      className="flex items-center gap-1.5 px-2 py-1 rounded-[var(--radius-element)] border border-dashed border-border/60 bg-card/30 cursor-pointer hover:bg-card/50 transition-colors"
+      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-dashed border-border/40 bg-card/30 cursor-pointer hover:bg-card/50 transition-colors"
       onClick={(e) => {
         e.stopPropagation();
         onClick?.(parentTask.id);
       }}
-      title={`Depends on ${parentTask.id} (${STATUS_LABELS[parentTask.status]})`}
+      title={`Depends on ${parentTask.id} (${TASK_STATUS_LABELS[parentTask.status]})`}
     >
-      <GitBranch className="size-3 shrink-0 text-muted-foreground/60" />
-      <span className="text-[10px] font-mono text-muted-foreground/70 shrink-0">
+      <div className="size-4 rounded-full flex items-center justify-center opacity-50 bg-accent shrink-0">
+        <ExternalLink className="size-2.5 text-muted-foreground" />
+      </div>
+      <span className="text-[9px] font-mono text-muted-foreground/60 shrink-0">
         {parentTask.id}
       </span>
-      <span className="text-[10px] text-muted-foreground/60 truncate flex-1">
+      <span className="text-2xs text-muted-foreground/60 truncate flex-1">
         {parentTask.title}
       </span>
       <span
-        className={`text-[9px] px-1 rounded-sm text-white/80 shrink-0 ${STATUS_COLORS[parentTask.status]}`}
+        className={`text-[8px] font-semibold px-1.5 py-px rounded-[3px] shrink-0 ${TASK_STATUS_DOT_COLORS[parentTask.status]}/15 text-muted-foreground`}
       >
-        {STATUS_LABELS[parentTask.status]}
+        {TASK_STATUS_LABELS[parentTask.status]}
       </span>
     </div>
   );

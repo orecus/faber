@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import {
   GitPullRequestArrow,
   GitMerge,
@@ -10,12 +10,15 @@ import {
   Eye,
   FileEdit,
   Check,
+  RotateCw,
 } from "lucide-react";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { useAppStore } from "../../store/appStore";
 import { usePullRequests, type PRStateFilter } from "./usePullRequests";
 import PullRequestDetailPanel from "./PullRequestDetailPanel";
 import GitHubAuthGate from "./GitHubAuthGate";
+
+const DEFAULT_DETAIL_WIDTH = 350;
 
 interface PullRequestsTabProps {
   projectId: string | null;
@@ -70,6 +73,7 @@ export default function PullRequestsTab({
   onOpenSettings,
 }: PullRequestsTabProps) {
   const refreshGhAuth = useAppStore((s) => s.refreshGhAuth);
+  const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
   const {
     prs,
     loading,
@@ -129,7 +133,7 @@ export default function PullRequestsTab({
                 <button
                   onClick={() => setStateFilter(filter)}
                   title={`Show ${filter} pull requests`}
-                  className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors capitalize ${
+                  className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     stateFilter === filter
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:text-dim-foreground"
@@ -179,8 +183,16 @@ export default function PullRequestsTab({
 
       {/* Error banner */}
       {error && (
-        <div className="px-3 py-1.5 text-xs bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive">
-          {error}
+        <div role="alert" className="flex items-center gap-2 px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={fetchPRs}
+            aria-label="Retry loading pull requests"
+            className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-destructive/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+          >
+            <RotateCw size={10} />
+            Retry
+          </button>
         </div>
       )}
 
@@ -212,9 +224,9 @@ export default function PullRequestsTab({
               <div
                 key={pr.number}
                 onClick={() => handleRowClick(pr.number)}
-                className={`flex items-center gap-2.5 px-3 py-2 border-b border-border/40 hover:bg-accent transition-colors cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-1.5 border-b border-border/40 hover:bg-accent transition-colors cursor-pointer ${
                   selectedPR === pr.number
-                    ? "bg-[color-mix(in_oklch,var(--primary)_6%,transparent)]"
+                    ? "bg-primary/6"
                     : ""
                 }`}
               >
@@ -222,62 +234,68 @@ export default function PullRequestsTab({
                 <div className="shrink-0">{stateIcon(pr.state)}</div>
 
                 {/* PR number */}
-                <span className="shrink-0 text-[11px] font-mono text-dim-foreground w-[48px]">
+                <span className="shrink-0 text-xs font-mono text-dim-foreground w-[40px]">
                   #{pr.number}
                 </span>
 
                 {/* Title + draft badge + labels */}
-                <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                  <span className="truncate text-[13px] text-foreground">
-                    {pr.title}
-                  </span>
-
-                  {pr.is_draft && (
-                    <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium bg-muted text-muted-foreground">
-                      Draft
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm text-foreground">
+                      {pr.title}
                     </span>
-                  )}
 
-                  {pr.labels.map((label) => (
-                    <span
-                      key={label.name}
-                      className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium leading-tight max-w-[100px] truncate border"
-                      style={{
-                        backgroundColor: `#${label.color}20`,
-                        borderColor: `#${label.color}40`,
-                        color: `#${label.color}`,
-                      }}
-                    >
-                      {label.name}
+                    {pr.is_draft && (
+                      <span className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-2xs font-medium bg-muted text-muted-foreground">
+                        Draft
+                      </span>
+                    )}
+
+                    {pr.labels.slice(0, 2).map((label) => (
+                      <span
+                        key={label.name}
+                        className="shrink-0 hidden sm:inline-flex items-center rounded-full px-1.5 py-px text-2xs font-medium leading-tight max-w-[100px] truncate border"
+                        style={{
+                          backgroundColor: `#${label.color}20`,
+                          borderColor: `#${label.color}40`,
+                          color: `#${label.color}`,
+                        }}
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                    {pr.labels.length > 2 && (
+                      <span className="shrink-0 hidden sm:inline-flex text-2xs text-muted-foreground">
+                        +{pr.labels.length - 2}
+                      </span>
+                    )}
+                  </div>
+                  {/* Secondary line: branch + diff stats */}
+                  <div className="flex items-center gap-2 mt-0.5">
+                    <span className="inline-flex items-center gap-0.5 text-2xs font-mono text-muted-foreground truncate max-w-[200px]">
+                      {pr.head_ref_name}
+                      <span>→</span>
+                      {pr.base_ref_name}
                     </span>
-                  ))}
+                    <span className="text-2xs text-success" aria-label={`${pr.additions} additions`}>+{pr.additions}</span>
+                    <span className="text-2xs text-destructive" aria-label={`${pr.deletions} deletions`}>-{pr.deletions}</span>
+                  </div>
                 </div>
-
-                {/* Branch pill */}
-                <span className="shrink-0 inline-flex items-center gap-1 rounded-full px-1.5 py-px text-[10px] font-mono text-muted-foreground bg-muted max-w-[180px] truncate">
-                  {pr.head_ref_name}
-                  <span className="text-[9px]">→</span>
-                  {pr.base_ref_name}
-                </span>
 
                 {/* Review status */}
-                <div className="shrink-0 flex items-center">
-                  {reviewIcon(pr.review_decision)}
-                </div>
-
-                {/* Diff stats */}
-                <div className="shrink-0 flex items-center gap-1.5 text-[10px]">
-                  <span className="text-success">+{pr.additions}</span>
-                  <span className="text-destructive">-{pr.deletions}</span>
-                </div>
+                {pr.review_decision && (
+                  <div className="shrink-0 flex items-center" aria-label={`Review: ${pr.review_decision.toLowerCase().replace(/_/g, " ")}`} title={pr.review_decision.toLowerCase().replace(/_/g, " ")}>
+                    {reviewIcon(pr.review_decision)}
+                  </div>
+                )}
 
                 {/* Author */}
-                <span className="shrink-0 text-[10px] text-muted-foreground max-w-[80px] truncate">
+                <span className="shrink-0 text-2xs text-muted-foreground max-w-[80px] truncate">
                   {pr.author.login}
                 </span>
 
                 {/* Time */}
-                <span className="shrink-0 text-[10px] text-muted-foreground w-[52px] text-right">
+                <span className="shrink-0 text-2xs text-muted-foreground w-[36px] text-right">
                   {formatRelativeTime(pr.updated_at)}
                 </span>
               </div>
@@ -291,6 +309,8 @@ export default function PullRequestsTab({
               loading={detailLoading}
               merging={merging}
               closing={closing}
+              panelWidth={detailWidth}
+              onResize={setDetailWidth}
               onClose={() => selectPR(null)}
               onMerge={mergePR}
               onClosePR={closePR}

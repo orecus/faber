@@ -8,7 +8,7 @@ import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
-import { Checkbox } from "../ui/checkbox";
+import { ToggleRow } from "../Settings/shared";
 import {
   Dialog,
   DialogClose,
@@ -223,7 +223,7 @@ export default function LaunchTaskDialog({
                 Chat
               </button>
             </div>
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               {selectedTransport === "acp"
                 ? "Structured chat UI with tool calls and permission management"
                 : "Classic terminal session with PTY output"}
@@ -279,18 +279,12 @@ export default function LaunchTaskDialog({
         )}
 
         {/* Worktree toggle */}
-        <div>
-          <label className="flex cursor-pointer items-center gap-2 text-[13px] text-dim-foreground">
-            <Checkbox
-              checked={createWorktree}
-              onCheckedChange={(checked) => setCreateWorktree(checked === true)}
-            />
-            Create worktree
-          </label>
-          <p className="mt-1 ml-6 text-[11px] text-muted-foreground">
-            Isolates work in a separate git worktree with its own branch
-          </p>
-        </div>
+        <ToggleRow
+          label="Create worktree"
+          description="Isolates work in a separate git worktree with its own branch"
+          checked={createWorktree}
+          onChange={setCreateWorktree}
+        />
 
         {/* Base branch (only when worktree enabled) */}
         {createWorktree && (
@@ -306,7 +300,7 @@ export default function LaunchTaskDialog({
               onChange={setBaseBranch}
               triggerVariant="select"
             />
-            <p className="mt-1 text-[11px] text-muted-foreground">
+            <p className="mt-1 text-xs text-muted-foreground">
               The worktree branch will be created from this branch
             </p>
           </div>
@@ -322,7 +316,7 @@ export default function LaunchTaskDialog({
             onChange={(e) => setUserPrompt(e.target.value)}
             placeholder="Instructions for the agent..."
             rows={4}
-            className="text-[13px]"
+            className="text-sm"
           />
         </div>
 

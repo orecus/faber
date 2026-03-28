@@ -124,11 +124,11 @@ function ConfigOptionSection({ option, sessionId, disabled }: ConfigOptionSectio
   return (
     <div>
       {/* Section header */}
-      <div className="px-2 py-1.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+      <div className="px-2 py-1.5 text-2xs font-medium text-muted-foreground uppercase tracking-wider">
         {option.name}
       </div>
       {option.description && (
-        <p className="px-2 pb-1 text-[10px] text-muted-foreground/70 leading-tight">
+        <p className="px-2 pb-1 text-2xs text-muted-foreground/70 leading-tight">
           {option.description}
         </p>
       )}
@@ -137,7 +137,7 @@ function ConfigOptionSection({ option, sessionId, disabled }: ConfigOptionSectio
       {grps.length > 0
         ? grps.map((group) => (
             <div key={group.name}>
-              <div className="px-2 py-1 text-[10px] text-muted-foreground/60">
+              <div className="px-2 py-1 text-2xs text-muted-foreground/60">
                 {group.name}
               </div>
               {group.options.map((o) => (
@@ -188,7 +188,7 @@ function OptionButton({ option, isActive, disabled, onSelect }: OptionButtonProp
       <div className="flex flex-col gap-0 min-w-0 flex-1">
         <span className="text-xs">{option.name}</span>
         {option.description && (
-          <span className="text-[10px] text-muted-foreground truncate">
+          <span className="text-2xs text-muted-foreground truncate">
             {option.description}
           </span>
         )}

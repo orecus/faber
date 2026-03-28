@@ -505,13 +505,14 @@ export default React.memo(function ChatInput({
       console.error("Failed to cancel ACP session:", e);
     }
 
-    // Wait for promptPending to clear (cancel triggers acp-prompt-complete/error event)
-    // Poll briefly — the event usually fires within a few hundred ms
+    // Wait for promptPending to clear (cancel triggers acp-prompt-complete/error event).
+    // Timeout after 5s to avoid polling forever if the cancel event is lost.
     const waitForIdle = () =>
       new Promise<void>((resolve) => {
+        const deadline = Date.now() + 5000;
         const check = () => {
           const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
-          if (!pending) {
+          if (!pending || Date.now() >= deadline) {
             resolve();
           } else {
             setTimeout(check, 50);
@@ -933,11 +934,11 @@ function SuggestionOverlay({
               >
                 {cmd.icon}
                 <span className="text-xs font-medium">{cmd.label}</span>
-                <span className="text-[11px] text-muted-foreground flex-1 truncate">
+                <span className="text-xs text-muted-foreground flex-1 truncate">
                   {cmd.description}
                 </span>
                 {cmd.isAgentCommand && (
-                  <span className="flex items-center gap-0.5 text-[10px] text-primary/60 shrink-0">
+                  <span className="flex items-center gap-0.5 text-2xs text-primary/60 shrink-0">
                     <Sparkles size={10} />
                     agent
                   </span>
@@ -964,7 +965,7 @@ function SuggestionOverlay({
                 )}
                 <span className="text-xs truncate">{file.path}</span>
                 {file.is_dir && (
-                  <span className="text-[10px] text-muted-foreground/50 shrink-0">
+                  <span className="text-2xs text-muted-foreground/50 shrink-0">
                     dir
                   </span>
                 )}

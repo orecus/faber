@@ -104,7 +104,7 @@ function FilePath({ path }: { path: string }) {
     <button
       type="button"
       onClick={handleCopy}
-      className="inline-flex items-center gap-1 text-[12px] font-mono text-dim-foreground hover:text-primary transition-colors truncate text-left group/filepath"
+      className="inline-flex items-center gap-1 text-xs font-mono text-dim-foreground hover:text-primary transition-colors truncate text-left group/filepath"
       title={`${path}\nClick to copy path`}
     >
       <span className="truncate">{fileName}</span>
@@ -152,10 +152,10 @@ function TextCrease({
     <Collapsible defaultOpen={defaultOpen}>
       <CollapsibleTrigger className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-accent/50 transition-colors cursor-pointer group/crease">
         <FileText size={13} className="text-muted-foreground shrink-0" />
-        <span className="text-[12px] text-dim-foreground truncate flex-1 text-left">
+        <span className="text-xs text-dim-foreground truncate flex-1 text-left">
           {preview}
         </span>
-        <span className="text-[10px] text-muted-foreground/50 shrink-0">
+        <span className="text-2xs text-muted-foreground/50 shrink-0">
           {lineCount} line{lineCount !== 1 ? "s" : ""}
         </span>
         <ChevronDown
@@ -284,21 +284,21 @@ function DiffCrease({
     <div className={`${flat ? "" : "mt-1 "}rounded-md bg-muted/30 border border-border/30 overflow-hidden`}>
       {/* Sticky file header */}
       <div className="flex items-center justify-between px-3 py-1 border-b border-border/20 bg-muted/50 sticky top-0 z-10">
-        <span className="text-[10px] font-mono text-muted-foreground/70 truncate" title={path}>
+        <span className="text-2xs font-mono text-muted-foreground/70 truncate" title={path}>
           {path}
         </span>
         <div className="flex items-center gap-2 shrink-0">
           {stats.added > 0 && (
-            <span className="text-[10px] text-success/80">+{stats.added}</span>
+            <span className="text-2xs text-success/80">+{stats.added}</span>
           )}
           {stats.removed > 0 && (
-            <span className="text-[10px] text-destructive/80">−{stats.removed}</span>
+            <span className="text-2xs text-destructive/80">−{stats.removed}</span>
           )}
           {hasCollapsed && (
             <button
               type="button"
               onClick={toggleShowAll}
-              className="text-[10px] text-muted-foreground/50 hover:text-muted-foreground transition-colors flex items-center gap-0.5"
+              className="text-2xs text-muted-foreground/50 hover:text-muted-foreground transition-colors flex items-center gap-0.5"
               title={showAllContext ? "Collapse context" : "Show all lines"}
             >
               <ChevronsUpDown size={10} />
@@ -310,12 +310,12 @@ function DiffCrease({
 
       {/* Diff lines with line number gutters */}
       <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
-        <pre className="text-[11px] leading-relaxed font-mono">
+        <pre className="text-xs leading-relaxed font-mono">
           {displayLines.map((line, i) =>
             line.collapsed ? (
               <div
                 key={`collapse-${i}`}
-                className="flex items-center gap-2 px-3 py-1 bg-accent/20 border-y border-border/15 text-muted-foreground/40 text-[10px] cursor-pointer hover:bg-accent/30 transition-colors"
+                className="flex items-center gap-2 px-3 py-1 bg-accent/20 border-y border-border/15 text-muted-foreground/40 text-2xs cursor-pointer hover:bg-accent/30 transition-colors"
                 onClick={toggleShowAll}
               >
                 <ChevronsUpDown size={10} />
@@ -329,10 +329,10 @@ function DiffCrease({
                 className={`flex ${DIFF_LINE_STYLES[line.type]}`}
               >
                 {/* Line number gutters */}
-                <span className="select-none text-[10px] text-muted-foreground/25 w-8 text-right pr-1 shrink-0 border-r border-border/10 self-stretch flex items-center justify-end">
+                <span className="select-none text-2xs text-muted-foreground/25 w-8 text-right pr-1 shrink-0 border-r border-border/10 self-stretch flex items-center justify-end">
                   {line.oldLineNo ?? ""}
                 </span>
-                <span className="select-none text-[10px] text-muted-foreground/25 w-8 text-right pr-1 shrink-0 border-r border-border/10 self-stretch flex items-center justify-end">
+                <span className="select-none text-2xs text-muted-foreground/25 w-8 text-right pr-1 shrink-0 border-r border-border/10 self-stretch flex items-center justify-end">
                   {line.newLineNo ?? ""}
                 </span>
                 {/* +/- indicator */}
@@ -373,12 +373,12 @@ function DiffCrease({
         </div>
         <span className="flex items-center gap-1.5 shrink-0">
           {stats.added > 0 && (
-            <span className="text-[10px] text-success font-medium">
+            <span className="text-2xs text-success font-medium">
               +{stats.added}
             </span>
           )}
           {stats.removed > 0 && (
-            <span className="text-[10px] text-destructive font-medium">
+            <span className="text-2xs text-destructive font-medium">
               −{stats.removed}
             </span>
           )}
@@ -482,7 +482,7 @@ function TerminalCrease({
   if (!sessionId) {
     return (
       <div className={`${flat ? "" : "mt-1 "}rounded-md bg-zinc-950/80 border border-border/30 overflow-hidden px-3 py-2`}>
-        <span className="text-[11px] font-mono text-white/30">
+        <span className="text-xs font-mono text-white/30">
           Terminal {terminalId}
         </span>
       </div>
@@ -497,10 +497,10 @@ function TerminalCrease({
       {loading && !hasOutput ? (
         <div className="flex items-center gap-2 rounded-md bg-zinc-950/80 border border-border/30 px-3 py-3">
           <Loader2 size={12} className="animate-spin text-muted-foreground" />
-          <span className="text-[11px] text-muted-foreground">Loading terminal output…</span>
+          <span className="text-xs text-muted-foreground">Loading terminal output…</span>
         </div>
       ) : error && !hasOutput ? (
-        <div className="rounded-md bg-zinc-950/80 border border-border/30 px-3 py-2 text-[11px] font-mono text-destructive/70">
+        <div className="rounded-md bg-zinc-950/80 border border-border/30 px-3 py-2 text-xs font-mono text-destructive/70">
           {error}
         </div>
       ) : (
@@ -508,15 +508,15 @@ function TerminalCrease({
           output={output}
           isStreaming={isStreaming}
           autoScroll
-          className="border-border/30 text-[11px]"
+          className="border-border/30 text-xs"
         >
           <TerminalHeader className="border-zinc-800/60 px-3 py-1.5">
-            <TerminalTitle className="text-[11px] text-zinc-500">
+            <TerminalTitle className="text-xs text-zinc-500">
               {terminalId}
             </TerminalTitle>
             <TerminalActions>
               {isStreaming && (
-                <span className="text-[10px] text-primary/70 flex items-center gap-1 mr-1">
+                <span className="text-2xs text-primary/70 flex items-center gap-1 mr-1">
                   <Loader2 size={10} className="animate-spin" />
                   Running
                 </span>
@@ -524,7 +524,7 @@ function TerminalCrease({
               <TerminalCopyButton className="size-6" />
             </TerminalActions>
           </TerminalHeader>
-          <TerminalContent className="max-h-[300px] p-3 text-[11px] leading-relaxed" />
+          <TerminalContent className="max-h-[300px] p-3 text-xs leading-relaxed" />
         </Terminal>
       )}
     </div>
@@ -539,18 +539,18 @@ function TerminalCrease({
     <Collapsible defaultOpen={defaultOpen}>
       <CollapsibleTrigger className="flex w-full items-center gap-2 px-2.5 py-1.5 rounded-md hover:bg-accent/50 transition-colors cursor-pointer group/crease">
         <SquareTerminal size={13} className="text-muted-foreground shrink-0" />
-        <span className="text-[12px] text-dim-foreground flex-1 text-left">
+        <span className="text-xs text-dim-foreground flex-1 text-left">
           Terminal output
         </span>
         {isStreaming && (
           <Loader2 size={10} className="animate-spin text-primary shrink-0" />
         )}
         {!isStreaming && hasOutput && (
-          <span className="text-[10px] text-muted-foreground/50 shrink-0">
+          <span className="text-2xs text-muted-foreground/50 shrink-0">
             {lineCount} line{lineCount !== 1 ? "s" : ""}
           </span>
         )}
-        <span className="text-[10px] font-mono text-muted-foreground/40 shrink-0">
+        <span className="text-2xs font-mono text-muted-foreground/40 shrink-0">
           {terminalId}
         </span>
         <ChevronDown

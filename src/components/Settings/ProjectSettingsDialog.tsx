@@ -120,9 +120,9 @@ function ToggleRow({
       className={`flex items-center justify-between gap-3 py-1.5 ${disabled ? "opacity-40 pointer-events-none" : "cursor-pointer"}`}
     >
       <div className="flex flex-col min-w-0">
-        <span className="text-[13px] text-foreground">{label}</span>
+        <span className="text-sm text-foreground">{label}</span>
         {description && (
-          <span className="text-[11px] text-muted-foreground mt-0.5">
+          <span className="text-xs text-muted-foreground mt-0.5">
             {description}
           </span>
         )}
@@ -148,7 +148,7 @@ function ToggleRow({
 }
 
 const sectionHeadingClass =
-  "text-[11px] font-medium uppercase tracking-wider text-muted-foreground";
+  "text-xs font-medium uppercase tracking-wider text-muted-foreground";
 
 // ── Project Settings Dialog ──
 
@@ -434,7 +434,7 @@ export function ProjectSettingsDialog({
             <div className="grid grid-cols-[1fr_1fr] gap-4">
               {/* Icon */}
               <div className="flex flex-col gap-2">
-                <span className="text-[12px] text-dim-foreground font-medium">
+                <span className="text-xs text-dim-foreground font-medium">
                   Icon
                 </span>
                 <div className="flex items-center gap-2">
@@ -451,7 +451,7 @@ export function ProjectSettingsDialog({
                         size="sm"
                         onClick={handlePickIcon}
                         leftIcon={<Image className="size-3" />}
-                        className="h-6 px-2 text-[11px]"
+                        className="h-6 px-2 text-xs"
                       >
                         Choose SVG
                       </Button>
@@ -461,13 +461,13 @@ export function ProjectSettingsDialog({
                           size="sm"
                           onClick={handleClearIcon}
                           leftIcon={<X className="size-3" />}
-                          className="h-6 px-1.5 text-[11px]"
+                          className="h-6 px-1.5 text-xs"
                         >
                           Reset
                         </Button>
                       )}
                     </div>
-                    <span className="text-[10px] text-muted-foreground truncate max-w-48">
+                    <span className="text-2xs text-muted-foreground truncate max-w-48">
                       {project.icon_path
                         ? project.icon_path.split(/[\\/]/).pop()
                         : "Auto-detected from project"}
@@ -478,7 +478,7 @@ export function ProjectSettingsDialog({
 
               {/* Color */}
               <div className="flex flex-col gap-2">
-                <span className="text-[12px] text-dim-foreground font-medium">
+                <span className="text-xs text-dim-foreground font-medium">
                   Color
                 </span>
                 <div className="flex flex-wrap gap-1.5">
@@ -514,7 +514,7 @@ export function ProjectSettingsDialog({
             {/* Agent + Model row */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-dim-foreground font-medium">
+                <span className="text-xs text-dim-foreground font-medium">
                   Agent
                 </span>
                 <Select
@@ -549,7 +549,7 @@ export function ProjectSettingsDialog({
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-dim-foreground font-medium">
+                <span className="text-xs text-dim-foreground font-medium">
                   Model
                 </span>
                 <Select
@@ -581,7 +581,7 @@ export function ProjectSettingsDialog({
 
             {/* Transport */}
             <div className="flex flex-col gap-1.5">
-              <span className="text-[12px] text-dim-foreground font-medium">
+              <span className="text-xs text-dim-foreground font-medium">
                 Transport
               </span>
               <div className="flex rounded-[var(--radius-element)] bg-background/50 p-0.5 ring-1 ring-border/40">
@@ -610,7 +610,7 @@ export function ProjectSettingsDialog({
                   Chat
                 </button>
               </div>
-              <span className="text-[10px] text-muted-foreground">
+              <span className="text-2xs text-muted-foreground">
                 Pre-selects the transport mode when launching new sessions
               </span>
             </div>
@@ -623,7 +623,7 @@ export function ProjectSettingsDialog({
             {/* Branch + Instruction in 2-col */}
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-dim-foreground font-medium">
+                <span className="text-xs text-dim-foreground font-medium">
                   Branch pattern
                 </span>
                 <InputGroup>
@@ -638,13 +638,13 @@ export function ProjectSettingsDialog({
                     placeholder="feat/{{task_id}}-{{task_slug}}"
                   />
                 </InputGroup>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-2xs text-muted-foreground">
                   Variables: {"{{task_id}}"}, {"{{task_slug}}"}
                 </span>
               </div>
 
               <div className="flex flex-col gap-1.5">
-                <span className="text-[12px] text-dim-foreground font-medium">
+                <span className="text-xs text-dim-foreground font-medium">
                   Instruction file
                 </span>
                 <InputGroup>
@@ -661,7 +661,7 @@ export function ProjectSettingsDialog({
                     placeholder="CLAUDE.md (auto-detected)"
                   />
                 </InputGroup>
-                <span className="text-[10px] text-muted-foreground">
+                <span className="text-2xs text-muted-foreground">
                   Relative path from project root
                 </span>
               </div>
@@ -693,7 +693,7 @@ export function ProjectSettingsDialog({
               <Button
                 variant="ghost"
                 size="sm"
-                className="h-6 px-2 text-[11px]"
+                className="h-6 px-2 text-xs"
                 onClick={addPriority}
               >
                 <Plus className="size-3 mr-1" />
@@ -712,7 +712,7 @@ export function ProjectSettingsDialog({
                     {/* Reorder buttons */}
                     <div className="flex flex-col -my-1">
                       <button
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0 leading-none text-[9px]"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0 leading-none text-2xs"
                         onClick={() => movePriority(i, -1)}
                         disabled={i === 0}
                         title="Move up"
@@ -720,7 +720,7 @@ export function ProjectSettingsDialog({
                         ▲
                       </button>
                       <button
-                        className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0 leading-none text-[9px]"
+                        className="text-muted-foreground hover:text-foreground disabled:opacity-30 p-0 leading-none text-2xs"
                         onClick={() => movePriority(i, 1)}
                         disabled={i === priorities.length - 1}
                         title="Move down"
@@ -737,7 +737,7 @@ export function ProjectSettingsDialog({
 
                     {/* ID */}
                     <Input
-                      className="!h-7 w-14 text-[11px] font-mono px-1.5 py-0"
+                      className="!h-7 w-14 text-xs font-mono px-1.5 py-0"
                       value={p.id}
                       onChange={(e) => updatePriority(i, "id", e.target.value)}
                       placeholder="ID"
@@ -745,7 +745,7 @@ export function ProjectSettingsDialog({
 
                     {/* Label */}
                     <Input
-                      className="!h-7 flex-1 text-[11px] px-1.5 py-0"
+                      className="!h-7 flex-1 text-xs px-1.5 py-0"
                       value={p.label}
                       onChange={(e) => updatePriority(i, "label", e.target.value)}
                       placeholder="Label"
@@ -757,7 +757,7 @@ export function ProjectSettingsDialog({
                       onValueChange={(v) => { if (v) updatePriority(i, "color", v); }}
                       items={PRIORITY_COLORS.map((c) => ({ value: c.value, label: c.label }))}
                     >
-                      <SelectTrigger className="!h-7 w-[100px] text-[11px] px-1.5 py-0">
+                      <SelectTrigger className="!h-7 w-[100px] text-xs px-1.5 py-0">
                         <SelectValue />
                       </SelectTrigger>
                       <SelectContent>
@@ -792,7 +792,7 @@ export function ProjectSettingsDialog({
               })}
             </div>
 
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-2xs text-muted-foreground">
               Define priority levels for this project. ID is stored in task files, label is shown in the UI.
             </span>
           </div>
@@ -800,10 +800,10 @@ export function ProjectSettingsDialog({
           {/* ── Danger Zone ── */}
           <div className="rounded-lg ring-1 ring-destructive/20 p-4 flex items-center justify-between gap-4">
             <div className="min-w-0">
-              <div className="text-[12px] font-medium text-destructive">
+              <div className="text-xs font-medium text-destructive">
                 Delete Project
               </div>
-              <div className="text-[11px] text-muted-foreground mt-0.5">
+              <div className="text-xs text-muted-foreground mt-0.5">
                 Remove from Faber. Files on disk are not affected.
               </div>
             </div>

@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, useState } from "react";
 import {
   CircleDot,
   ListFilter,
@@ -9,6 +9,7 @@ import {
   CircleCheck,
   CircleX,
   User,
+  RotateCw,
 } from "lucide-react";
 import { invoke } from "@tauri-apps/api/core";
 import { Badge } from "../ui/badge";
@@ -19,6 +20,8 @@ import IssueDetailPanel from "./IssueDetailPanel";
 import GitHubAuthGate from "./GitHubAuthGate";
 import type { GitHubIssue, ImportResult, Task } from "../../types";
 
+const DEFAULT_DETAIL_WIDTH = 350;
+
 interface IssuesTabProps {
   projectId: string | null;
   hasRemote: boolean;
@@ -27,6 +30,7 @@ interface IssuesTabProps {
 
 export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: IssuesTabProps) {
   const refreshGhAuth = useAppStore((s) => s.refreshGhAuth);
+  const [detailWidth, setDetailWidth] = useState(DEFAULT_DETAIL_WIDTH);
   const {
     issues,
     loading,
@@ -134,7 +138,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                 <button
                   onClick={() => setStateFilter(filter)}
                   title={`Show ${filter} issues`}
-                  className={`flex items-center gap-1 px-2 py-1 text-[11px] transition-colors capitalize ${
+                  className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors capitalize ${
                     stateFilter === filter
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:text-dim-foreground"
@@ -162,7 +166,7 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
         {importableCount > 0 && (
           <button
             onClick={allSelected ? clearSelection : selectAll}
-            className="text-[11px] text-dim-foreground hover:text-foreground transition-colors"
+            className="text-xs text-dim-foreground hover:text-foreground transition-colors"
             title={allSelected ? "Clear all selections" : "Select all importable issues"}
           >
             {allSelected ? "Clear selection" : "Select all"}
@@ -208,8 +212,15 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
 
       {/* Error banner */}
       {error && (
-        <div className="px-3 py-1.5 text-xs bg-[color-mix(in_oklch,var(--destructive)_10%,transparent)] text-destructive">
-          {error}
+        <div className="flex items-center gap-2 px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
+          <span className="flex-1">{error}</span>
+          <button
+            onClick={fetchIssues}
+            className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-destructive/15 transition-colors"
+          >
+            <RotateCw size={10} />
+            Retry
+          </button>
         </div>
       )}
 
@@ -240,9 +251,9 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
               <div
                 key={issue.number}
                 onClick={() => handleRowClick(issue.number)}
-                className={`flex items-center gap-2.5 px-3 py-2 border-b border-border/40 hover:bg-accent transition-colors cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-1.5 border-b border-border/40 hover:bg-accent transition-colors cursor-pointer ${
                   selectedIssue === issue.number
-                    ? "bg-[color-mix(in_oklch,var(--primary)_6%,transparent)]"
+                    ? "bg-primary/6"
                     : ""
                 }`}
               >
@@ -265,11 +276,6 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                   )}
                 </div>
 
-                {/* Issue number */}
-                <span className="shrink-0 text-[11px] font-mono text-dim-foreground w-[48px]">
-                  #{issue.number}
-                </span>
-
                 {/* State icon */}
                 <div className="shrink-0">
                   {issue.state === "OPEN" ? (
@@ -285,43 +291,54 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
                   )}
                 </div>
 
+                {/* Issue number */}
+                <span className="shrink-0 text-xs font-mono text-dim-foreground w-[40px]">
+                  #{issue.number}
+                </span>
+
                 {/* Title + labels */}
-                <div className="flex-1 flex items-center gap-1.5 min-w-0">
-                  <span className="truncate text-[13px] text-foreground">
-                    {issue.title}
-                  </span>
-
-                  {/* GitHub labels */}
-                  {issue.labels.map((label) => (
-                    <span
-                      key={label.name}
-                      className="shrink-0 inline-flex items-center rounded-full px-1.5 py-px text-[10px] font-medium leading-tight max-w-[100px] truncate border"
-                      style={{
-                        backgroundColor: `#${label.color}20`,
-                        borderColor: `#${label.color}40`,
-                        color: `#${label.color}`,
-                      }}
-                    >
-                      {label.name}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="truncate text-sm text-foreground">
+                      {issue.title}
                     </span>
-                  ))}
-                </div>
 
-                {/* Assignees */}
-                {issue.assignees.length > 0 && (
-                  <div className="shrink-0 flex items-center gap-1 text-[10px] text-dim-foreground">
-                    <User size={10} />
-                    <span>
-                      {issue.assignees.map((a) => a.login).join(", ")}
-                    </span>
+                    {/* GitHub labels — show max 2 */}
+                    {issue.labels.slice(0, 2).map((label) => (
+                      <span
+                        key={label.name}
+                        className="shrink-0 hidden sm:inline-flex items-center rounded-full px-1.5 py-px text-2xs font-medium leading-tight max-w-[100px] truncate border"
+                        style={{
+                          backgroundColor: `#${label.color}20`,
+                          borderColor: `#${label.color}40`,
+                          color: `#${label.color}`,
+                        }}
+                      >
+                        {label.name}
+                      </span>
+                    ))}
+                    {issue.labels.length > 2 && (
+                      <span className="shrink-0 hidden sm:inline-flex text-2xs text-muted-foreground">
+                        +{issue.labels.length - 2}
+                      </span>
+                    )}
                   </div>
-                )}
+                  {/* Secondary line: assignees */}
+                  {issue.assignees.length > 0 && (
+                    <div className="flex items-center gap-1 mt-0.5 text-2xs text-dim-foreground">
+                      <User size={10} />
+                      <span className="truncate">
+                        {issue.assignees.map((a) => a.login).join(", ")}
+                      </span>
+                    </div>
+                  )}
+                </div>
 
                 {/* Import status badge */}
                 {already_imported && existing_task_id && (
                   <Badge
                     variant="secondary"
-                    className="shrink-0 gap-1 text-[10px] bg-[color-mix(in_oklch,var(--success)_12%,transparent)] text-success border-[color-mix(in_oklch,var(--success)_25%,transparent)]"
+                    className="shrink-0 gap-1 text-2xs bg-success/12 text-success border-success/25"
                   >
                     <Check size={10} />
                     {existing_task_id}
@@ -337,6 +354,8 @@ export default function IssuesTab({ projectId, hasRemote, onOpenSettings }: Issu
               detail={issueDetail}
               loading={detailLoading}
               importing={importing}
+              panelWidth={detailWidth}
+              onResize={setDetailWidth}
               onClose={() => selectIssue(null)}
               onImport={handleImportSingle}
             />

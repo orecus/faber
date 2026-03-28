@@ -69,7 +69,7 @@ export default React.memo(function ThoughtLevelSelector({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className="flex items-center gap-1 h-7 px-2 rounded text-[11px] font-medium text-dim-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50 cursor-pointer"
+        className="flex items-center gap-1 h-7 px-2 rounded text-xs font-medium text-dim-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50 cursor-pointer"
         disabled={disabled}
         title="Thinking level"
       >
@@ -84,7 +84,7 @@ export default React.memo(function ThoughtLevelSelector({
         className="w-52 p-1 gap-0"
       >
         {thoughtOption.description && (
-          <div className="px-2 py-1.5 text-[10px] text-muted-foreground border-b border-border/30 mb-1">
+          <div className="px-2 py-1.5 text-2xs text-muted-foreground border-b border-border/30 mb-1">
             {thoughtOption.description}
           </div>
         )}
@@ -104,7 +104,7 @@ export default React.memo(function ThoughtLevelSelector({
               <div className="flex flex-col gap-0 min-w-0 flex-1">
                 <span className="text-xs capitalize">{level.name}</span>
                 {level.description && (
-                  <span className="text-[10px] text-muted-foreground truncate">
+                  <span className="text-2xs text-muted-foreground truncate">
                     {level.description}
                   </span>
                 )}

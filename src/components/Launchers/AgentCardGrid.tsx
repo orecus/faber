@@ -212,7 +212,7 @@ interface StatusBadgeProps {
 
 function StatusBadge({ label, installed, loading }: StatusBadgeProps) {
   return (
-    <span className="flex items-center gap-0.5 text-[10px] text-muted-foreground">
+    <span className="flex items-center gap-0.5 text-2xs text-muted-foreground">
       {label}
       {loading ? (
         <Loader2 size={9} className="animate-spin text-muted-foreground/50" />

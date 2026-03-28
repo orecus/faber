@@ -170,7 +170,7 @@ export default function GitHubTab({
       <div className="flex flex-col items-center justify-center gap-2 py-8 text-muted-foreground">
         <Github size={20} className="opacity-40" />
         <p className="text-xs">No GitHub issue linked</p>
-        <p className="text-[10px] opacity-60">
+        <p className="text-2xs opacity-60">
           Link a GitHub issue to see its details and comments
         </p>
       </div>
@@ -184,12 +184,12 @@ export default function GitHubTab({
         {/* Section header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <span className="text-[10px] font-medium text-muted-foreground tracking-wide uppercase">
+            <span className="text-2xs font-medium text-muted-foreground tracking-wide uppercase">
               Issue
             </span>
             {issue && (
               <span
-                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ${
+                className={`inline-flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium ${
                   issue.state === "open"
                     ? "bg-success/15 text-success"
                     : "bg-destructive/15 text-destructive"
@@ -203,7 +203,7 @@ export default function GitHubTab({
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40"
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors disabled:opacity-40"
               title="Refresh"
             >
               <RefreshCw
@@ -213,7 +213,7 @@ export default function GitHubTab({
             </button>
             <button
               onClick={handleOpenOnGitHub}
-              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+              className="flex items-center gap-1 rounded-md px-1.5 py-0.5 text-2xs text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
               title="Open on GitHub"
             >
               <ExternalLink size={10} />
@@ -234,7 +234,7 @@ export default function GitHubTab({
             <p className="text-xs text-destructive/80">{issueError}</p>
             <button
               onClick={fetchIssue}
-              className="mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-primary hover:bg-accent transition-colors"
+              className="mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-2xs text-primary hover:bg-accent transition-colors"
             >
               <RefreshCw size={10} />
               Retry
@@ -247,7 +247,7 @@ export default function GitHubTab({
               <h3 className="text-sm font-medium text-foreground leading-snug">
                 {issue.title}
               </h3>
-              <span className="text-[10px] text-muted-foreground/50 shrink-0">
+              <span className="text-2xs text-muted-foreground/50 shrink-0">
                 #{issue.number}
               </span>
             </div>
@@ -257,7 +257,7 @@ export default function GitHubTab({
                 {issue.labels.map((label) => (
                   <span
                     key={label.name}
-                    className="inline-flex items-center rounded-full px-1.5 py-0.5 text-[10px] font-medium ring-1 ring-border/40"
+                    className="inline-flex items-center rounded-full px-1.5 py-0.5 text-2xs font-medium ring-1 ring-border/40"
                     style={
                       label.color
                         ? {
@@ -291,7 +291,7 @@ export default function GitHubTab({
               </p>
             )}
             {/* Meta info */}
-            <div className="flex items-center gap-3 text-[10px] text-muted-foreground/50">
+            <div className="flex items-center gap-3 text-2xs text-muted-foreground/50">
               <span>Created {relativeTime(issue.created_at)}</span>
               {issue.updated_at !== issue.created_at && (
                 <span>Updated {relativeTime(issue.updated_at)}</span>
@@ -314,11 +314,11 @@ export default function GitHubTab({
         {/* Section header */}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-1.5">
-            <span className="text-[10px] font-medium text-muted-foreground tracking-wide uppercase">
+            <span className="text-2xs font-medium text-muted-foreground tracking-wide uppercase">
               Comments
             </span>
             {comments.length > 0 && (
-              <span className="text-[10px] text-muted-foreground/50">
+              <span className="text-2xs text-muted-foreground/50">
                 ({comments.length})
               </span>
             )}
@@ -337,7 +337,7 @@ export default function GitHubTab({
             <p className="text-xs text-destructive/80">{commentsError}</p>
             <button
               onClick={fetchComments}
-              className="mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-[10px] text-primary hover:bg-accent transition-colors"
+              className="mt-1 flex items-center gap-1 rounded-md px-2 py-1 text-2xs text-primary hover:bg-accent transition-colors"
             >
               <RefreshCw size={10} />
               Retry
@@ -347,7 +347,7 @@ export default function GitHubTab({
           <>
             {/* Error banner (non-blocking) */}
             {commentsError && (
-              <div className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2 py-1.5 text-[10px] text-destructive">
+              <div className="flex items-center gap-1.5 rounded-md bg-destructive/10 px-2 py-1.5 text-2xs text-destructive">
                 <AlertCircle size={10} className="shrink-0" />
                 <span className="flex-1 truncate">{commentsError}</span>
               </div>
@@ -358,7 +358,7 @@ export default function GitHubTab({
               <div className="flex flex-col items-center justify-center gap-1.5 py-6 text-muted-foreground">
                 <MessageCircle size={16} className="opacity-30" />
                 <p className="text-xs">No comments yet</p>
-                <p className="text-[10px] opacity-50">Be the first to comment</p>
+                <p className="text-2xs opacity-50">Be the first to comment</p>
               </div>
             ) : (
               <div className="flex flex-col gap-0 -mx-0.5 px-0.5">
@@ -384,13 +384,13 @@ export default function GitHubTab({
                 className="w-full resize-none rounded-md border border-border bg-background px-2.5 py-1.5 text-xs text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-primary/50 disabled:opacity-50"
               />
               <div className="flex items-center justify-between">
-                <span className="text-[9px] text-muted-foreground/40">
+                <span className="text-2xs text-muted-foreground/40">
                   {commentBody.trim() ? "\u2318\u21B5 to send" : ""}
                 </span>
                 <button
                   onClick={handlePost}
                   disabled={posting || !commentBody.trim()}
-                  className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-[11px] font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:pointer-events-none"
+                  className="flex items-center gap-1 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors disabled:opacity-40 disabled:pointer-events-none"
                 >
                   {posting ? (
                     <Loader2 size={10} className="animate-spin" />
@@ -427,15 +427,15 @@ const CommentEntry = React.memo(function CommentEntry({
           />
         ) : (
           <div className="size-5 rounded-full bg-accent flex items-center justify-center">
-            <span className="text-[9px] font-medium text-muted-foreground">
+            <span className="text-2xs font-medium text-muted-foreground">
               {comment.author.charAt(0).toUpperCase()}
             </span>
           </div>
         )}
-        <span className="text-[11px] font-medium text-foreground">
+        <span className="text-xs font-medium text-foreground">
           {comment.author}
         </span>
-        <span className="text-[10px] text-muted-foreground/50">
+        <span className="text-2xs text-muted-foreground/50">
           {relativeTime(comment.created_at)}
         </span>
       </div>

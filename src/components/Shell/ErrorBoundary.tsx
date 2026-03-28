@@ -77,7 +77,7 @@ export default class ErrorBoundary extends Component<Props, State> {
     return (
       <div className="flex items-center justify-center h-full w-full p-8"
            style={{ gridArea: "content" }}>
-        <div className="flex flex-col items-center gap-6 max-w-md w-full">
+        <div role="alert" className="flex flex-col items-center gap-6 max-w-md w-full">
           {/* Icon */}
           <div className="flex items-center justify-center w-12 h-12 rounded-xl bg-destructive/10 ring-1 ring-destructive/20">
             <AlertTriangle size={22} className="text-destructive" />

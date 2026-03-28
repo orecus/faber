@@ -65,10 +65,10 @@ function SyncCheckboxRow({
 
       {/* Label + preview */}
       <div className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className="text-[13px] font-medium text-foreground">
+        <span className="text-sm font-medium text-foreground">
           {label}
         </span>
-        <span className="truncate text-[11px] text-muted-foreground">
+        <span className="truncate text-xs text-muted-foreground">
           {preview}
         </span>
       </div>

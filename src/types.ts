@@ -14,7 +14,7 @@ export interface PriorityLevel {
 export type SessionMode = "task" | "vibe" | "shell" | "research" | "chat" | "breakdown";
 export type SessionTransport = "pty" | "acp";
 export type SessionStatus = "starting" | "running" | "paused" | "stopped" | "finished" | "error";
-export type ViewId = "dashboard" | "sessions" | "chat" | "task-detail" | "review" | "github" | "skills-rules" | "help";
+export type ViewId = "dashboard" | "sessions" | "chat" | "task-detail" | "review" | "github" | "skills-rules" | "help" | "settings";
 
 export interface Project {
   id: string;
@@ -213,9 +213,9 @@ export interface AgentInfo {
   acp_command: string | null;
   /** Additional args needed to launch in ACP mode (e.g., ["--acp"]). */
   acp_args: string[];
-  /** Shell command to install the ACP adapter (e.g., "npm install -g @zed-industries/claude-agent-acp"). Null for native ACP agents. */
+  /** Shell command to install the ACP adapter (e.g., "npm install -g @agentclientprotocol/claude-agent-acp"). Null for native ACP agents. */
   acp_install_command: string | null;
-  /** npm package name for the ACP adapter (e.g., "@zed-industries/claude-agent-acp"). Null for native ACP agents. */
+  /** npm package name for the ACP adapter (e.g., "@agentclientprotocol/claude-agent-acp"). Null for native ACP agents. */
   acp_adapter_package: string | null;
   /** URL to the official install/download page for this agent's CLI tool. */
   cli_install_url: string | null;

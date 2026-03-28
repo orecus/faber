@@ -1,5 +1,5 @@
 import { useCallback, useState } from "react";
-import { Archive, ArchiveRestore, Trash2 } from "lucide-react";
+import { Archive, ArchiveRestore, Loader2, Trash2 } from "lucide-react";
 
 import type { Task } from "../../types";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
@@ -29,14 +29,30 @@ export default function ArchivedTaskList({
   onDelete,
 }: ArchivedTaskListProps) {
   const [deleteTaskId, setDeleteTaskId] = useState<string | null>(null);
+  const [restoringId, setRestoringId] = useState<string | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
   const deleteTask = deleteTaskId
     ? tasks.find((t) => t.id === deleteTaskId)
     : null;
 
-  const handleConfirmDelete = useCallback(() => {
+  const handleRestore = useCallback(async (taskId: string) => {
+    setRestoringId(taskId);
+    try {
+      await onRestore(taskId);
+    } finally {
+      setRestoringId(null);
+    }
+  }, [onRestore]);
+
+  const handleConfirmDelete = useCallback(async () => {
     if (deleteTaskId) {
-      onDelete(deleteTaskId);
+      setDeletingId(deleteTaskId);
       setDeleteTaskId(null);
+      try {
+        await onDelete(deleteTaskId);
+      } finally {
+        setDeletingId(null);
+      }
     }
   }, [deleteTaskId, onDelete]);
 
@@ -44,7 +60,7 @@ export default function ArchivedTaskList({
   if (tasks.length === 0) {
     return (
       <div className="flex-1 flex flex-col items-center justify-center gap-2 text-muted-foreground">
-        <Archive className="size-8 opacity-40" />
+        <Archive className="size-8 opacity-30" />
         <p className="text-sm">No archived tasks</p>
       </div>
     );
@@ -61,7 +77,7 @@ export default function ArchivedTaskList({
               onClick={() => onTaskClick(task.id)}
             >
               {/* Task ID */}
-              <span className="text-[10px] font-mono text-muted-foreground shrink-0 w-12">
+              <span className="text-2xs font-mono text-muted-foreground shrink-0 w-12">
                 {task.id}
               </span>
 
@@ -79,13 +95,13 @@ export default function ArchivedTaskList({
                   {task.labels.slice(0, 3).map((label) => (
                     <span
                       key={label}
-                      className="inline-block px-1.5 py-px text-[9px] font-medium rounded-full bg-accent text-muted-foreground truncate max-w-[80px]"
+                      className="inline-block px-1.5 py-px text-2xs font-medium rounded-full bg-accent text-muted-foreground truncate max-w-[80px]"
                     >
                       {label}
                     </span>
                   ))}
                   {task.labels.length > 3 && (
-                    <span className="text-[9px] text-muted-foreground">
+                    <span className="text-2xs text-muted-foreground">
                       +{task.labels.length - 3}
                     </span>
                   )}
@@ -93,24 +109,29 @@ export default function ArchivedTaskList({
               )}
 
               {/* Archived date */}
-              <span className="text-[10px] text-muted-foreground shrink-0">
+              <span className="text-2xs text-muted-foreground shrink-0">
                 {formatDate(task.updated_at)}
               </span>
 
-              {/* Actions — visible on hover */}
-              <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity shrink-0">
+              {/* Actions — visible on hover, with inline loading */}
+              <div className="flex items-center gap-0.5 opacity-30 group-hover:opacity-100 group-focus-within:opacity-100 transition-opacity shrink-0">
                 <Button
                   variant="ghost"
                   size="icon-xs"
                   hoverEffect="scale"
                   clickEffect="scale"
                   title="Restore to backlog"
+                  disabled={restoringId === task.id || deletingId === task.id}
                   onClick={(e) => {
                     e.stopPropagation();
-                    onRestore(task.id);
+                    handleRestore(task.id);
                   }}
                 >
-                  <ArchiveRestore className="size-3" />
+                  {restoringId === task.id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <ArchiveRestore className="size-3" />
+                  )}
                 </Button>
                 <Button
                   variant="ghost"
@@ -118,12 +139,17 @@ export default function ArchivedTaskList({
                   hoverEffect="scale"
                   clickEffect="scale"
                   title="Delete permanently"
+                  disabled={restoringId === task.id || deletingId === task.id}
                   onClick={(e) => {
                     e.stopPropagation();
                     setDeleteTaskId(task.id);
                   }}
                 >
-                  <Trash2 className="size-3 text-destructive" />
+                  {deletingId === task.id ? (
+                    <Loader2 className="size-3 animate-spin" />
+                  ) : (
+                    <Trash2 className="size-3 text-destructive" />
+                  )}
                 </Button>
               </div>
             </div>

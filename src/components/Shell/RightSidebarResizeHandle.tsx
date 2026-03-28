@@ -40,15 +40,14 @@ export default function RightSidebarResizeHandle() {
   return (
     <div
       onMouseDown={onMouseDown}
-      style={{
-        position: "absolute",
-        top: 0,
-        left: -3,
-        width: 6,
-        height: "100%",
-        cursor: "col-resize",
-        zIndex: 10,
-      }}
-    />
+      className="group absolute top-0 -left-[3px] w-1.5 h-full cursor-col-resize z-10"
+    >
+      {/* Grip dots — appear on hover */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+        <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+        <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+        <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+      </div>
+    </div>
   );
 }

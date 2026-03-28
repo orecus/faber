@@ -410,7 +410,7 @@ export default React.memo(function ToolCallCard({ toolCall, sessionId }: ToolCal
           ) : (
             <KindIcon className="size-3" />
           )}
-          <span className="text-[11px]">{displayLabel}</span>
+          <span className="text-xs">{displayLabel}</span>
         </div>
       </div>
     );
@@ -484,13 +484,13 @@ function ReadCard({
     <div className="not-prose w-full rounded-md border border-border/40 bg-card/30 mb-1 flex items-center gap-2 px-3 py-1.5">
       <FileText className="size-3.5 text-muted-foreground shrink-0" />
       <span
-        className="text-[12px] font-mono text-dim-foreground truncate flex-1 text-left"
+        className="text-xs font-mono text-dim-foreground truncate flex-1 text-left"
         title={meta.filePath}
       >
         {meta.label}
       </span>
       {lineCount !== null && (
-        <span className="text-[10px] text-muted-foreground/50 shrink-0">
+        <span className="text-2xs text-muted-foreground/50 shrink-0">
           {lineCount} lines
         </span>
       )}
@@ -523,24 +523,24 @@ function EditCard({
           <FileDiff className="size-3.5 text-primary shrink-0" />
         )}
         <span
-          className="text-[12px] font-mono text-dim-foreground truncate flex-1 text-left"
+          className="text-xs font-mono text-dim-foreground truncate flex-1 text-left"
           title={meta.filePath}
         >
           {meta.label}
         </span>
         {/* Diff stats */}
         {(meta.linesAdded !== undefined && meta.linesAdded > 0) && (
-          <span className="text-[10px] font-medium text-success shrink-0">
+          <span className="text-2xs font-medium text-success shrink-0">
             +{meta.linesAdded}
           </span>
         )}
         {(meta.linesRemoved !== undefined && meta.linesRemoved > 0) && (
-          <span className="text-[10px] font-medium text-destructive shrink-0">
+          <span className="text-2xs font-medium text-destructive shrink-0">
             −{meta.linesRemoved}
           </span>
         )}
         {meta.isNewFile && (
-          <Badge variant="outline" className="text-[9px] px-1.5 py-0 h-4 text-success border-success/30 shrink-0">
+          <Badge variant="outline" className="text-2xs px-1.5 py-0 h-4 text-success border-success/30 shrink-0">
             new
           </Badge>
         )}
@@ -586,12 +586,12 @@ function DeleteCard({
       <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-destructive/5 transition-colors">
         <Trash2 className="size-3.5 text-destructive/70 shrink-0" />
         <span
-          className="text-[12px] font-mono text-destructive/80 truncate flex-1 text-left line-through decoration-destructive/30"
+          className="text-xs font-mono text-destructive/80 truncate flex-1 text-left line-through decoration-destructive/30"
           title={meta.filePath}
         >
           {meta.label}
         </span>
-        <Badge variant="destructive" className="text-[9px] px-1.5 py-0 h-4 shrink-0">
+        <Badge variant="destructive" className="text-2xs px-1.5 py-0 h-4 shrink-0">
           deleted
         </Badge>
         <StatusDot status={toolCall.status} />
@@ -648,7 +648,7 @@ function ExecuteCard({
     >
       <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-accent/30 transition-colors">
         <SquareTerminal className="size-3.5 text-muted-foreground shrink-0" />
-        <code className="text-[11.5px] font-mono text-dim-foreground truncate flex-1 text-left">
+        <code className="text-xs font-mono text-dim-foreground truncate flex-1 text-left">
           <span className="text-muted-foreground/50 mr-1">$</span>
           {fullCommand.length > 80 ? fullCommand.slice(0, 77) + "…" : fullCommand}
         </code>
@@ -656,7 +656,7 @@ function ExecuteCard({
         {exitCode !== undefined && (
           <Badge
             variant={exitCode === 0 ? "secondary" : "destructive"}
-            className="text-[9px] px-1.5 py-0 h-4 gap-0.5 font-mono shrink-0"
+            className="text-2xs px-1.5 py-0 h-4 gap-0.5 font-mono shrink-0"
           >
             <Hash className="size-2.5" />
             {exitCode}
@@ -671,11 +671,11 @@ function ExecuteCard({
       <CollapsibleContent>
         {/* Snippet command display */}
         <div className="border-t border-border/30 px-3 py-1.5">
-          <Snippet code={fullCommand} className="h-8 text-[11px] bg-zinc-950/50 border-border/30">
+          <Snippet code={fullCommand} className="h-8 text-xs bg-zinc-950/50 border-border/30">
             <SnippetAddon>
               <DollarSign className="size-3 text-muted-foreground/50" />
             </SnippetAddon>
-            <SnippetInput className="text-[11px] text-dim-foreground" />
+            <SnippetInput className="text-xs text-dim-foreground" />
             <SnippetCopyButton />
           </Snippet>
         </div>
@@ -721,11 +721,11 @@ function SearchCard({
     <Collapsible className="group not-prose w-full rounded-md border border-border/40 bg-card/30 mb-1">
       <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-accent/30 transition-colors">
         <Search className="size-3.5 text-muted-foreground shrink-0" />
-        <span className="text-[12px] text-dim-foreground truncate flex-1 text-left">
+        <span className="text-xs text-dim-foreground truncate flex-1 text-left">
           <span className="font-mono text-primary/80">{meta.query ?? meta.label}</span>
         </span>
         {meta.resultCount !== undefined && meta.resultCount > 0 && (
-          <span className="text-[10px] text-muted-foreground/60 shrink-0">
+          <span className="text-2xs text-muted-foreground/60 shrink-0">
             {meta.resultCount} result{meta.resultCount !== 1 ? "s" : ""}
           </span>
         )}
@@ -810,7 +810,7 @@ function FetchCard({
       <CollapsibleTrigger className="flex w-full items-center gap-2 px-3 py-1.5 cursor-pointer hover:bg-accent/30 transition-colors">
         <Globe className="size-3.5 text-muted-foreground shrink-0" />
         <span
-          className="text-[12px] font-mono text-primary/70 truncate flex-1 text-left"
+          className="text-xs font-mono text-primary/70 truncate flex-1 text-left"
           title={meta.url}
         >
           {displayUrl}
@@ -859,10 +859,10 @@ function GenericCard({
       <CollapsibleTrigger className="flex w-full items-center justify-between gap-3 px-3 py-2 cursor-pointer">
         <div className="flex items-center gap-2 min-w-0">
           <Icon className="size-4 text-muted-foreground shrink-0" />
-          <span className="text-[13px] text-dim-foreground truncate">
+          <span className="text-sm text-dim-foreground truncate">
             {label}
           </span>
-          <Badge className="gap-1 rounded-full text-[11px] shrink-0" variant={statusCfg.variant}>
+          <Badge className="gap-1 rounded-full text-xs shrink-0" variant={statusCfg.variant}>
             {statusCfg.icon}
             {statusCfg.label}
           </Badge>
@@ -920,7 +920,7 @@ function FallbackMeta({
   return (
     <div className="rounded-md bg-muted/50 px-3 py-2 font-mono text-xs text-muted-foreground">
       <p className="break-all">{toolCall.title}</p>
-      <p className="mt-1 text-[10px] text-muted-foreground/60">
+      <p className="mt-1 text-2xs text-muted-foreground/60">
         {mcpToolName ?? toolCall.kind} &middot; {toolCall.tool_call_id}
       </p>
     </div>

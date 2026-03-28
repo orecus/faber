@@ -924,9 +924,11 @@ fn validate_acp_agent(adapter: &dyn agent::AgentAdapter, agent_name: &str) -> Re
         )))?;
 
     if !adapter.detect_acp_adapter() {
+        let install_hint = adapter.acp_install_command()
+            .unwrap_or("npm install -g <adapter-package>");
         return Err(AppError::Validation(format!(
             "Agent '{agent_name}' requires the ACP adapter '{acp_command}' which is not installed. \
-             Install it via: npm install -g @zed-industries/{acp_command}"
+             Install it via: {install_hint}"
         )));
     }
 

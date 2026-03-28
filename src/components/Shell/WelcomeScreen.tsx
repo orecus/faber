@@ -1,5 +1,6 @@
 import {
   ChevronRight,
+  CircleCheck,
   FolderCode,
   FolderOpen,
   FolderPlus,
@@ -58,6 +59,7 @@ export default function WelcomeScreen() {
   const projects = useAppStore((s) => s.projects);
   const openProject = useAppStore((s) => s.openProject);
   const backgroundTasks = useAppStore((s) => s.backgroundTasks);
+  const agents = useAppStore((s) => s.agents);
 
   const isLoading = useMemo(
     () => backgroundTasks.some((t) => LOADING_LABELS.includes(t)),
@@ -87,6 +89,17 @@ export default function WelcomeScreen() {
 
   const hasProjects = projects.length > 0;
   const showProjects = hasProjects && !isLoading;
+
+  const isDetectingAgents = useMemo(
+    () => backgroundTasks.includes("Detecting agents"),
+    [backgroundTasks],
+  );
+  const agentSummary = useMemo(() => {
+    if (isDetectingAgents || agents.length === 0) return null;
+    const installed = agents.filter((a) => a.installed).length;
+    if (installed === agents.length) return { text: "All agents ready", allReady: true };
+    return { text: `${installed} of ${agents.length} agents detected`, allReady: false };
+  }, [agents, isDetectingAgents]);
 
   const handleOpenProject = useCallback(
     (id: string) => openProject(id),
@@ -156,7 +169,7 @@ export default function WelcomeScreen() {
                         size={12}
                         className="animate-spin text-muted-foreground"
                       />
-                      <span className="text-[11px] text-muted-foreground">
+                      <span className="text-xs text-muted-foreground">
                         {activeLoadingLabel
                           ? `${activeLoadingLabel}…`
                           : "Loading…"}
@@ -214,35 +227,37 @@ export default function WelcomeScreen() {
                 </CardContent>
               </Card>
 
-              {/* Capabilities */}
-              <div className="grid grid-cols-3 gap-3 w-full mt-5">
-                {CAPABILITIES.map((cap, i) => {
-                  const Icon = cap.icon;
-                  return (
-                    <Card
-                      key={cap.label}
-                      type="subtle"
-                      radius="md"
-                      border
-                      animationPreset="slide-up"
-                      animationDelay={0.15 + i * STAGGER_DELAYS.fast}
-                      className="text-center"
-                    >
-                      <CardContent className="p-4 flex flex-col items-center gap-1.5">
-                        <div className="text-muted-foreground">
-                          <Icon size={18} strokeWidth={1.5} />
-                        </div>
-                        <div className="text-[12px] font-medium text-dim-foreground">
-                          {cap.label}
-                        </div>
-                        <div className="text-[10px] text-muted-foreground leading-snug">
-                          {cap.description}
-                        </div>
-                      </CardContent>
-                    </Card>
-                  );
-                })}
-              </div>
+              {/* Capabilities — only shown for first-time users */}
+              {!hasProjects && (
+                <div className="grid grid-cols-3 gap-3 w-full mt-5">
+                  {CAPABILITIES.map((cap, i) => {
+                    const Icon = cap.icon;
+                    return (
+                      <Card
+                        key={cap.label}
+                        type="subtle"
+                        radius="md"
+                        border
+                        animationPreset="slide-up"
+                        animationDelay={0.15 + i * STAGGER_DELAYS.fast}
+                        className="text-center"
+                      >
+                        <CardContent className="p-4 flex flex-col items-center gap-1.5">
+                          <div className="text-muted-foreground">
+                            <Icon size={18} strokeWidth={1.5} />
+                          </div>
+                          <div className="text-xs font-medium text-dim-foreground">
+                            {cap.label}
+                          </div>
+                          <div className="text-2xs text-muted-foreground leading-snug">
+                            {cap.description}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              )}
 
               {/* Supported agents — 3-per-row card grid */}
               <motion.div
@@ -251,9 +266,25 @@ export default function WelcomeScreen() {
                 transition={{ duration: 0.4, delay: 0.35, ease: EASE.out }}
                 className="mt-5 w-full flex flex-col items-center gap-2.5"
               >
-                <span className="text-[11px] text-muted-foreground">
-                  Supported agents
-                </span>
+                <div className="flex items-center gap-2">
+                  <span className="text-xs text-muted-foreground">
+                    Supported agents
+                  </span>
+                  {agentSummary && (
+                    <span
+                      className={`flex items-center gap-1 text-xs ${
+                        agentSummary.allReady
+                          ? "text-success"
+                          : "text-dim-foreground"
+                      }`}
+                    >
+                      {agentSummary.allReady && (
+                        <CircleCheck size={11} />
+                      )}
+                      <span>· {agentSummary.text}</span>
+                    </span>
+                  )}
+                </div>
                 <AgentCardGrid
                   selectedAgentName={null}
                   accentColor="blue"
@@ -279,7 +310,7 @@ export default function WelcomeScreen() {
                   style={leftColHeight ? { maxHeight: leftColHeight } : undefined}
                 >
                   <div className="flex items-center gap-2 mb-2.5 px-1 shrink-0">
-                    <span className="text-[11px] font-medium tracking-[0.08em] uppercase text-muted-foreground">
+                    <span className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground">
                       Your Projects
                     </span>
                     <div className="flex-1 h-px bg-border" />
@@ -320,10 +351,10 @@ export default function WelcomeScreen() {
                               />
                             </div>
                             <div className="flex flex-col min-w-0 flex-1">
-                              <span className="text-[13px] font-medium text-foreground truncate">
+                              <span className="text-sm font-medium text-foreground truncate">
                                 {project.name}
                               </span>
-                              <span className="text-[11px] text-muted-foreground truncate">
+                              <span className="text-xs text-muted-foreground truncate">
                                 {project.path}
                               </span>
                             </div>

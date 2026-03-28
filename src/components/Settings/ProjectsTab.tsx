@@ -80,10 +80,10 @@ function ProjectRow({
 
       {/* Name + path */}
       <div className="flex flex-col min-w-0 flex-1">
-        <span className="text-[13px] font-medium text-foreground truncate">
+        <span className="text-sm font-medium text-foreground truncate">
           {project.name}
         </span>
-        <span className="text-[11px] text-muted-foreground truncate">
+        <span className="text-xs text-muted-foreground truncate">
           {project.path}
         </span>
       </div>
@@ -94,6 +94,7 @@ function ProjectRow({
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Hide from sidebar"
             title="Hide from sidebar"
             onClick={onHide}
           >
@@ -103,6 +104,7 @@ function ProjectRow({
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Show in sidebar"
             title="Show in sidebar"
             onClick={onShow}
           >
@@ -114,7 +116,7 @@ function ProjectRow({
             <Button
               variant="ghost"
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-xs"
               onClick={() => setConfirmDelete(false)}
             >
               Cancel
@@ -122,7 +124,7 @@ function ProjectRow({
             <Button
               variant="destructive"
               size="sm"
-              className="h-6 px-2 text-[11px]"
+              className="h-6 px-2 text-xs"
               onClick={onDelete}
             >
               Delete
@@ -191,14 +193,14 @@ export function ManageProjectsTab() {
 
   return (
     <div className="flex flex-col gap-4">
-      <div className="text-[13px] text-muted-foreground">
+      <div className="text-sm text-muted-foreground">
         Show or hide projects in the sidebar. Use the{" "}
         <span className="text-dim-foreground font-medium">...</span> menu on
         each project in the sidebar to access its settings.
       </div>
 
       {sorted.length === 0 ? (
-        <div className="text-[13px] text-muted-foreground py-6 text-center">
+        <div className="text-sm text-muted-foreground py-6 text-center">
           No projects added yet. Add a project from the sidebar to get started.
         </div>
       ) : (

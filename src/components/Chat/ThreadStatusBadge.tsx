@@ -104,7 +104,7 @@ export default React.memo(function ThreadStatusBadge({
 
   return (
     <span
-      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-[11px] font-medium ${state.colorClass} ${
+      className={`inline-flex items-center gap-1 px-1.5 py-0.5 rounded-md text-xs font-medium ${state.colorClass} ${
         state.animate ? "animate-pulse" : ""
       } bg-muted/40`}
     >

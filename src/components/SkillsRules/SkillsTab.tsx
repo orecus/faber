@@ -6,7 +6,8 @@ import {
   Package,
   Search,
 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { highlightMatch } from "../../lib/highlightMatch";
 
 import { open } from "@tauri-apps/plugin-shell";
 
@@ -38,6 +39,12 @@ export default function SkillsTab({ projectId }: Props) {
   const [installing, setInstalling] = useState<string | null>(null);
   const [refreshKey, setRefreshKey] = useState(0);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const searchInputRef = useRef<HTMLInputElement>(null);
+
+  const handleSearchClick = useMemo(
+    () => () => searchInputRef.current?.focus(),
+    [],
+  );
 
   const doSearch = useCallback(async (q: string) => {
     if (!q.trim()) {
@@ -108,6 +115,7 @@ export default function SkillsTab({ projectId }: Props) {
           global,
         });
         setRefreshKey((k) => k + 1);
+        useAppStore.getState().flashSuccess(`Removed ${skillName}`);
       } catch (e) {
         console.error("Skill remove failed:", e);
         useAppStore.getState().flashError(`Remove failed: ${formatError(e)}`);
@@ -126,6 +134,7 @@ export default function SkillsTab({ projectId }: Props) {
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border/50 shrink-0">
         <Search size={14} className="text-muted-foreground shrink-0" />
         <input
+          ref={searchInputRef}
           type="text"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
@@ -180,21 +189,21 @@ export default function SkillsTab({ projectId }: Props) {
                         className="text-sm font-medium text-foreground hover:text-primary truncate transition-colors inline-flex items-center gap-1"
                         title={`View on skills.sh`}
                       >
-                        {skill.name}
+                        {highlightMatch(skill.name, query)}
                         <ExternalLink
                           size={11}
                           className="opacity-50 shrink-0"
                         />
                       </button>
                       {skill.installs > 0 && (
-                        <span className="text-[10px] text-muted-foreground bg-accent/60 px-1.5 py-0.5 rounded-full">
+                        <span className="text-2xs text-muted-foreground bg-accent/60 px-1.5 py-0.5 rounded-full">
                           {skill.installs.toLocaleString()} installs
                         </span>
                       )}
                     </div>
                     <div className="flex items-center gap-1 mt-0.5">
-                      <span className="text-[10px] text-dim-foreground truncate">
-                        {skill.source}
+                      <span className="text-2xs text-dim-foreground truncate">
+                        {highlightMatch(skill.source, query)}
                       </span>
                     </div>
                   </div>
@@ -226,6 +235,7 @@ export default function SkillsTab({ projectId }: Props) {
           projectId={projectId}
           refreshKey={refreshKey}
           onRemove={handleRemove}
+          onSearchClick={handleSearchClick}
         />
       </div>
     </div>

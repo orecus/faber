@@ -3,8 +3,9 @@ import { useCallback, useState } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAppStore } from "../../store/appStore";
-import type { Task, TaskStatus } from "../../types";
+import type { Task } from "../../types";
 import { DEFAULT_PRIORITIES, getPriorityCssVar } from "../../lib/priorities";
+import { TASK_STATUS_CSS_COLORS } from "../../lib/taskStatusColors";
 import { Badge } from "../ui/badge";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
@@ -15,15 +16,6 @@ interface EpicChildTasksProps {
   childTasks: Task[];
   onNavigateToTask: (taskId: string) => void;
 }
-
-const STATUS_COLORS: Record<TaskStatus, string> = {
-  backlog: "var(--muted-foreground)",
-  ready: "var(--primary)",
-  "in-progress": "var(--warning)",
-  "in-review": "var(--primary)",
-  done: "var(--success)",
-  archived: "var(--muted-foreground)",
-};
 
 
 export default function EpicChildTasks({
@@ -81,10 +73,10 @@ export default function EpicChildTasks({
               {/* Status dot */}
               <span
                 className="inline-block size-2 rounded-full shrink-0"
-                style={{ background: STATUS_COLORS[task.status] }}
+                style={{ background: TASK_STATUS_CSS_COLORS[task.status] }}
               />
               {/* Task ID */}
-              <span className="font-mono text-[10px] text-muted-foreground shrink-0">
+              <span className="font-mono text-2xs text-muted-foreground shrink-0">
                 {task.id}
               </span>
               {/* Title */}
@@ -94,7 +86,7 @@ export default function EpicChildTasks({
               {/* Priority badge */}
               <Badge
                 variant="outline"
-                className="text-[9px] px-1 py-0 leading-tight shrink-0"
+                className="text-2xs px-1 py-0 leading-tight shrink-0"
                 style={{
                   color: getPriorityCssVar(task.priority, priorities),
                   borderColor: `color-mix(in oklch, ${getPriorityCssVar(task.priority, priorities)} 30%, transparent)`,

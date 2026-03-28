@@ -9,16 +9,17 @@ import {
   FileSymlink,
   Loader2,
 } from "lucide-react";
-import { useTheme } from "../../contexts/ThemeContext";
 import type { CommitDetail } from "../../types";
 import { RAIL_COLORS } from "../../lib/graphLayout";
 import type { GraphNode } from "../../lib/graphLayout";
-import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import SidePanel from "../ui/SidePanel";
 
 interface CommitDetailPanelProps {
   detail: CommitDetail | null;
   node: GraphNode | null;
   loading: boolean;
+  panelWidth: number;
+  onResize: (width: number) => void;
   onClose: () => void;
 }
 
@@ -81,9 +82,10 @@ export default function CommitDetailPanel({
   detail,
   node,
   loading,
+  panelWidth,
+  onResize,
   onClose,
 }: CommitDetailPanelProps) {
-  const { isGlass } = useTheme();
   const [copied, setCopied] = useState(false);
 
   const copyHash = useCallback(() => {
@@ -97,20 +99,28 @@ export default function CommitDetailPanel({
   const railColor = node?.railColor ?? RAIL_COLORS[0];
 
   return (
-    <div className={`w-[350px] shrink-0 flex flex-col border-l border-border overflow-hidden ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+    <SidePanel
+      side="right"
+      width="wide"
+      resizable
+      resizeWidth={panelWidth}
+      onResize={onResize}
+      maxWidthClass="max-w-[40%]"
+    >
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-2 border-b border-border">
+      <SidePanel.Header className="justify-between">
         <span className="text-xs font-medium text-foreground">
           Commit Detail
         </span>
         <button
           onClick={onClose}
-          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Close detail panel"
+          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title="Close detail panel"
         >
           <X size={14} />
         </button>
-      </div>
+      </SidePanel.Header>
 
       {loading && !detail && (
         <div className="flex-1 flex items-center justify-center">
@@ -119,14 +129,14 @@ export default function CommitDetailPanel({
       )}
 
       {detail && (
-        <div className="flex-1 overflow-y-auto px-3 py-2 space-y-3">
+        <SidePanel.Content className="px-3 py-2 space-y-3">
           {/* Hash + dot */}
           <div className="flex items-center gap-2">
             <span
               className="size-2.5 rounded-full shrink-0"
               style={{ background: railColor }}
             />
-            <code className="text-[11px] font-mono text-dim-foreground truncate flex-1">
+            <code className="text-xs font-mono text-dim-foreground truncate flex-1">
               {detail.hash}
             </code>
             <button
@@ -143,10 +153,10 @@ export default function CommitDetailPanel({
             <div className="text-xs text-foreground">
               {detail.author_name}
             </div>
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               {detail.author_email}
             </div>
-            <div className="text-[11px] text-muted-foreground">
+            <div className="text-xs text-muted-foreground">
               {formatTimestamp(detail.timestamp)}
             </div>
           </div>
@@ -157,7 +167,7 @@ export default function CommitDetailPanel({
               {detail.subject}
             </div>
             {detail.body && (
-              <div className="text-[11px] text-dim-foreground whitespace-pre-wrap leading-relaxed">
+              <div className="text-xs text-dim-foreground whitespace-pre-wrap leading-relaxed">
                 {detail.body}
               </div>
             )}
@@ -166,14 +176,14 @@ export default function CommitDetailPanel({
           {/* Parents */}
           {detail.parent_hashes.length > 0 && (
             <div className="space-y-1">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 {detail.parent_hashes.length > 1 ? "Parents (merge)" : "Parent"}
               </div>
               <div className="flex flex-wrap gap-1">
                 {detail.parent_hashes.map((ph) => (
                   <code
                     key={ph}
-                    className="text-[10px] font-mono px-1.5 py-0.5 rounded bg-popover text-dim-foreground"
+                    className="text-2xs font-mono px-1.5 py-0.5 rounded bg-popover text-dim-foreground"
                   >
                     {ph.slice(0, 12)}
                   </code>
@@ -185,13 +195,13 @@ export default function CommitDetailPanel({
           {/* Changed files */}
           {detail.files.length > 0 && (
             <div className="space-y-1.5">
-              <div className="text-[10px] uppercase tracking-wider text-muted-foreground">
+              <div className="text-2xs uppercase tracking-wider text-muted-foreground">
                 Files changed ({detail.files.length})
               </div>
               {Array.from(groupByDirectory(detail.files)).map(
                 ([dir, files]) => (
                   <div key={dir}>
-                    <div className="text-[10px] text-muted-foreground mb-0.5 font-mono">
+                    <div className="text-2xs text-muted-foreground mb-0.5 font-mono">
                       {dir}/
                     </div>
                     {files.map((f) => {
@@ -208,7 +218,7 @@ export default function CommitDetailPanel({
                             className="shrink-0"
                             style={{ color: cfg.color }}
                           />
-                          <span className="text-[11px] text-dim-foreground truncate font-mono">
+                          <span className="text-xs text-dim-foreground truncate font-mono">
                             {fileName}
                           </span>
                         </div>
@@ -219,8 +229,8 @@ export default function CommitDetailPanel({
               )}
             </div>
           )}
-        </div>
+        </SidePanel.Content>
       )}
-    </div>
+    </SidePanel>
   );
 }

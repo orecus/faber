@@ -6,10 +6,11 @@ import {
   RAIL_WIDTH,
   maxColumn,
 } from "../../lib/graphLayout";
+import { GitCommitHorizontal } from "lucide-react";
 import type { RefInfo } from "../../types";
 import GraphCanvas from "./GraphCanvas";
 import CommitRow from "./CommitRow";
-import { Loader2 } from "lucide-react";
+import { Skeleton } from "../ui/skeleton";
 
 interface CommitGraphProps {
   nodes: GraphNode[];
@@ -81,10 +82,40 @@ export default function CommitGraph({
     handleScroll();
   }, [handleScroll]);
 
+  if (!loading && nodes.length === 0) {
+    return (
+      <div className="flex-1 flex flex-col items-center justify-center gap-2">
+        <GitCommitHorizontal className="size-8 text-muted-foreground opacity-30" />
+        <p className="text-sm text-muted-foreground">No commits found</p>
+        <p className="text-xs text-muted-foreground/70">Commits will appear here once the repository has history</p>
+      </div>
+    );
+  }
+
   if (loading && nodes.length === 0) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      <div className="flex-1 overflow-hidden">
+        {Array.from({ length: 20 }).map((_, i) => (
+          <div
+            key={i}
+            className="flex items-center border-b border-transparent"
+            style={{ height: ROW_HEIGHT }}
+          >
+            {/* Graph dot placeholder */}
+            <div className="shrink-0 flex items-center justify-center" style={{ width: clampedGraphWidth }}>
+              <Skeleton className="size-2 rounded-full" />
+            </div>
+            {/* Message placeholder */}
+            <div className="flex-1 min-w-0 pr-2">
+              <Skeleton className="h-3" style={{ width: `${55 + (i % 4) * 10}%` }} />
+            </div>
+            {/* Hash + time placeholder */}
+            <div className="shrink-0 flex items-center gap-2 pr-3">
+              <Skeleton className="h-3 w-[52px]" />
+              <Skeleton className="h-3 w-[28px]" />
+            </div>
+          </div>
+        ))}
       </div>
     );
   }
@@ -118,13 +149,27 @@ export default function CommitGraph({
         ))}
       </div>
 
-      {/* Load more indicator */}
+      {/* Load more indicator — skeleton rows for infinite scroll */}
       {loadingMore && (
-        <div className="flex items-center justify-center py-3">
-          <Loader2 className="size-4 animate-spin text-muted-foreground" />
-          <span className="ml-2 text-xs text-muted-foreground">
-            Loading more commits...
-          </span>
+        <div className="py-1">
+          {Array.from({ length: 5 }).map((_, i) => (
+            <div
+              key={i}
+              className="flex items-center border-b border-transparent"
+              style={{ height: ROW_HEIGHT }}
+            >
+              <div className="shrink-0 flex items-center justify-center" style={{ width: clampedGraphWidth }}>
+                <Skeleton className="size-2 rounded-full" />
+              </div>
+              <div className="flex-1 min-w-0 pr-2">
+                <Skeleton className="h-3" style={{ width: `${45 + (i % 3) * 15}%` }} />
+              </div>
+              <div className="shrink-0 flex items-center gap-2 pr-3">
+                <Skeleton className="h-3 w-[52px]" />
+                <Skeleton className="h-3 w-[28px]" />
+              </div>
+            </div>
+          ))}
         </div>
       )}
 

@@ -28,40 +28,74 @@ pub(crate) struct LogDir(pub std::path::PathBuf);
 /// On macOS, GUI apps launched from Finder/Dock inherit a minimal system PATH
 /// (`/usr/bin:/bin:/usr/sbin:/sbin`) that doesn't include directories where
 /// CLI tools are typically installed (Homebrew, npm globals, cargo, etc.).
+/// They also miss environment variables set in shell profiles (e.g. GITHUB_TOKEN).
 ///
 /// This function runs the user's default login shell to resolve their full PATH
-/// and applies it to the current process so that `is_command_in_path()`, PTY
-/// spawns, and any other child processes see the same tools as a terminal.
+/// and important environment variables, then applies them to the current process
+/// so that `is_command_in_path()`, PTY spawns, `gh auth`, and any other child
+/// processes see the same environment as a terminal.
 #[cfg(target_os = "macos")]
 fn fix_path_env() {
     use std::process::Command;
 
     let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".to_string());
 
-    // Run a login+interactive shell that just prints PATH, then exits.
+    // Environment variables to capture from the user's login shell.
+    // PATH is essential for finding CLI tools.
+    // GitHub/GH tokens are needed for `gh` CLI authentication when set as env vars.
+    // EDITOR/VISUAL are used by git and other tools.
+    const VARS_TO_CAPTURE: &[&str] = &[
+        "PATH",
+        "GITHUB_TOKEN",
+        "GH_TOKEN",
+        "GH_HOST",
+        "EDITOR",
+        "VISUAL",
+    ];
+
+    // Build a shell command that prints each var with a unique marker prefix.
+    // Using a marker avoids capturing MOTD or shell greeting output.
+    let print_commands: Vec<String> = VARS_TO_CAPTURE
+        .iter()
+        .map(|var| format!("echo __FABER_{var}__=${{{var}}}"))
+        .collect();
+    let shell_cmd = print_commands.join("; ");
+
+    // Run a login+interactive shell that prints the vars, then exits.
     // `-l` sources profile files (.zprofile, .bash_profile, etc.).
     // `-i` sources rc files (.zshrc, .bashrc) where tools like nvm/volta add
     // themselves. `-c` runs a command and exits.
     let output = Command::new(&shell)
-        .args(["-l", "-i", "-c", "echo __FABER_PATH__=$PATH"])
+        .args(["-l", "-i", "-c", &shell_cmd])
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::null())
         .output();
 
     if let Ok(output) = output {
         let stdout = String::from_utf8_lossy(&output.stdout);
-        // Extract the PATH value from the marker line to avoid capturing
-        // any MOTD or shell greeting output.
-        if let Some(line) = stdout.lines().find(|l| l.starts_with("__FABER_PATH__=")) {
-            let path = line.trim_start_matches("__FABER_PATH__=");
-            if !path.is_empty() {
-                tracing::info!(entries = path.matches(':').count() + 1, "macOS: Resolved shell PATH");
-                std::env::set_var("PATH", path);
-                return;
+        let mut resolved_count = 0u32;
+
+        for var in VARS_TO_CAPTURE {
+            let marker = format!("__FABER_{var}__=");
+            if let Some(line) = stdout.lines().find(|l| l.starts_with(&marker)) {
+                let value = line.trim_start_matches(&marker);
+                if !value.is_empty() {
+                    if *var == "PATH" {
+                        tracing::info!(entries = value.matches(':').count() + 1, "macOS: Resolved shell PATH");
+                    } else {
+                        tracing::info!(var, "macOS: Resolved shell env var");
+                    }
+                    std::env::set_var(var, value);
+                    resolved_count += 1;
+                }
             }
         }
+
+        if resolved_count > 0 {
+            return;
+        }
     }
-    tracing::warn!("macOS: Could not resolve shell PATH, using system default");
+    tracing::warn!("macOS: Could not resolve shell environment, using system defaults");
 }
 
 /// Create a `Command` that won't spawn a visible console window on Windows.
@@ -337,7 +371,10 @@ pub fn run() {
             commands::continuous::get_continuous_mode_status,
             commands::usage::get_agent_usage,
             commands::files::list_directory,
+            commands::files::index_project_files,
             commands::files::open_file_in_os,
+            commands::files::detect_editors,
+            commands::files::open_in_editor,
             commands::plugins::list_plugins,
             commands::plugins::get_plugin_readme,
             commands::plugins::install_plugin,

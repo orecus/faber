@@ -439,7 +439,7 @@ export default function CreateTaskDialog({
             placeholder="Describe the task..."
             className="min-h-[160px] max-h-[320px] resize-y overflow-y-auto font-mono text-xs leading-relaxed"
           />
-          <p className="mt-1 text-[10px] text-muted-foreground">
+          <p className="mt-1 text-2xs text-muted-foreground">
             Ctrl+Enter to create
           </p>
         </div>
@@ -478,7 +478,7 @@ export default function CreateTaskDialog({
         <button
           type="button"
           onClick={() => setShowAdvanced((v) => !v)}
-          className="flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
+          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground cursor-pointer transition-colors"
         >
           <ChevronDown
             className={`size-3 transition-transform duration-150 ${showAdvanced ? "rotate-0" : "-rotate-90"}`}
@@ -508,7 +508,7 @@ export default function CreateTaskDialog({
                     <Badge
                       key={label}
                       variant="secondary"
-                      className="text-[10px] px-1.5 py-0"
+                      className="text-2xs px-1.5 py-0"
                     >
                       {label}
                     </Badge>
@@ -559,7 +559,7 @@ export default function CreateTaskDialog({
                         <Badge
                           key={depId}
                           variant="outline"
-                          className="text-[10px] px-1.5 py-0 gap-1 cursor-pointer"
+                          className="text-2xs px-1.5 py-0 gap-1 cursor-pointer"
                           onClick={() =>
                             setSelectedDeps((prev) =>
                               prev.filter((d) => d !== depId),

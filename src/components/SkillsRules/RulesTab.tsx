@@ -1,11 +1,12 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Loader2 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useTheme } from "../../contexts/ThemeContext";
 import { useAppStore } from "../../store/appStore";
 import type { AgentRuleGroup, RuleFileInfo } from "../../types";
+import { Skeleton } from "../ui/skeleton";
 import { glassStyles } from "../ui/orecus.io/lib/color-utils";
+import SidePanel from "../ui/SidePanel";
 import CreateRuleDialog from "./CreateRuleDialog";
 import RuleEditor from "./RuleEditor";
 import RulesTreePanel from "./RulesTreePanel";
@@ -104,8 +105,29 @@ export default function RulesTab({ projectId }: Props) {
 
   if (loading) {
     return (
-      <div className="flex-1 flex items-center justify-center">
-        <Loader2 className="size-5 animate-spin text-muted-foreground" />
+      <div className={`flex-1 min-h-0 overflow-hidden rounded-lg ring-1 ring-border/40 flex ${glassStyles[isGlass ? "normal" : "solid"]}`}>
+        {/* Left tree skeleton */}
+        <div className="w-56 shrink-0 border-r border-border/40 p-3 space-y-3">
+          {Array.from({ length: 3 }).map((_, gi) => (
+            <div key={gi} className="space-y-2">
+              <Skeleton className="h-3.5 w-24" />
+              {Array.from({ length: 2 }).map((_, fi) => (
+                <div key={fi} className="flex items-center gap-2 pl-3">
+                  <Skeleton className="size-3 rounded-sm" />
+                  <Skeleton className="h-3 flex-1" />
+                </div>
+              ))}
+            </div>
+          ))}
+        </div>
+        {/* Right editor skeleton */}
+        <div className="flex-1 p-4 space-y-3">
+          <Skeleton className="h-4 w-48" />
+          <Skeleton className="h-3 w-full" />
+          <Skeleton className="h-3 w-5/6" />
+          <Skeleton className="h-3 w-3/4" />
+          <Skeleton className="h-3 w-4/5" />
+        </div>
       </div>
     );
   }
@@ -116,14 +138,14 @@ export default function RulesTab({ projectId }: Props) {
         className={`flex-1 min-h-0 overflow-hidden rounded-lg ring-1 ring-border/40 flex ${glassStyles[isGlass ? "normal" : "solid"]}`}
       >
         {/* Left: Tree panel */}
-        <div className="w-56 shrink-0 border-r border-border/40 overflow-hidden flex flex-col">
+        <SidePanel side="left" width="narrow" className="bg-transparent backdrop-blur-none">
           <RulesTreePanel
             groups={filteredGroups}
             selectedPath={selectedRelPath}
             onSelect={handleSelect}
             onCreateClick={handleCreateClick}
           />
-        </div>
+        </SidePanel>
 
         {/* Right: Editor panel */}
         <div className="flex-1 min-w-0 flex flex-col">

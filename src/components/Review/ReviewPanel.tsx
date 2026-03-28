@@ -55,7 +55,7 @@ export default function ReviewPanel({
   if (!rawDiff) {
     return (
       <div className="flex flex-1 flex-col items-center justify-center gap-2">
-        <FileDiff className="size-8 text-muted-foreground opacity-40" />
+        <FileDiff className="size-8 text-muted-foreground opacity-30" />
         <p className="text-sm text-muted-foreground">
           Select a file to view its diff
         </p>

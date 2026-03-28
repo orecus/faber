@@ -201,7 +201,7 @@ export default React.memo(function GitContextBar({
               currentBranch={currentBranch}
               mode="checkout"
               triggerVariant="badge"
-              triggerClassName="h-5 text-[10px] py-0 px-1.5 border-0 bg-transparent hover:bg-accent/50"
+              triggerClassName="h-5 text-2xs py-0 px-1.5 border-0 bg-transparent hover:bg-accent/50"
               onBranchChanged={refreshWorktrees}
               dropUp
             />
@@ -222,7 +222,7 @@ export default React.memo(function GitContextBar({
           <button
             onClick={handlePush}
             disabled={!worktreePath || pushLoading}
-            className="flex items-center gap-1 h-5 px-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+            className="flex items-center gap-1 h-5 px-1.5 rounded text-2xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
             title={worktreePath ? "Push branch" : "Create a worktree first"}
           >
             {pushLoading ? (
@@ -240,7 +240,7 @@ export default React.memo(function GitContextBar({
           <button
             onClick={() => setShowPRDialog(true)}
             disabled={!worktreePath}
-            className="flex items-center gap-1 h-5 px-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+            className="flex items-center gap-1 h-5 px-1.5 rounded text-2xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
             title={
               worktreePath ? "Create pull request" : "Create a worktree first"
             }
@@ -254,7 +254,7 @@ export default React.memo(function GitContextBar({
             <button
               onClick={() => setShowMergeDialog(true)}
               disabled={mergeLoading}
-              className="flex items-center gap-1 h-5 px-1.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
+              className="flex items-center gap-1 h-5 px-1.5 rounded text-2xs text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-30 disabled:pointer-events-none"
               title="Merge branch"
             >
               {mergeLoading ? (

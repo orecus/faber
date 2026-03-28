@@ -282,12 +282,18 @@ const SessionGrid = memo(function SessionGrid({
       <div
         key={`col-handle-${c}`}
         onMouseDown={(e) => handleColumnResize(c, e)}
-        className="cursor-col-resize bg-transparent z-5"
+        className="group cursor-col-resize z-5 relative"
         style={{
           gridColumn,
           gridRow: `1 / -1`,
         }}
-      />,
+      >
+        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+          <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+          <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+          <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+        </div>
+      </div>,
     );
   }
 
@@ -299,12 +305,18 @@ const SessionGrid = memo(function SessionGrid({
         <div
           key={`row-handle-${r}`}
           onMouseDown={(e) => handleRowResize(r, e)}
-          className="cursor-row-resize bg-transparent z-5"
+          className="group cursor-row-resize z-5 relative"
           style={{
             gridColumn: `1 / -1`,
             gridRow,
           }}
-        />,
+        >
+          <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-row gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+            <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+            <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+            <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
+          </div>
+        </div>,
       );
     }
   }

@@ -96,7 +96,7 @@ export default function CommandPalette() {
                 placeholder="Type a command or search..."
                 className="h-11 w-full bg-transparent text-sm text-foreground outline-none placeholder:text-muted-foreground"
               />
-              <kbd className="hidden shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium sm:inline-block bg-popover text-muted-foreground border border-border">
+              <kbd className="hidden shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium sm:inline-block bg-popover text-muted-foreground border border-border">
                 ESC
               </kbd>
             </div>
@@ -111,7 +111,7 @@ export default function CommandPalette() {
               {recentCommands.length > 0 && (
                 <Command.Group
                   heading="Recent"
-                  className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider text-muted-foreground"
+                  className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider text-muted-foreground"
                 >
                   {recentCommands.map((cmd) => (
                     <CommandRow
@@ -128,7 +128,7 @@ export default function CommandPalette() {
                 <Command.Group
                   key={group}
                   heading={group}
-                  className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-[10px] [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider text-muted-foreground"
+                  className="[&_[cmdk-group-heading]]:px-2.5 [&_[cmdk-group-heading]]:py-1.5 [&_[cmdk-group-heading]]:text-2xs [&_[cmdk-group-heading]]:font-semibold [&_[cmdk-group-heading]]:uppercase [&_[cmdk-group-heading]]:tracking-wider text-muted-foreground"
                 >
                   {items.map((cmd) => (
                     <CommandRow
@@ -142,18 +142,18 @@ export default function CommandPalette() {
             </Command.List>
 
             {/* Footer hint */}
-            <div className="flex items-center gap-3 border-t border-border px-4 py-2 text-[11px] text-muted-foreground">
+            <div className="flex items-center gap-3 border-t border-border px-4 py-2 text-xs text-muted-foreground">
               <span className="flex items-center gap-1">
-                <kbd className="inline-flex h-4 items-center rounded px-1 text-[10px] font-medium bg-popover border border-border">
+                <kbd className="inline-flex h-4 items-center rounded px-1 text-2xs font-medium bg-popover border border-border">
                   ↑
                 </kbd>
-                <kbd className="inline-flex h-4 items-center rounded px-1 text-[10px] font-medium bg-popover border border-border">
+                <kbd className="inline-flex h-4 items-center rounded px-1 text-2xs font-medium bg-popover border border-border">
                   ↓
                 </kbd>
                 navigate
               </span>
               <span className="flex items-center gap-1">
-                <kbd className="inline-flex h-4 items-center rounded px-1 text-[10px] font-medium bg-popover border border-border">
+                <kbd className="inline-flex h-4 items-center rounded px-1 text-2xs font-medium bg-popover border border-border">
                   ↵
                 </kbd>
                 select
@@ -180,7 +180,7 @@ function CommandRow({
     <Command.Item
       value={`${cmd.group} ${cmd.label}`}
       onSelect={() => onSelect(cmd.id)}
-      className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-element)] px-2.5 py-2 text-[13px] text-dim-foreground aria-selected:bg-accent"
+      className="flex cursor-pointer items-center gap-2.5 rounded-[var(--radius-element)] px-2.5 py-2 text-sm text-dim-foreground aria-selected:bg-accent"
     >
       {Icon && (
         <span className="flex h-5 w-5 shrink-0 items-center justify-center rounded text-muted-foreground">
@@ -189,7 +189,7 @@ function CommandRow({
       )}
       <span className="truncate">{cmd.label}</span>
       {cmd.shortcut && (
-        <kbd className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-[10px] font-medium bg-popover text-muted-foreground border border-border">
+        <kbd className="ml-auto shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium bg-popover text-muted-foreground border border-border">
           {cmd.shortcut}
         </kbd>
       )}

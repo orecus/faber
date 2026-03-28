@@ -11,14 +11,10 @@ Project Chat is a conversational interface for talking to an ACP-capable agent a
 
 ## Starting a Chat
 
-Open the **Chat** tab in the top bar. If no chat session is active, you'll see a two-column layout:
+Open the **Chat** tab in the top bar. If no chat session is active, you'll see a centered launcher:
 
-**Left column — New Chat:**
 1. **Pick an agent** — Only agents with both the CLI and ACP adapter installed are selectable. Each card shows "CLI" and "ACP" status badges.
 2. **Click "New Chat"** — This launches a fresh ACP session scoped to your current project.
-
-**Right column — Session History:**
-If the selected agent supports session listing, a sidebar shows your previous conversations (see [Resuming Sessions](#resuming-sessions) below).
 
 > **Note:** Chat requires an ACP-capable agent (e.g. Claude Code with the ACP adapter). If none are installed, a warning banner explains what's needed.
 
@@ -135,16 +131,16 @@ Hover over any of your sent messages to reveal a pencil icon. Click it to copy t
 
 When an agent supports the ACP `session/list` and `session/load` protocol, you can resume past conversations across app restarts.
 
-### Session History Sidebar
+### Session History (Right Sidebar)
 
-The right column of the Chat empty state shows a **Previous Sessions** list fetched from the agent:
+Session history is accessible globally from the **right sidebar**. Click the **Session History** tab (next to the Files tab) to view a **Previous Sessions** list fetched from the agent. The right sidebar can be toggled with **Ctrl+B** and the active tab persists across restarts.
 
 - **Search** — Filter sessions by title using the search bar at the top.
 - **Refresh** — Click the refresh icon to re-fetch the list from the agent.
-- **Resume** — Opens the session in the Chat view, replaying conversation history so you can pick up where you left off.
-- **Session** — Opens the session as a pane in the Sessions view, then navigates you there.
+- **Resume in Chat** — Opens the session in the Chat view, replaying conversation history so you can pick up where you left off. This button is disabled when a chat session is already active.
+- **Open as Session** — Opens the session as a pane in the Sessions view, then navigates you there.
 
-Each row shows the session title (or "Untitled session") and a relative timestamp (e.g. "2h ago", "yesterday").
+Each row shows the session title (or "Untitled session") and a relative timestamp (e.g. "2h ago", "yesterday"). The session list auto-fetches when you switch to the Session History tab.
 
 ### Capability Detection
 
@@ -152,7 +148,7 @@ Not all agents support session persistence. If an agent doesn't support listing:
 - The sidebar shows "This agent doesn't support session history" with a **Retry** button.
 - The "not supported" result is cached so Faber won't re-probe on every visit. Click **Retry** to clear the cache and check again (useful after an agent update).
 
-If the agent supports listing but not loading (resume), sessions appear in the list but the Resume and Session buttons are disabled with a tooltip explanation.
+If the agent supports listing but not loading (resume), sessions appear in the list but the Resume and Open as Session buttons are disabled with a tooltip explanation.
 
 ### Error Handling
 

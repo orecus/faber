@@ -5,9 +5,9 @@ import { useCallback, useEffect, useState } from "react";
 import { needsCustomWindowControls } from "../../lib/platform";
 
 const BTN =
-  "inline-flex items-center justify-center w-[46px] h-full hover:bg-accent transition-colors";
+  "inline-flex items-center justify-center w-[46px] h-full hover:bg-accent transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 const CLOSE_BTN =
-  "inline-flex items-center justify-center w-[46px] h-full hover:bg-red-500 transition-colors";
+  "inline-flex items-center justify-center w-[46px] h-full hover:bg-red-500 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-inset";
 
 export default function WindowControls() {
   const [maximized, setMaximized] = useState(false);
@@ -43,12 +43,13 @@ export default function WindowControls() {
 
   return (
     <div className="flex items-center h-full shrink-0">
-      <button className={BTN} onClick={handleMinimize} title="Minimize">
+      <button className={BTN} onClick={handleMinimize} aria-label="Minimize window" title="Minimize">
         <Minus size={14} strokeWidth={1.5} />
       </button>
       <button
         className={BTN}
         onClick={handleToggleMaximize}
+        aria-label={maximized ? "Restore window" : "Maximize window"}
         title={maximized ? "Restore" : "Maximize"}
       >
         {maximized ? (
@@ -57,7 +58,7 @@ export default function WindowControls() {
           <Square size={12} strokeWidth={1.5} />
         )}
       </button>
-      <button className={CLOSE_BTN} onClick={handleClose} title="Close">
+      <button className={CLOSE_BTN} onClick={handleClose} aria-label="Close window" title="Close">
         <X size={14} strokeWidth={1.5} />
       </button>
     </div>

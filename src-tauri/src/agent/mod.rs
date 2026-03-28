@@ -55,10 +55,10 @@ pub struct AgentInfo {
     pub acp_command: Option<String>,
     /// Additional args needed to launch in ACP mode (e.g., ["--acp"]).
     pub acp_args: Vec<String>,
-    /// The shell command to install the ACP adapter (e.g., "npm install -g @zed-industries/claude-agent-acp").
+    /// The shell command to install the ACP adapter (e.g., "npm install -g @agentclientprotocol/claude-agent-acp").
     /// `None` for agents with native ACP support.
     pub acp_install_command: Option<String>,
-    /// The npm package name for the ACP adapter (e.g., "@zed-industries/claude-agent-acp").
+    /// The npm package name for the ACP adapter (e.g., "@agentclientprotocol/claude-agent-acp").
     /// `None` for agents with native ACP support.
     pub acp_adapter_package: Option<String>,
     /// URL to the official install/download page for this agent's CLI tool.

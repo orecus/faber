@@ -147,13 +147,13 @@ const PermissionCard = React.memo(function PermissionCard({
       } bg-card`}
     >
       {/* Timeout progress bar — prominent strip at top */}
-      <div className="absolute top-0 inset-x-0 h-[3px] bg-border/20">
+      <div className="absolute top-0 inset-x-0 h-1 bg-border/20">
         <div
           className={`h-full transition-all duration-1000 linear ${
             isExpired
               ? "bg-muted/40"
               : isUrgent
-                ? "bg-destructive"
+                ? "bg-destructive animate-pulse"
                 : "bg-primary/60"
           }`}
           style={{ width: `${progress}%` }}
@@ -176,13 +176,13 @@ const PermissionCard = React.memo(function PermissionCard({
                   Permission Required
                 </span>
               </div>
-              <span className="text-[11px] text-muted-foreground font-medium">
+              <span className="text-xs text-muted-foreground font-medium">
                 {config.label}
               </span>
             </div>
           </div>
           <div
-            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-mono tabular-nums ${
+            className={`flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-mono tabular-nums ${
               isExpired
                 ? "bg-muted/40 text-muted-foreground"
                 : isUrgent

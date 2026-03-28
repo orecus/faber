@@ -78,7 +78,7 @@ function DirectoryGroup({
 
   return (
     <div className="mt-0.5">
-      <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+      <div className="flex items-center gap-1.5 px-2 py-0.5 text-2xs font-medium text-muted-foreground uppercase tracking-wider">
         <FolderOpen size={10} className="opacity-50" />
         {label}
       </div>
@@ -149,7 +149,7 @@ function AgentGroup({
         <span className="text-xs font-medium text-foreground flex-1 truncate">
           {group.displayName}
         </span>
-        <span className="text-[10px] text-muted-foreground tabular-nums">
+        <span className="text-2xs text-muted-foreground tabular-nums">
           {totalRules}
         </span>
       </button>
@@ -189,7 +189,7 @@ function AgentGroup({
           {/* Global section */}
           {(globalPrimary.length > 0 || globalNested.length > 0) && (
             <div className="ml-3 mt-1">
-              <div className="flex items-center gap-1.5 px-2 py-0.5 text-[10px] font-medium text-muted-foreground uppercase tracking-wider">
+              <div className="flex items-center gap-1.5 px-2 py-0.5 text-2xs font-medium text-muted-foreground uppercase tracking-wider">
                 <Globe size={10} className="opacity-50" />
                 Global
               </div>
@@ -217,7 +217,7 @@ function AgentGroup({
           {/* Add rule button */}
           <button
             onClick={() => onCreateClick(group.agentName)}
-            className="flex items-center gap-1.5 ml-3 px-2 py-1 mt-0.5 rounded-md text-[11px] text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
+            className="flex items-center gap-1.5 ml-3 px-2 py-1 mt-0.5 rounded-md text-xs text-muted-foreground hover:text-foreground hover:bg-accent/40 transition-colors"
           >
             <Plus size={11} />
             Add rule

@@ -316,10 +316,10 @@ export const CommitFileInfo = ({
 );
 
 const fileStatusStyles = {
-  added: "text-green-600 dark:text-green-400",
-  deleted: "text-red-600 dark:text-red-400",
-  modified: "text-yellow-600 dark:text-yellow-400",
-  renamed: "text-blue-600 dark:text-blue-400",
+  added: "text-success",
+  deleted: "text-destructive",
+  modified: "text-warning",
+  renamed: "text-primary",
 };
 
 const fileStatusLabels = {
@@ -409,7 +409,7 @@ export const CommitFileAdditions = ({
 
   return (
     <span
-      className={cn("text-green-600 dark:text-green-400", className)}
+      className={cn("text-success", className)}
       {...props}
     >
       {children ?? (
@@ -438,7 +438,7 @@ export const CommitFileDeletions = ({
 
   return (
     <span
-      className={cn("text-red-600 dark:text-red-400", className)}
+      className={cn("text-destructive", className)}
       {...props}
     >
       {children ?? (

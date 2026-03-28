@@ -33,7 +33,7 @@ export default React.memo(function ContextUsageIndicator({
 
   return (
     <Context usedTokens={usage.used} maxTokens={usage.size}>
-      <ContextTrigger className="h-7 px-2 gap-1.5 text-[11px] rounded-md cursor-default" />
+      <ContextTrigger className="h-7 px-2 gap-1.5 text-xs rounded-md cursor-default" />
       <ContextContent side="top" align="end" className="w-64">
         <ContextContentHeader />
         {hasCost && (

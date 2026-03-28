@@ -117,7 +117,7 @@ export default function MergeBranchDialog({
           <div className="flex justify-center">
             <div className="flex flex-col items-center gap-0.5 text-muted-foreground">
               <div className="h-2 w-px bg-border" />
-              <span className="text-[10px] uppercase tracking-wider">
+              <span className="text-2xs uppercase tracking-wider">
                 into
               </span>
               <div className="h-2 w-px bg-border" />
@@ -159,7 +159,7 @@ export default function MergeBranchDialog({
           </div>
 
           {/* Info note */}
-          <p className="text-[11px] leading-relaxed text-muted-foreground">
+          <p className="text-xs leading-relaxed text-muted-foreground">
             This is a local merge operation. The worktree branch will be merged
             into the selected target branch in your main repository.
           </p>

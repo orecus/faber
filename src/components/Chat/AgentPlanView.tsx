@@ -19,9 +19,9 @@ import type { AcpPlanEntry } from "../../types";
 function PlanStatusIcon({ status }: { status: string }) {
   switch (status) {
     case "in_progress":
-      return <Loader2 size={14} className="animate-spin text-blue-500 shrink-0" />;
+      return <Loader2 size={14} className="animate-spin text-primary shrink-0" />;
     case "completed":
-      return <CheckCircle2 size={14} className="text-green-600 shrink-0" />;
+      return <CheckCircle2 size={14} className="text-success shrink-0" />;
     default:
       return <Circle size={14} className="text-muted-foreground/50 shrink-0" />;
   }

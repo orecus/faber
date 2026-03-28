@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 import { listen } from "@tauri-apps/api/event";
 import { Loader2 } from "lucide-react";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import FileTreeItem from "./FileTreeItem";
 import type { ChangedFile, FileEntry } from "../../types";
@@ -9,6 +9,7 @@ import type { ChangedFile, FileEntry } from "../../types";
 interface FileTreeProps {
   projectPath: string;
   projectId: string;
+  filterText?: string;
 }
 
 /** Priority for propagating git status to parent directories. Higher = more important. */
@@ -51,7 +52,10 @@ function buildGitStatusMaps(
   return [fileMap, dirMap];
 }
 
-export default function FileTree({ projectPath, projectId }: FileTreeProps) {
+/** Max search results to show */
+const MAX_SEARCH_RESULTS = 100;
+
+export default function FileTree({ projectPath, projectId, filterText = "" }: FileTreeProps) {
   // Directory contents cache: path → entries
   const [dirCache, setDirCache] = useState<Record<string, FileEntry[]>>({});
   const [expandedDirs, setExpandedDirs] = useState<Set<string>>(new Set());
@@ -63,6 +67,40 @@ export default function FileTree({ projectPath, projectId }: FileTreeProps) {
   );
   const [gitDirStatus, setGitDirStatus] = useState<Record<string, string>>({});
   const prevProjectPath = useRef(projectPath);
+
+  // File index for search — preloaded flat list of all project files
+  const [fileIndex, setFileIndex] = useState<FileEntry[] | null>(null);
+  const [indexing, setIndexing] = useState(false);
+
+  const filter = filterText.trim().toLowerCase();
+  const isFiltering = filter.length > 0;
+
+  // Preload file index in the background after root directory loads
+  useEffect(() => {
+    setIndexing(true);
+    invoke<FileEntry[]>("index_project_files", { projectRoot: projectPath })
+      .then((files) => {
+        setFileIndex(files);
+        setIndexing(false);
+      })
+      .catch(() => {
+        setFileIndex([]);
+        setIndexing(false);
+      });
+  }, [projectPath]);
+
+  // Client-side filtered results from the preloaded index
+  const searchResults = useMemo(() => {
+    if (!isFiltering || !fileIndex) return null;
+    const results: FileEntry[] = [];
+    for (const entry of fileIndex) {
+      if (entry.name.toLowerCase().includes(filter)) {
+        results.push(entry);
+        if (results.length >= MAX_SEARCH_RESULTS) break;
+      }
+    }
+    return results;
+  }, [filter, isFiltering, fileIndex]);
 
   // Fetch git status for the project
   const fetchGitStatus = useCallback(async () => {
@@ -120,6 +158,7 @@ export default function FileTree({ projectPath, projectId }: FileTreeProps) {
       setSelectedPath(null);
       setGitFileStatus({});
       setGitDirStatus({});
+      setFileIndex(null);
       prevProjectPath.current = projectPath;
     }
     // Always load root
@@ -137,15 +176,19 @@ export default function FileTree({ projectPath, projectId }: FileTreeProps) {
     fetchGitStatus();
   }, [projectPath, fetchGitStatus]);
 
-  // Auto-refresh git status on mcp-files-changed events
+  // Auto-refresh git status and re-index on mcp-files-changed events
   useEffect(() => {
     const unlisten = listen("mcp-files-changed", () => {
       fetchGitStatus();
+      // Re-index when files change
+      invoke<FileEntry[]>("index_project_files", { projectRoot: projectPath })
+        .then(setFileIndex)
+        .catch(() => {});
     });
     return () => {
       unlisten.then((fn) => fn());
     };
-  }, [fetchGitStatus]);
+  }, [fetchGitStatus, projectPath]);
 
   const toggleDir = useCallback(
     (dirFullPath: string) => {
@@ -168,7 +211,7 @@ export default function FileTree({ projectPath, projectId }: FileTreeProps) {
     setSelectedPath((prev) => (prev === filePath ? null : filePath));
   }, []);
 
-  // Render a directory's entries recursively
+  // Render a directory's entries recursively (normal tree mode)
   const renderEntries = (
     parentPath: string,
     depth: number,
@@ -245,6 +288,52 @@ export default function FileTree({ projectPath, projectId }: FileTreeProps) {
     );
   }
 
+  // Search results mode — flat list filtered from preloaded index
+  if (isFiltering) {
+    // Index still loading
+    if (indexing || !fileIndex) {
+      return (
+        <div className="flex items-center gap-1.5 justify-center h-32 text-xs text-muted-foreground">
+          <Loader2 size={12} className="animate-spin" />
+          <span>Indexing project files…</span>
+        </div>
+      );
+    }
+
+    if (!searchResults || searchResults.length === 0) {
+      return (
+        <div className="flex items-center justify-center h-32">
+          <p className="text-xs text-muted-foreground">No matching files</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="py-1">
+        {searchResults.map((entry) => {
+          const fullPath = projectPath + "/" + entry.path;
+          const gitStatus = gitFileStatus[entry.path];
+
+          return (
+            <FileTreeItem
+              key={fullPath}
+              entry={entry}
+              fullPath={fullPath}
+              depth={0}
+              isExpanded={false}
+              isSelected={selectedPath === fullPath}
+              gitStatus={gitStatus}
+              onToggle={() => {}}
+              onSelect={() => handleSelect(fullPath)}
+              showRelativePath
+            />
+          );
+        })}
+      </div>
+    );
+  }
+
+  // Normal tree mode
   if (!dirCache[projectPath]) {
     return (
       <div className="flex items-center justify-center h-32">
