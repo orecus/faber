@@ -49,7 +49,7 @@ export default React.memo(function WaitingCard({
       }`}
     >
       <div className="mx-3 mt-1 mb-2">
-        <div className="flex items-start gap-2.5 rounded-lg bg-warning/10 ring-1 ring-warning/25 px-3 py-2.5">
+        <div role="alert" className="flex items-start gap-2.5 rounded-lg bg-warning/10 ring-1 ring-warning/25 px-3 py-2.5">
           {/* Icon */}
           <div className="flex items-center justify-center shrink-0 mt-0.5">
             <CircleHelp size={14} className="text-warning" />
@@ -68,7 +68,8 @@ export default React.memo(function WaitingCard({
           {/* Dismiss button */}
           <button
             onClick={handleDismiss}
-            className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-warning/10 transition-colors"
+            aria-label="Dismiss waiting notification"
+            className="shrink-0 p-0.5 rounded text-muted-foreground hover:text-foreground hover:bg-warning/10 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title="Dismiss"
           >
             <X size={12} />

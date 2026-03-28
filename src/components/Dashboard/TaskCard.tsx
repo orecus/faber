@@ -192,7 +192,7 @@ export default React.memo(function TaskCard({
           </span>
           {/* Dep dots (compact) */}
           {taskMap && task.depends_on.length > 0 && (
-            <div className="flex items-center gap-[3px]" title={`${depAnalysis.metCount} met, ${depAnalysis.unmetCount} unmet`}>
+            <div className="flex items-center gap-[3px]" role="img" aria-label={`Dependencies: ${depAnalysis.metCount} met, ${depAnalysis.unmetCount} unmet`} title={`${depAnalysis.metCount} met, ${depAnalysis.unmetCount} unmet`}>
               {depAnalysis.deps.map((d) => (
                 <span
                   key={d.id}
@@ -263,7 +263,7 @@ export default React.memo(function TaskCard({
 
             {/* Dependency dots */}
             {taskMap && task.depends_on.length > 0 && (
-              <div className="flex items-center gap-[3px]" title={`${depAnalysis.metCount} met, ${depAnalysis.unmetCount} unmet`}>
+              <div className="flex items-center gap-[3px]" role="img" aria-label={`Dependencies: ${depAnalysis.metCount} met, ${depAnalysis.unmetCount} unmet`} title={`${depAnalysis.metCount} met, ${depAnalysis.unmetCount} unmet`}>
                 {depAnalysis.deps.map((d) => (
                   <span
                     key={d.id}
@@ -297,6 +297,7 @@ export default React.memo(function TaskCard({
                   size="icon-xs"
                   hoverEffect="scale"
                   clickEffect="scale"
+                  aria-label="More actions"
                   title="More actions"
                   onClick={(e) => { e.stopPropagation(); onContextMenu(e); }}
                   onPointerDown={(e) => e.stopPropagation()}

@@ -94,6 +94,7 @@ function ProjectRow({
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Hide from sidebar"
             title="Hide from sidebar"
             onClick={onHide}
           >
@@ -103,6 +104,7 @@ function ProjectRow({
           <Button
             variant="ghost"
             size="icon-sm"
+            aria-label="Show in sidebar"
             title="Show in sidebar"
             onClick={onShow}
           >

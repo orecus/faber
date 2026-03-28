@@ -54,7 +54,7 @@ function ToggleChip({
   return (
     <button
       onClick={onClick}
-      className={`h-6 px-2 text-xs font-semibold rounded-[var(--radius-element)] cursor-pointer transition-all duration-100 ${active ? "bg-accent" : "bg-transparent"}`}
+      className={`h-6 px-2 text-xs font-semibold rounded-[var(--radius-element)] cursor-pointer transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${active ? "bg-accent" : "bg-transparent"}`}
       style={{
         border: active
           ? `1px solid ${color ?? "var(--primary)"}`
@@ -92,7 +92,7 @@ function FilterDropdown({
   return (
     <Popover open={open} onOpenChange={setOpen}>
       <PopoverTrigger
-        className={`inline-flex items-center gap-1.5 h-6 px-2 text-xs font-medium rounded-[var(--radius-element)] cursor-pointer transition-all duration-100 border ${
+        className={`inline-flex items-center gap-1.5 h-6 px-2 text-xs font-medium rounded-[var(--radius-element)] cursor-pointer transition-all duration-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring border ${
           count > 0
             ? "border-primary/60 bg-accent text-foreground"
             : "border-border bg-transparent text-muted-foreground hover:text-foreground hover:border-border/80"
@@ -164,7 +164,8 @@ function ActiveFilterPill({
       <span className="truncate max-w-[100px]">{label}</span>
       <button
         onClick={onRemove}
-        className="inline-flex items-center justify-center size-3.5 rounded-full hover:bg-primary/20 cursor-pointer transition-colors"
+        aria-label={`Remove ${label} filter`}
+        className="inline-flex items-center justify-center size-3.5 rounded-full hover:bg-primary/20 cursor-pointer transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
         <X className="size-2.5" />
       </button>
@@ -267,7 +268,8 @@ export default function FilterBar({
           {localSearch && (
             <button
               onClick={clearSearch}
-              className="absolute right-1.5 text-muted-foreground hover:text-foreground cursor-pointer"
+              aria-label="Clear search"
+              className="absolute right-1.5 text-muted-foreground hover:text-foreground cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-sm"
             >
               <X className="size-3" />
             </button>

@@ -133,7 +133,7 @@ export default function PullRequestsTab({
                 <button
                   onClick={() => setStateFilter(filter)}
                   title={`Show ${filter} pull requests`}
-                  className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors capitalize ${
+                  className={`flex items-center gap-1 px-2 py-1 text-xs transition-colors capitalize focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                     stateFilter === filter
                       ? "bg-accent text-foreground"
                       : "text-muted-foreground hover:text-dim-foreground"
@@ -183,11 +183,12 @@ export default function PullRequestsTab({
 
       {/* Error banner */}
       {error && (
-        <div className="flex items-center gap-2 px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
+        <div role="alert" className="flex items-center gap-2 px-3 py-1.5 text-xs bg-destructive/10 text-destructive">
           <span className="flex-1">{error}</span>
           <button
             onClick={fetchPRs}
-            className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-destructive/15 transition-colors"
+            aria-label="Retry loading pull requests"
+            className="shrink-0 inline-flex items-center gap-1 rounded px-1.5 py-0.5 hover:bg-destructive/15 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           >
             <RotateCw size={10} />
             Retry
@@ -276,15 +277,17 @@ export default function PullRequestsTab({
                       <span>→</span>
                       {pr.base_ref_name}
                     </span>
-                    <span className="text-2xs text-success">+{pr.additions}</span>
-                    <span className="text-2xs text-destructive">-{pr.deletions}</span>
+                    <span className="text-2xs text-success" aria-label={`${pr.additions} additions`}>+{pr.additions}</span>
+                    <span className="text-2xs text-destructive" aria-label={`${pr.deletions} deletions`}>-{pr.deletions}</span>
                   </div>
                 </div>
 
                 {/* Review status */}
-                <div className="shrink-0 flex items-center">
-                  {reviewIcon(pr.review_decision)}
-                </div>
+                {pr.review_decision && (
+                  <div className="shrink-0 flex items-center" aria-label={`Review: ${pr.review_decision.toLowerCase().replace(/_/g, " ")}`} title={pr.review_decision.toLowerCase().replace(/_/g, " ")}>
+                    {reviewIcon(pr.review_decision)}
+                  </div>
+                )}
 
                 {/* Author */}
                 <span className="shrink-0 text-2xs text-muted-foreground max-w-[80px] truncate">

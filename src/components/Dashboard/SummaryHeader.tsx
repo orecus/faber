@@ -126,7 +126,7 @@ const SummaryHeader = memo(function SummaryHeader({
       {archivedCount > 0 && onToggleArchived && (
         <button
           onClick={onToggleArchived}
-          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-[var(--radius-element)] border transition-colors cursor-pointer ${
+          className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium rounded-[var(--radius-element)] border transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
             showArchived
               ? "bg-accent text-foreground border-border"
               : "text-muted-foreground border-transparent hover:text-foreground hover:bg-accent/50"
@@ -144,7 +144,7 @@ const SummaryHeader = memo(function SummaryHeader({
         <div className="flex items-center rounded-[var(--radius-element)] border border-border overflow-hidden">
           <button
             onClick={() => onDashboardModeChange("board")}
-            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               dashboardMode === "board"
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
@@ -157,7 +157,7 @@ const SummaryHeader = memo(function SummaryHeader({
           <div className="w-px h-4 bg-border" />
           <button
             onClick={() => onDashboardModeChange("graph")}
-            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer ${
+            className={`flex items-center gap-1 px-2.5 py-1 text-xs font-medium transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
               dashboardMode === "graph"
                 ? "bg-accent text-foreground"
                 : "text-muted-foreground hover:text-foreground hover:bg-accent/50"

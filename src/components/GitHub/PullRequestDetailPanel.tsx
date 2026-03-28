@@ -151,7 +151,8 @@ export default function PullRequestDetailPanel({
         </span>
         <button
           onClick={onClose}
-          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Close detail panel"
+          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title="Close detail panel"
         >
           <X size={14} />
@@ -232,9 +233,9 @@ export default function PullRequestDetailPanel({
           )}
 
           {/* Stats */}
-          <div className="flex items-center gap-3 text-xs">
-            <span className="text-success">+{detail.additions}</span>
-            <span className="text-destructive">-{detail.deletions}</span>
+          <div className="flex items-center gap-3 text-xs" aria-label={`${detail.additions} additions, ${detail.deletions} deletions, ${detail.changed_files} file${detail.changed_files !== 1 ? "s" : ""} changed`}>
+            <span className="text-success" aria-hidden="true">+{detail.additions}</span>
+            <span className="text-destructive" aria-hidden="true">-{detail.deletions}</span>
             <span className="text-muted-foreground">
               {detail.changed_files} file
               {detail.changed_files !== 1 ? "s" : ""}

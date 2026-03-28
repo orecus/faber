@@ -114,7 +114,8 @@ export default function CommitDetailPanel({
         </span>
         <button
           onClick={onClose}
-          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent"
+          aria-label="Close detail panel"
+          className="rounded p-0.5 text-muted-foreground hover:text-foreground hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
           title="Close detail panel"
         >
           <X size={14} />

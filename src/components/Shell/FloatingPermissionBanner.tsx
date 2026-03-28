@@ -52,7 +52,9 @@ export default memo(function FloatingPermissionBanner() {
   return (
     <button
       onClick={handleClick}
-      className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 pl-3 pr-4 py-2 rounded-full backdrop-blur-md bg-warning/90 ring-1 ring-warning/60 shadow-lg shadow-warning/20 cursor-pointer hover:bg-warning hover:shadow-xl hover:shadow-warning/30 transition-all duration-200 animate-in slide-in-from-top-4 fade-in"
+      role="alert"
+      aria-label={totalCount === 1 ? `${pendingEntries[0].sessionName} needs permission — click to review` : `${totalCount} permission requests waiting — click to review`}
+      className="fixed top-14 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2.5 pl-3 pr-4 py-2 rounded-full backdrop-blur-md bg-warning/90 ring-1 ring-warning/60 shadow-lg shadow-warning/20 cursor-pointer hover:bg-warning hover:shadow-xl hover:shadow-warning/30 transition-all duration-200 animate-in slide-in-from-top-4 fade-in focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
     >
       {/* Pulsing dot */}
       <span className="relative flex size-2.5">
