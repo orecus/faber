@@ -257,39 +257,45 @@ export default function SessionsView() {
         onNewSession={() => setShowLauncher(true)}
       />
 
-      {activeProjectId && hasContinuousRun && (
-        <ContinuousModeBar projectId={activeProjectId} />
-      )}
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        {/* Main content */}
+        <div className="flex flex-col flex-1 min-w-0 min-h-0">
+          {activeProjectId && hasContinuousRun && (
+            <ContinuousModeBar projectId={activeProjectId} />
+          )}
 
-      {visibleSessions.length === 0 ? (
-        <SessionsEmptyState activeProjectId={activeProjectId} onNewAgent={() => setShowLauncher(true)} />
-      ) : (
-        <DndContext
-          sensors={sensors}
-          collisionDetection={closestCenter}
-          onDragStart={handleDragStart}
-          onDragEnd={handleDragEnd}
-        >
-          <SessionGrid layout={gridLayout} onLayoutChange={handleLayoutChange}>
-            {visibleSessions.map((session) => (
-              <SessionPane
-                key={session.id}
-                session={session}
-                isFocused={gridLayout.focusedPaneId === session.id}
-                onFocus={handleFocus}
-                onMaximizeToggle={handleMaximizeToggle}
-                onDismiss={handleDismiss}
-                onStop={handleStop}
-                onRelaunch={handleRelaunch}
-                dragDisabled={isDragDisabled}
-              />
-            ))}
-          </SessionGrid>
-          <DragOverlay dropAnimation={null}>
-            {draggedSession ? <SessionDragOverlay session={draggedSession} /> : null}
-          </DragOverlay>
-        </DndContext>
-      )}
+          {visibleSessions.length === 0 ? (
+            <SessionsEmptyState activeProjectId={activeProjectId} onNewAgent={() => setShowLauncher(true)} />
+          ) : (
+            <DndContext
+              sensors={sensors}
+              collisionDetection={closestCenter}
+              onDragStart={handleDragStart}
+              onDragEnd={handleDragEnd}
+            >
+              <SessionGrid layout={gridLayout} onLayoutChange={handleLayoutChange}>
+                {visibleSessions.map((session) => (
+                  <SessionPane
+                    key={session.id}
+                    session={session}
+                    isFocused={gridLayout.focusedPaneId === session.id}
+                    onFocus={handleFocus}
+                    onMaximizeToggle={handleMaximizeToggle}
+                    onDismiss={handleDismiss}
+                    onStop={handleStop}
+                    onRelaunch={handleRelaunch}
+                    dragDisabled={isDragDisabled}
+                  />
+                ))}
+              </SessionGrid>
+              <DragOverlay dropAnimation={null}>
+                {draggedSession ? <SessionDragOverlay session={draggedSession} /> : null}
+              </DragOverlay>
+            </DndContext>
+          )}
+        </div>
+
+      </div>
 
       {showLauncher && activeProjectId && (
         <LaunchSessionDialog

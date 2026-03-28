@@ -95,7 +95,7 @@ const ApplicationBar = memo(function ApplicationBar() {
         className={`flex items-center justify-center w-8 h-8 rounded-md transition-colors hover:bg-accent ${
           rightSidebarOpen ? "text-primary" : "text-muted-foreground"
         }`}
-        title="Toggle file browser (Ctrl+B)"
+        title="Toggle sidebar (Ctrl+B)"
       >
         <PanelRight size={15} />
       </button>

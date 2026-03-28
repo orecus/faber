@@ -23,7 +23,6 @@ import type { GridLayoutState } from "../../store/appStore";
 interface SessionsToolbarProps {
   layout: GridLayoutState;
   onLayoutChange: (update: Partial<GridLayoutState>) => void;
-
   activeProjectId: string | null;
   onNewSession: () => void;
 }
