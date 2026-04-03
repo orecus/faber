@@ -26,8 +26,6 @@ export default defineConfig(async () => ({
             "@xterm/addon-unicode11",
             "@xterm/addon-web-links",
           ],
-          // Diff rendering — only needed by Review view
-          "vendor-diff": ["diff2html", "dompurify"],
           // Markdown + syntax highlighting — used by 3 views
           "vendor-markdown": ["streamdown", "@streamdown/code"],
           // UI/interaction libraries
@@ -40,6 +38,10 @@ export default defineConfig(async () => ({
   },
 
   clearScreen: false,
+  optimizeDeps: {
+    exclude: ["src-tauri"],
+    entries: ["index.html"],
+  },
   server: {
     port: 1420,
     strictPort: true,
@@ -51,6 +53,9 @@ export default defineConfig(async () => ({
           port: 1421,
         }
       : undefined,
+    fs: {
+      deny: ["src-tauri/target"],
+    },
     watch: {
       ignored: [
         "**/src-tauri/**",

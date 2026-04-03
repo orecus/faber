@@ -1,0 +1,67 @@
+{
+  "defaultAgent": "claude-code",
+  "defaultModel": null,
+  "defaultTransport": "acp",
+  "branchNamingPattern": "feat/{{task_id}}-{{task_slug}}",
+  "instructionFilePath": null,
+  "worktreeAutoCleanup": true,
+  "taskFilesToDisk": false,
+  "github": {
+    "syncEnabled": false,
+    "autoClose": false,
+    "autoReopen": false,
+    "prClosesRef": true,
+    "labelSync": false,
+    "labelMapping": {},
+    "mergeDetection": true,
+    "syncDefaults": {
+      "title": false,
+      "body": false,
+      "status": false,
+      "labels": false
+    }
+  },
+  "acp": {
+    "trustModePolicy": "auto_approve",
+    "defaultPolicy": "ask",
+    "permissionTimeout": 120,
+    "rules": [
+      {
+        "capability": "fs_read",
+        "action": "auto_approve"
+      },
+      {
+        "capability": "fs_write",
+        "action": "auto_approve"
+      },
+      {
+        "capability": "terminal",
+        "action": "auto_approve"
+      },
+      {
+        "capability": "Always Allow",
+        "action": "auto_approve"
+      }
+    ]
+  },
+  "priorities": [
+    {
+      "id": "P0",
+      "label": "Critical",
+      "color": "red",
+      "order": 0
+    },
+    {
+      "id": "P1",
+      "label": "High",
+      "color": "amber",
+      "order": 1
+    },
+    {
+      "id": "P2",
+      "label": "Normal",
+      "color": "gray",
+      "order": 2
+    }
+  ]
+}

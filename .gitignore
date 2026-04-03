@@ -25,7 +25,7 @@ Thumbs.db
 .mcp.json
 .codex
 .cursor
-.agents
+.agents/tasks
 .claude
 .gemini
 ~
