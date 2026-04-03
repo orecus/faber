@@ -63,7 +63,10 @@ pub struct ProjectConfig {
     #[serde(default)]
     pub acp: AcpConfig,
 
-        #[serde(default = "default_priorities")]
+    #[serde(default)]
+    pub queue: QueueConfig,
+
+    #[serde(default = "default_priorities")]
     pub priorities: Vec<PriorityLevel>,
 
     /// Catch-all for unknown keys (forward compatibility).
@@ -148,7 +151,7 @@ pub struct GitHubSyncDefaults {
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct AcpConfig {
-    /// Trust mode for autonomous operation (e.g. continuous mode).
+    /// Trust mode for autonomous operation (e.g. queue mode).
     /// Values: "auto_approve", "normal", "deny_writes"
     #[serde(default = "default_normal")]
     pub trust_mode_policy: String,
@@ -192,6 +195,29 @@ impl Default for AcpConfig {
     }
 }
 
+/// Queue/autonomous mode upstream settings.
+#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[serde(rename_all = "camelCase")]
+pub struct QueueConfig {
+    /// Push integration branch to remote after run completion. Default: false.
+    #[serde(default)]
+    pub auto_push: bool,
+
+    /// Create PR from integration branch → base branch after push. Default: false.
+    /// Requires `auto_push` to be true.
+    #[serde(default)]
+    pub auto_create_pr: bool,
+}
+
+impl Default for QueueConfig {
+    fn default() -> Self {
+        Self {
+            auto_push: false,
+            auto_create_pr: false,
+        }
+    }
+}
+
 impl Default for ProjectConfig {
     fn default() -> Self {
         Self {
@@ -204,6 +230,7 @@ impl Default for ProjectConfig {
             task_files_to_disk: true,
             github: GitHubConfig::default(),
             acp: AcpConfig::default(),
+            queue: QueueConfig::default(),
             priorities: default_priorities(),
             extra: serde_json::Map::new(),
         }
@@ -400,6 +427,10 @@ pub fn from_db(conn: &Connection, project_id: &str) -> ProjectConfig {
             .collect();
     }
 
+    // Queue upstream
+    cfg.queue.auto_push = db_bool(conn, project_id, "queue_auto_push", false);
+    cfg.queue.auto_create_pr = db_bool(conn, project_id, "queue_auto_create_pr", false);
+
     // GitHub
     cfg.github.sync_enabled = db_bool(conn, project_id, "github_sync_enabled", false);
     cfg.github.auto_close = db_bool(conn, project_id, "github_auto_close", true);
@@ -512,6 +543,10 @@ pub fn sync_to_db(
         .map_err(|e| format!("Create ACP rule: {e}"))?;
     }
 
+    // Queue upstream
+    set_bool(conn, project_id, "queue_auto_push", cfg.queue.auto_push)?;
+    set_bool(conn, project_id, "queue_auto_create_pr", cfg.queue.auto_create_pr)?;
+
     // GitHub
     set_bool(conn, project_id, "github_sync_enabled", cfg.github.sync_enabled)?;
     set_bool(conn, project_id, "github_auto_close", cfg.github.auto_close)?;
@@ -600,6 +635,10 @@ pub fn update_setting(
                 cfg.github.label_mapping = map;
             }
         }
+
+        // Queue upstream
+        "queue_auto_push" => cfg.queue.auto_push = value != "false",
+        "queue_auto_create_pr" => cfg.queue.auto_create_pr = value != "false",
 
         // Priorities
         "priorities" => {
@@ -697,6 +736,9 @@ mod tests {
         assert_eq!(loaded.github.merge_detection, true);
         assert!(loaded.github.label_mapping.is_empty());
         assert_eq!(loaded.github.sync_defaults.title, false);
+        // Queue defaults
+        assert_eq!(loaded.queue.auto_push, false);
+        assert_eq!(loaded.queue.auto_create_pr, false);
     }
 
     #[test]
@@ -720,6 +762,7 @@ mod tests {
         assert!(obj.contains_key("taskFilesToDisk"), "missing taskFilesToDisk");
         assert!(obj.contains_key("github"), "missing github");
         assert!(obj.contains_key("acp"), "missing acp");
+        assert!(obj.contains_key("queue"), "missing queue");
         assert!(obj.contains_key("priorities"), "missing priorities");
 
         // GitHub nested keys

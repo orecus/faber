@@ -1,4 +1,5 @@
 pub mod agent_configs;
+pub mod integration_branches;
 pub mod migrations;
 pub mod models;
 pub mod projects;

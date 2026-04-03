@@ -362,7 +362,40 @@ CREATE INDEX idx_tasks_status ON tasks(project_id, status);
 CREATE INDEX idx_tasks_epic ON tasks(project_id, epic_id);
 "#;
 
-const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012, MIGRATION_013, MIGRATION_014, MIGRATION_015, MIGRATION_016, MIGRATION_017, MIGRATION_018, MIGRATION_019];
+// Migration 020: Add orchestration fields to sessions for queue/autonomous mode tracking.
+const MIGRATION_020: &str = r#"
+ALTER TABLE sessions ADD COLUMN orchestration_source TEXT;
+ALTER TABLE sessions ADD COLUMN orchestration_run_id TEXT;
+"#;
+
+// Migration 021: Integration branches table for queue/autonomous mode merge tracking.
+const MIGRATION_021: &str = r#"
+CREATE TABLE integration_branches (
+    id              TEXT PRIMARY KEY,
+    run_type        TEXT NOT NULL CHECK(run_type IN ('queue', 'autonomous')),
+    run_id          TEXT NOT NULL,
+    project_id      TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+    branch_name     TEXT NOT NULL,
+    base_branch     TEXT NOT NULL,
+    worktree_strategy TEXT NOT NULL DEFAULT 'integration'
+                    CHECK(worktree_strategy IN ('integration', 'independent', 'sequential')),
+    merged_tasks    TEXT NOT NULL DEFAULT '[]',
+    pending_tasks   TEXT NOT NULL DEFAULT '[]',
+    conflict_task   TEXT,
+    conflict_files  TEXT NOT NULL DEFAULT '[]',
+    pushed          INTEGER NOT NULL DEFAULT 0,
+    pr_url          TEXT,
+    status          TEXT NOT NULL DEFAULT 'active'
+                    CHECK(status IN ('active', 'completed', 'conflict', 'cleaned_up')),
+    created_at      TEXT NOT NULL DEFAULT (datetime('now')),
+    updated_at      TEXT NOT NULL DEFAULT (datetime('now'))
+);
+CREATE INDEX idx_integration_branches_project ON integration_branches(project_id);
+CREATE INDEX idx_integration_branches_run ON integration_branches(run_type, run_id);
+CREATE INDEX idx_integration_branches_status ON integration_branches(status);
+"#;
+
+const MIGRATIONS: &[&str] = &[MIGRATION_001, MIGRATION_002, MIGRATION_003, MIGRATION_004, MIGRATION_005, MIGRATION_006, MIGRATION_007, MIGRATION_008, MIGRATION_009, MIGRATION_010, MIGRATION_011, MIGRATION_012, MIGRATION_013, MIGRATION_014, MIGRATION_015, MIGRATION_016, MIGRATION_017, MIGRATION_018, MIGRATION_019, MIGRATION_020, MIGRATION_021];
 
 pub fn run(conn: &Connection) -> Result<(), rusqlite::Error> {
     conn.execute_batch(
@@ -413,13 +446,13 @@ mod tests {
         let version: i64 = conn
             .query_row("SELECT MAX(version) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(version, 19);
+        assert_eq!(version, 21);
 
         // Running again is a no-op
         run(&conn).unwrap();
         let count: i64 = conn
             .query_row("SELECT COUNT(*) FROM schema_version", [], |r| r.get(0))
             .unwrap();
-        assert_eq!(count, 19);
+        assert_eq!(count, 21);
     }
 }
