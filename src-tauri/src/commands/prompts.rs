@@ -43,7 +43,7 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             label: "Task Launch".into(),
             icon: "play".into(),
             prompt: "Start working on task {{task_id}}. \
-                     Use the `get_task` MCP tool to fetch the task details, \
+                     Use the `get_instructions` MCP tool to get your session instructions and task details, \
                      then begin implementing immediately. \
                      {{worktree_hint}}"
                 .into(),
@@ -58,8 +58,8 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             label: "Task Continue".into(),
             icon: "rotate-cw".into(),
             prompt: "Continue working on task {{task_id}}. \
-                     Use the `get_task` MCP tool to fetch the task details \
-                     and continue where you left off. \
+                     Use the `get_instructions` MCP tool to get your session instructions and task details, \
+                     then continue where you left off. \
                      {{worktree_hint}}"
                 .into(),
             category: PromptCategory::Session,
@@ -73,7 +73,7 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             label: "Research".into(),
             icon: "search".into(),
             prompt: "Task {{task_id}} needs to be analyzed and researched together with the user. \
-                     Start by using the `get_task` MCP tool to fetch the task details. \
+                     Start by calling the `get_instructions` MCP tool to get your session instructions and task details. \
                      The goal is to research the codebase, explore approaches, \
                      and then update the task file with a concrete implementation plan \
                      using the `update_task_plan` MCP tool. Ask the user for next steps."
@@ -85,15 +85,15 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             sort_order: 2,
         },
         PromptTemplate {
-            id: "continuous".into(),
-            label: "Continuous Mode".into(),
+            id: "queue".into(),
+            label: "Queue Mode".into(),
             icon: "zap".into(),
-            prompt: "You are running in continuous mode ({{mode}}). \
-                     Use the `get_task` MCP tool to fetch task {{task_id}} details, \
-                     then begin working on it autonomously."
+            prompt: "You are running in queue mode ({{mode}}). \
+                     Use the `get_instructions` MCP tool to get your session instructions and task details, \
+                     then begin working on task {{task_id}} autonomously."
                 .into(),
             category: PromptCategory::Session,
-            session_mode: Some("continuous".into()),
+            session_mode: Some("queue".into()),
             quick_action: false,
             builtin: true,
             sort_order: 3,
@@ -103,7 +103,7 @@ fn builtin_templates() -> Vec<PromptTemplate> {
             label: "Epic Breakdown".into(),
             icon: "ungroup".into(),
             prompt: "Epic {{task_id}} needs to be broken down into concrete child tasks. \
-                     Start by using the `get_task` MCP tool to fetch the epic details. \
+                     Start by calling the `get_instructions` MCP tool to get your session instructions and epic details. \
                      Analyze the epic's scope and body, then decompose it into smaller, \
                      actionable child tasks using the `create_task` MCP tool — \
                      make sure to set `epic_id` to \"{{task_id}}\" for each child task. \
@@ -169,15 +169,40 @@ fn load_templates(conn: &Connection) -> Result<Vec<PromptTemplate>, AppError> {
                 })
                 .unwrap_or_else(|_| builtin_templates());
 
-            // Ensure all session templates exist (in case new ones were added in an update)
             let mut result = templates;
             let builtins = builtin_templates();
+            let mut dirty = false;
+
+            // Remove legacy "continuous" templates (renamed to "queue")
+            let before_len = result.len();
+            result.retain(|t| t.session_mode.as_deref() != Some("continuous"));
+            if result.len() != before_len {
+                tracing::info!("Removed legacy 'continuous' prompt template(s)");
+                dirty = true;
+            }
+
+            // Ensure all builtin session templates exist and stay up-to-date
             for builtin in &builtins {
-                if builtin.category == PromptCategory::Session
-                    && !result.iter().any(|t| t.id == builtin.id)
-                {
-                    result.push(builtin.clone());
+                if builtin.category != PromptCategory::Session {
+                    continue;
                 }
+                if let Some(existing) = result.iter_mut().find(|t| t.id == builtin.id) {
+                    // Upgrade stale builtin prompts that are missing get_instructions
+                    if !existing.prompt.contains("get_instructions") {
+                        tracing::info!(id = %builtin.id, "Upgrading session prompt to include get_instructions");
+                        existing.prompt = builtin.prompt.clone();
+                        dirty = true;
+                    }
+                } else {
+                    // New session template added in an update — backfill
+                    result.push(builtin.clone());
+                    dirty = true;
+                }
+            }
+
+            // Persist fixes so we don't re-apply every load
+            if dirty {
+                let _ = save_templates(conn, &result);
             }
 
             Ok(result)
@@ -201,7 +226,7 @@ fn save_templates(conn: &Connection, templates: &[PromptTemplate]) -> Result<(),
 
 /// Validate that all required session templates are present.
 fn validate_templates(templates: &[PromptTemplate]) -> Result<(), AppError> {
-    let required_session_modes = ["task", "task-continue", "research", "continuous", "breakdown"];
+    let required_session_modes = ["task", "task-continue", "research", "queue", "breakdown"];
     for mode in &required_session_modes {
         let found = templates.iter().any(|t| {
             t.category == PromptCategory::Session
@@ -216,7 +241,7 @@ fn validate_templates(templates: &[PromptTemplate]) -> Result<(), AppError> {
     Ok(())
 }
 
-// ── Public helpers (for use by session.rs, continuous.rs) ──
+// ── Public helpers (for use by session.rs, queue.rs) ──
 
 /// Get the prompt template for a specific session mode.
 /// Falls back to the built-in default if not found in the DB.
@@ -276,7 +301,7 @@ mod tests {
     #[test]
     fn builtin_templates_has_all_session_modes() {
         let templates = builtin_templates();
-        let modes = ["task", "task-continue", "research", "continuous", "breakdown"];
+        let modes = ["task", "task-continue", "research", "queue", "breakdown"];
         for mode in &modes {
             assert!(
                 templates.iter().any(|t| t.session_mode.as_deref() == Some(mode)),

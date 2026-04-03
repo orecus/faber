@@ -16,7 +16,7 @@ use tauri::{AppHandle, Emitter, Manager};
 use super::protocol::*;
 use super::tools;
 use crate::commands::tasks::do_update_task_status;
-use crate::continuous::{self, ContinuousState};
+use crate::queue::{self, QueueState};
 use crate::db;
 use crate::db::DbState;
 use crate::db::models::TaskStatus;
@@ -273,6 +273,9 @@ async fn handle_tool_call(
         }
         "report_waiting" => {
             handle_report_waiting(session_id, &params.arguments, mcp, app).await
+        }
+        "get_instructions" => {
+            handle_get_instructions(session_id, mcp, app).await
         }
         "report_error" => handle_report_error(session_id, &params.arguments, mcp, app).await,
         "report_complete" => {
@@ -703,13 +706,13 @@ async fn handle_report_complete(
         );
     });
 
-    // Auto-advance continuous mode: mark item complete + launch next task (chained).
+    // Auto-advance queue mode: mark item complete + launch next task (chained).
     // Sessions are NOT stopped — they stay alive so the user can review agent output.
-    // Only spawn the advance task if this session is actually part of a continuous run.
-    let cont_state: tauri::State<'_, ContinuousState> = app.state();
-    let is_continuous = continuous::find_run_by_session(&cont_state, session_id).await.is_some();
+    // Only spawn the advance task if this session is actually part of a queue run.
+    let queue_state: tauri::State<'_, QueueState> = app.state();
+    let is_queued = queue::find_run_by_session(&queue_state, session_id).await.is_some();
 
-    if is_continuous {
+    if is_queued {
         let app_clone = app.clone();
         let sid = session_id.to_string();
         tauri::async_runtime::spawn(async move {
@@ -717,7 +720,7 @@ async fn handle_report_complete(
             // Must run on a blocking thread — mark_complete_and_advance uses
             // blocking_lock() which panics inside a tokio async context.
             let _ = tokio::task::spawn_blocking(move || {
-                continuous::mark_complete_and_advance(&app_clone, &sid);
+                queue::mark_complete_and_advance(&app_clone, &sid);
             }).await;
         });
     }
@@ -791,7 +794,7 @@ async fn handle_report_researched(
 }
 
 /// Look up the session's linked task and move it to "in-review".
-/// Used by report_complete (task/continuous sessions).
+/// Used by report_complete (task/queue sessions).
 /// Errors are logged but not propagated — MCP should always succeed.
 fn try_mark_task_complete(app: &AppHandle, session_id: &str) {
     let db: tauri::State<'_, DbState> = app.state();
@@ -934,6 +937,196 @@ async fn resolve_task_id(
     }
 
     Err("No task_id provided and no task associated with this session".to_string())
+}
+
+// ── get_instructions ──
+
+async fn handle_get_instructions(
+    session_id: &str,
+    mcp: &Arc<TokioMutex<McpState>>,
+    app: &AppHandle,
+) -> McpToolResult {
+    // 1. Read session context
+    let (session_mode, task_id, project_id) = {
+        let guard = mcp.lock().await;
+        match guard.sessions.get(session_id) {
+            Some(data) => (
+                data.session_mode.clone(),
+                data.task_id.clone(),
+                data.project_id.clone(),
+            ),
+            None => return McpToolResult::error("Session not found in MCP state"),
+        }
+    };
+
+    let mode = session_mode.as_deref();
+
+    // 2. Build instructions
+    let mut instructions = String::with_capacity(4096);
+
+    // -- Status reporting (always) --
+    instructions.push_str("# Faber Session Instructions\n\n");
+    instructions.push_str("## Status Reporting (required)\n\n");
+    instructions.push_str("You MUST use these MCP tools throughout your workflow:\n\n");
+    instructions.push_str("- `report_status(status, message, activity?)` — Call FIRST when you start working (status: \"working\"). Call again when your activity changes. Activities: \"researching\", \"exploring\", \"planning\", \"coding\", \"testing\", \"debugging\", \"reviewing\".\n");
+    instructions.push_str("- `report_progress(current_step, total_steps, description)` — Call before each major step so the IDE shows a progress bar.\n");
+    instructions.push_str("- `report_files_changed(files)` — Call after modifying files so the IDE can track changes.\n");
+    instructions.push_str("- `report_error(error, details?)` — Call if you hit a hard blocker. After calling this, STOP and wait for the user.\n");
+    instructions.push_str("- `report_waiting(question)` — Call if you need user input. After calling this, STOP and wait — the session pauses until the user responds.\n");
+
+    // -- Task management (if task-linked) --
+    let is_task_linked = matches!(mode, Some("task" | "queue" | "research" | "breakdown"));
+    if is_task_linked {
+        instructions.push_str("\n## Task Management\n\n");
+        instructions.push_str("- `get_task(task_id?)` — Fetch task metadata and body. Omit task_id for the current session's task.\n");
+        instructions.push_str("- `update_task(task_id?, ...)` — Update task metadata and/or body.\n");
+        instructions.push_str("- `update_task_plan(plan, task_id?)` — Update the implementation plan section.\n");
+        instructions.push_str("- `create_task(title, ...)` — Create a new task (always backlog).\n");
+        instructions.push_str("- `list_tasks(status?, label?)` — List tasks with optional filters.\n");
+    }
+
+    // -- Mode-specific completion & workflow --
+    match mode {
+        Some("task" | "queue") => {
+            instructions.push_str("\n## Completing Work\n\n");
+            instructions.push_str("- `report_complete(summary)` — Call ONLY ONCE when ALL work is done (code written, tested, verified). This is a terminal action: the task moves to 'in-review' and in queue mode the next task auto-launches. Do NOT call prematurely.\n");
+            instructions.push_str("\n## Workflow\n\n");
+            instructions.push_str("1. Call `report_status(\"working\", ...)` immediately\n");
+            instructions.push_str("2. Read the task details below\n");
+            instructions.push_str("3. Call `report_progress(...)` before each step\n");
+            instructions.push_str("4. Do the work — call `report_files_changed(...)` after modifying files\n");
+            instructions.push_str("5. When ALL work is done and verified, call `report_complete(summary)`\n");
+            instructions.push_str("6. If you need user input, call `report_waiting(question)` and STOP\n");
+        }
+        Some("research") => {
+            instructions.push_str("\n## Completing Research\n\n");
+            instructions.push_str("- `report_researched(summary)` — Call when research is complete. Save findings with `update_task_plan` first. The user will decide whether to continue to implementation.\n");
+            instructions.push_str("\n## Workflow\n\n");
+            instructions.push_str("1. Call `report_status(\"working\", ...)` immediately\n");
+            instructions.push_str("2. Read the task details below\n");
+            instructions.push_str("3. Research the codebase, explore approaches\n");
+            instructions.push_str("4. Save findings using `update_task_plan(plan)`\n");
+            instructions.push_str("5. Call `report_researched(summary)` when research is complete\n");
+            instructions.push_str("6. If you need user input, call `report_waiting(question)` and STOP\n");
+        }
+        Some("breakdown") => {
+            instructions.push_str("\n## Completing Breakdown\n\n");
+            instructions.push_str("Break the epic into concrete child tasks using `create_task` with the `epic_id` parameter. Present the breakdown plan to the user before creating tasks. There is no `report_complete` tool in breakdown mode — the user will review the created tasks.\n");
+        }
+        _ => {
+            // vibe, chat, shell — no completion tools, just status reporting
+        }
+    }
+
+    // 3. Include task data if task-linked
+    if let (Some(ref tid), Some(ref pid)) = (&task_id, &project_id) {
+        let db_state: tauri::State<'_, DbState> = app.state();
+        let conn = match db_state.lock() {
+            Ok(c) => c,
+            Err(e) => return McpToolResult::error(format!("Failed to lock DB: {e}")),
+        };
+
+        match db::tasks::get(&conn, tid, pid) {
+            Ok(Some(task)) => {
+                // Read body from disk if available
+                let disk_enabled = crate::tasks::task_files_enabled(&conn, pid);
+                let body = if disk_enabled {
+                    task.task_file_path
+                        .as_ref()
+                        .and_then(|p| {
+                            let path = std::path::Path::new(p);
+                            if path.is_file() {
+                                let content = std::fs::read_to_string(path).ok()?;
+                                crate::tasks::parse_task_file(&content, path)
+                                    .ok()
+                                    .map(|parsed| parsed.body)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or_else(|| task.body.clone())
+                } else {
+                    task.body.clone()
+                };
+
+                instructions.push_str("\n---\n\n# Task Details\n\n");
+                instructions.push_str(&format!("- **ID**: {}\n", task.id));
+                instructions.push_str(&format!("- **Title**: {}\n", task.title));
+                instructions.push_str(&format!("- **Status**: {}\n", task.status));
+                instructions.push_str(&format!("- **Priority**: {}\n", task.priority));
+                if !task.labels.is_empty() {
+                    instructions.push_str(&format!("- **Labels**: {}\n", task.labels.join(", ")));
+                }
+                if !task.depends_on.is_empty() {
+                    instructions.push_str(&format!("- **Depends on**: {}\n", task.depends_on.join(", ")));
+                }
+                if let Some(ref branch) = task.branch {
+                    instructions.push_str(&format!("- **Branch**: {}\n", branch));
+                }
+                if let Some(ref issue) = task.github_issue {
+                    instructions.push_str(&format!("- **GitHub Issue**: {}\n", issue));
+                }
+                if let Some(ref pr) = task.github_pr {
+                    instructions.push_str(&format!("- **GitHub PR**: {}\n", pr));
+                }
+                if !body.is_empty() {
+                    instructions.push_str(&format!("\n## Body\n\n{}\n", body));
+                }
+
+                // Include queue context if in queue mode
+                if mode == Some("queue") {
+                    // Fetch sibling ready tasks to give queue context
+                    if let Ok(all_tasks) = db::tasks::list_by_project(&conn, pid) {
+                        let queue_tasks: Vec<&db::models::Task> = all_tasks
+                            .iter()
+                            .filter(|t| t.status == db::models::TaskStatus::Ready || t.status == db::models::TaskStatus::InProgress)
+                            .collect();
+                        let current_pos = queue_tasks.iter().position(|t| t.id == task.id);
+                        if let Some(pos) = current_pos {
+                            instructions.push_str(&format!(
+                                "\n## Queue Context\n\nThis is task {} of {} in the queue.\n",
+                                pos + 1,
+                                queue_tasks.len()
+                            ));
+                        }
+                    }
+                }
+
+                // Include epic context if task belongs to an epic
+                if let Some(ref epic_id) = task.epic_id {
+                    if let Ok(Some(epic)) = db::tasks::get(&conn, epic_id, pid) {
+                        instructions.push_str(&format!(
+                            "\n## Epic Context\n\n- **Epic**: {} — {}\n",
+                            epic.id, epic.title
+                        ));
+                        if let Ok(siblings) = db::tasks::list_by_epic(&conn, pid, epic_id) {
+                            let done = siblings.iter().filter(|t| t.status == db::models::TaskStatus::Done).count();
+                            instructions.push_str(&format!(
+                                "- **Progress**: {}/{} tasks done\n",
+                                done,
+                                siblings.len()
+                            ));
+                        }
+                    }
+                }
+            }
+            Ok(None) => {
+                instructions.push_str(&format!("\n---\n\n**Note**: Task {tid} not found.\n"));
+            }
+            Err(e) => {
+                instructions.push_str(&format!("\n---\n\n**Note**: Failed to fetch task: {e}\n"));
+            }
+        }
+    }
+
+    tracing::info!(
+        session_id,
+        mode = ?mode,
+        has_task = task_id.is_some(),
+        "Instructions requested via MCP"
+    );
+
+    McpToolResult::text(instructions)
 }
 
 async fn handle_get_task(
@@ -1283,6 +1476,9 @@ async fn handle_update_task(
         }
     }
 
+    // Handle body update
+    let new_body = args.get("body").and_then(|v| v.as_str());
+
     // Validate status
     if new_status.parse::<TaskStatus>().is_err() {
         return McpToolResult::error(format!("Invalid status: {new_status}"));
@@ -1324,7 +1520,8 @@ async fn handle_update_task(
                     github_pr: new_github_pr.clone(),
                 };
 
-                match crate::tasks::serialize_task_file(&frontmatter, &parsed.body) {
+                let body_to_write = new_body.unwrap_or(&parsed.body);
+                match crate::tasks::serialize_task_file(&frontmatter, body_to_write) {
                     Ok(new_content) => {
                         if let Err(e) = std::fs::write(file_path, new_content) {
                             return McpToolResult::error(format!(
@@ -1364,7 +1561,7 @@ async fn handle_update_task(
         github_pr: new_github_pr.clone(),
         depends_on: new_depends_on.clone(),
         labels: new_labels.clone(),
-        body: task.body.clone(),
+        body: new_body.map(|b| b.to_string()).unwrap_or_else(|| task.body.clone()),
     };
 
     let updated = match db::tasks::upsert(&conn, &new_task) {
@@ -1911,7 +2108,6 @@ fn remove_mcp_entry(path: &Path) {
 pub fn write_mcp_config(
     cwd: &Path,
     agent_name: &str,
-    session_mode: Option<&str>,
 ) -> Result<Option<PathBuf>, AppError> {
     let entry = match build_mcp_entry(agent_name) {
         Some(e) => e,
@@ -1942,7 +2138,7 @@ pub fn write_mcp_config(
     // Always call this — `write_instruction_file` is idempotent and will
     // upsert the MCP section into an existing file or create a new one.
     if let Some(filename) = session::agent_instruction_filename(agent_name) {
-        session::write_instruction_file(cwd, filename, session_mode);
+        session::write_instruction_file(cwd, filename);
     }
 
     Ok(Some(config_path))
@@ -1968,7 +2164,7 @@ mod tests {
     #[test]
     fn write_mcp_config_claude_code() {
         let dir = tempfile::tempdir().unwrap();
-        let result = write_mcp_config(dir.path(), "claude-code", None).unwrap();
+        let result = write_mcp_config(dir.path(), "claude-code").unwrap();
         // Result depends on whether sidecar binary exists in dev
         if let Some(path) = result {
             assert!(path.exists());
@@ -1986,7 +2182,7 @@ mod tests {
     #[test]
     fn write_mcp_config_gemini() {
         let dir = tempfile::tempdir().unwrap();
-        let result = write_mcp_config(dir.path(), "gemini", None).unwrap();
+        let result = write_mcp_config(dir.path(), "gemini").unwrap();
         if let Some(path) = result {
             assert!(path.exists());
             assert!(path.to_str().unwrap().contains(".gemini"));
@@ -1996,14 +2192,14 @@ mod tests {
     #[test]
     fn write_mcp_config_shell_skipped() {
         let dir = tempfile::tempdir().unwrap();
-        let result = write_mcp_config(dir.path(), "shell", None).unwrap();
+        let result = write_mcp_config(dir.path(), "shell").unwrap();
         assert!(result.is_none());
     }
 
     #[test]
     fn cleanup_removes_our_entry() {
         let dir = tempfile::tempdir().unwrap();
-        write_mcp_config(dir.path(), "claude-code", None).unwrap();
+        write_mcp_config(dir.path(), "claude-code").unwrap();
         // Only assert cleanup if sidecar was found and config was written
         if dir.path().join(".mcp.json").exists() {
             cleanup_mcp_config(dir.path());
@@ -2033,7 +2229,7 @@ mod tests {
         .unwrap();
 
         // Write our config — should merge, not overwrite
-        write_mcp_config(dir.path(), "claude-code", None).unwrap();
+        write_mcp_config(dir.path(), "claude-code").unwrap();
 
         let content: Value =
             serde_json::from_str(&std::fs::read_to_string(&config_path).unwrap()).unwrap();
