@@ -1,20 +1,20 @@
 ---
-title: Continuous Mode
+title: Queue Mode
 description: Queue tasks and run them sequentially with automatic handoff
 icon: list-checks
 order: 4
 ---
 
-# Continuous Mode
+# Queue Mode
 
-Continuous Mode lets you queue multiple tasks and run them sequentially with automatic handoff between agents. When one task finishes, the next one starts automatically — no manual intervention needed.
+Queue Mode lets you queue multiple tasks and run them sequentially with automatic handoff between agents. When one task finishes, the next one starts automatically — no manual intervention needed.
 
 ---
 
 ## Quick Start
 
 1. Move 2 or more tasks to **Ready** status on the Kanban board
-2. Click the **Continuous** button in the Dashboard toolbar
+2. Click the **Queue** button in the Dashboard toolbar
 3. Select and order your tasks in the queue
 4. Choose a branching strategy and agent
 5. Click **Start**
@@ -62,7 +62,7 @@ Choose which branch to create task branches from. Defaults to the current HEAD.
 
 ## Status Bar
 
-While Continuous Mode is active, a status bar appears at the top of the Dashboard view showing:
+While Queue Mode is active, a status bar appears at the top of the Dashboard view showing:
 
 - **Progress**: "Task 2/5 — [task title]" with a visual progress bar
 - **Status indicator**: Green (running), Yellow (paused), Red (error)
@@ -81,7 +81,7 @@ Task 2 (running) → agent completes → mark "in-review" → stop session
     ↓
 Task 3 (running) → agent completes → mark "in-review" → stop session
     ↓
-All done — continuous mode finishes
+All done — queue mode finishes
 ```
 
 Each task transition includes a 2-second delay to let the agent's terminal finish writing output before the session is stopped.
@@ -94,19 +94,19 @@ If the agent finishes while paused, Faber remembers this — resuming will immed
 
 ### Stopping
 
-Click **Stop** to end continuous mode entirely. The currently running session is terminated and the queue is cleared.
+Click **Stop** to end queue mode entirely. The currently running session is terminated and the queue is cleared.
 
 ### Error Handling
 
 If an agent crashes (PTY exits without calling `report_complete`), Faber:
 
 1. Marks the current queue item as **Error**
-2. Pauses the continuous run
+2. Pauses the queue run
 3. Shows the error in the status bar
 
 You can then investigate, fix the issue, and resume to continue with the next task.
 
-If you manually stop a session that's part of a continuous run, the run is paused (not stopped). This lets you restart from where you left off.
+If you manually stop a session that's part of a queue run, the run is paused (not stopped). This lets you restart from where you left off.
 
 ---
 
@@ -149,7 +149,7 @@ depends_on:
 
 Dependencies can also be **auto-detected** when importing GitHub issues. If an issue body contains patterns like "depends on #42" or "blocked by #15", Faber resolves these to local task IDs during import.
 
-When you open the Continuous Mode dialog with tasks that have dependencies:
+When you open the Queue Mode dialog with tasks that have dependencies:
 
 1. The strategy is auto-set to **Chained**
 2. Tasks are auto-sorted so dependencies run before dependents

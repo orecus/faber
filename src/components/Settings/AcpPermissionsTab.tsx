@@ -431,7 +431,7 @@ export function AcpPermissionsTab() {
       <section>
         <h3 className={sectionHeadingClass}>Autonomous Sessions</h3>
         <p className="text-xs text-muted-foreground mb-2">
-          Override policy for sessions launched automatically by continuous mode.
+          Override policy for sessions launched automatically by queue mode.
           This takes priority over rules and the default policy.
         </p>
         <Select

@@ -34,7 +34,7 @@ pub struct AcpSessionState {
 ///
 /// Wrapped in `Arc<Mutex<_>>` for thread-safe access from Tauri commands
 /// and async handlers, matching the pattern used by `McpState` and
-/// `ContinuousState`.
+/// `QueueState`.
 pub type AcpState = Arc<Mutex<HashMap<String, AcpSessionState>>>;
 
 /// Create a new empty ACP state for Tauri managed state registration.

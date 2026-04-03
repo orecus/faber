@@ -135,7 +135,7 @@ pub struct PermissionContext {
     pub capability: CapabilityType,
     /// File path (for fs_read/fs_write) or command string (for terminal).
     pub detail: String,
-    /// Whether the session is running in trust mode (e.g. continuous mode auto-launch).
+    /// Whether the session is running in trust mode (e.g. queue mode auto-launch).
     /// When true, the trust mode policy overrides normal rule evaluation.
     pub is_trust_mode: bool,
 }
@@ -400,7 +400,7 @@ fn get_project_default_policy(conn: &Connection, project_id: &str) -> Option<Per
 /// Values: "auto_approve" | "normal" | "deny_writes"
 ///
 /// Trust mode governs permission behavior when sessions run autonomously
-/// (e.g. continuous mode auto-launch queue).
+/// (e.g. queue mode auto-launch queue).
 fn get_trust_mode_policy(conn: &Connection, project_id: &str) -> Option<String> {
     db::settings::get_resolved(conn, project_id, "acp_trust_mode_policy").ok().flatten()
 }

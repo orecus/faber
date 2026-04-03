@@ -55,7 +55,7 @@ Cross-repository references are also supported: `depends on other/repo#99`.
 
 If the referenced issue has already been imported (or is being imported in the same batch), Faber resolves the reference to a local task ID and populates the task's `depends_on` field automatically. Unresolved references (issues not imported) are silently skipped.
 
-These dependency relationships are used by **Continuous Mode** to suggest a branching strategy and automatically sort the task queue. See the [Continuous Mode](/help/continuous_mode) documentation for details.
+These dependency relationships are used by **Queue Mode** to suggest a branching strategy and automatically sort the task queue. See the [Queue Mode](/help/queue_mode) documentation for details.
 
 ---
 
@@ -65,7 +65,7 @@ The shared toolbar at the top of the Git view provides direct access to common g
 
 ### Pull & Push
 
-- **Pull** — Fetches from origin and fast-forwards the current branch. If the working tree has uncommitted changes or the branch has diverged (cannot fast-forward), Pull will show an error. Commit or stash your changes first.
+- **Pull** — Fetches from origin and fast-forwards the current branch. Works with uncommitted changes as long as they don't conflict with incoming changes (matching VS Code / Zed behavior). If the branch has diverged (cannot fast-forward), Pull will show an error.
 - **Push** — Pushes the current branch to origin. Uses `gh auth git-credential` for authentication, so you only need `gh auth login` once.
 
 Both buttons show ahead/behind badges when your local branch differs from the remote. These counts are refreshed automatically when you open the Git view and after each operation.

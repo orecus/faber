@@ -60,11 +60,11 @@ The fallback action when no rule matches a request:
 
 ### Trust Mode
 
-Controls permission behavior during **autonomous operation** (continuous mode, auto-launched task queues):
+Controls permission behavior during **autonomous operation** (queue mode, auto-launched task queues):
 
 - **Auto-approve all** — No permission dialogs when running autonomously.
 - **Use normal rules** — Apply the same rule set as interactive sessions.
-- **Deny write operations** — Allow reads but block all writes in autonomous mode. Useful for safe continuous runs.
+- **Deny write operations** — Allow reads but block all writes in autonomous mode. Useful for safe queue runs.
 
 ### Permission Timeout
 

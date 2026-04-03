@@ -229,7 +229,7 @@ Settings are organized into **App** (global) and **Project** (per-project) secti
 
 Manage prompt templates and quick actions:
 
-- **Session Prompts** — Default prompts used when launching task, research, continuous, and task-continue sessions. Each template supports `{{variable}}` interpolation (e.g., `{{task_id}}`, `{{worktree_hint}}`). Session prompts are protected (cannot be deleted) but fully customizable.
+- **Session Prompts** — Default prompts used when launching task, research, queue, and task-continue sessions. Each template supports `{{variable}}` interpolation (e.g., `{{task_id}}`, `{{worktree_hint}}`). Session prompts are protected (cannot be deleted) but fully customizable.
 - **Quick Actions** — Action buttons that appear on active session panes when you hover over them. Click a quick action to send the prompt directly to the agent. Built-in actions include "Commit", "Fix Errors", and "Summarize". You can add, edit, and delete custom actions with configurable labels, icons, and prompts.
 - **Reset to Defaults** — Restore all templates and actions to their built-in defaults.
 
