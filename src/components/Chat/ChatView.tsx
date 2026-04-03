@@ -3,21 +3,21 @@ import {
   AlertTriangle,
   Loader2,
   MessageCircle,
-  Plus,
+  Send,
   X,
 } from "lucide-react";
-import { memo, useCallback, useEffect, useMemo, useState } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { formatErrorWithHint } from "../../lib/errorMessages";
 import { useAppStore } from "../../store/appStore";
-import AgentCardGrid from "../Launchers/AgentCardGrid";
+import AgentModelPicker from "../Launchers/AgentModelPicker";
 import ConfirmDialog from "../Review/ConfirmDialog";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import ChatPane from "./ChatPane";
 import ThreadStatusBadge from "./ThreadStatusBadge";
 
-import type { Session } from "../../types";
+import type { AgentInfo, Session } from "../../types";
 
 /**
  * ChatView — project-scoped chat view.
@@ -34,12 +34,20 @@ const ChatView = memo(function ChatView() {
   const removeBackgroundTask = useAppStore((s) => s.removeBackgroundTask);
 
   const [selectedAgentName, setSelectedAgentName] = useState("");
+  const [selectedModel, setSelectedModel] = useState("");
+  const [userPrompt, setUserPrompt] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
 
   // ACP-capable agents only
   const acpAgents = useMemo(
     () => agents.filter((a) => a.installed && a.acp_installed),
     [agents],
+  );
+
+  const acpFilter = useCallback(
+    (a: AgentInfo) => a.supports_acp,
+    [],
   );
 
   // Default to first ACP agent
@@ -67,6 +75,11 @@ const ChatView = memo(function ChatView() {
 
   const handleAgentSelect = useCallback((name: string) => {
     setSelectedAgentName(name);
+    setSelectedModel("");
+  }, []);
+
+  const handleModelSelect = useCallback((model: string) => {
+    setSelectedModel(model);
   }, []);
 
   const handleStartChat = useCallback(async () => {
@@ -79,6 +92,8 @@ const ChatView = memo(function ChatView() {
       await invoke("start_chat_session", {
         projectId: activeProjectId,
         agentName: selectedAgentName,
+        model: selectedModel || null,
+        userPrompt: userPrompt.trim() || null,
       });
     } catch (err) {
       setError(formatErrorWithHint(err, "agent-launch"));
@@ -89,6 +104,8 @@ const ChatView = memo(function ChatView() {
   }, [
     activeProjectId,
     selectedAgentName,
+    selectedModel,
+    userPrompt,
     launching,
     addBackgroundTask,
     removeBackgroundTask,
@@ -114,11 +131,11 @@ const ChatView = memo(function ChatView() {
   if (chatSession) {
     return (
       <div
-        className="flex flex-col px-3 pt-2 gap-2 min-h-0 overflow-hidden bg-card/80"
+        className="flex flex-col pt-2 gap-2 min-h-0 overflow-hidden bg-card/80"
         style={{ gridArea: "content" }}
       >
         {/* Minimal toolbar */}
-        <div className="flex items-center gap-2 py-1.5 shrink-0">
+        <div className="flex items-center gap-2 px-3 py-1.5 shrink-0">
           <MessageCircle size={14} className="text-muted-foreground" />
           <span className="text-xs font-medium text-foreground">
             Project Chat
@@ -197,20 +214,17 @@ const ChatView = memo(function ChatView() {
             </p>
           </div>
 
-          {/* Agent selector */}
+          {/* Agent + Model picker */}
           {acpAgents.length > 0 ? (
-            <div className="w-full">
-              <label className="mb-1.5 block text-xs text-dim-foreground">
-                Agent
-              </label>
-              <AgentCardGrid
-                selectedAgentName={selectedAgentName}
-                onSelect={handleAgentSelect}
-                accentColor={accentColor}
-                isDisabled={(a) => !a.installed || !a.acp_installed}
-                showStatus
-              />
-            </div>
+            <AgentModelPicker
+              selectedAgent={selectedAgentName}
+              selectedModel={selectedModel}
+              onAgentChange={handleAgentSelect}
+              onModelChange={handleModelSelect}
+              accentColor={accentColor}
+              filter={acpFilter}
+              disabled={launching}
+            />
           ) : (
             <div className="flex items-start gap-2 rounded-lg bg-warning/10 ring-1 ring-warning/20 px-3 py-2.5 w-full">
               <AlertTriangle
@@ -237,26 +251,44 @@ const ChatView = memo(function ChatView() {
             </div>
           )}
 
-          {/* Start new chat */}
-          <Button
-            variant="color"
-            color={accentColor}
-            size="sm"
-            onClick={handleStartChat}
-            disabled={launching || acpAgents.length === 0}
-            loading={launching}
-            leftIcon={
-              launching ? (
-                <Loader2 className="size-3.5 animate-spin" />
-              ) : (
-                <Plus className="size-3.5" />
-              )
-            }
-            hoverEffect="scale-glow"
-            clickEffect="scale"
-          >
-            New Chat
-          </Button>
+          {/* Prompt textarea + Start button */}
+          <div className="w-full flex flex-col gap-2">
+            <div className="relative">
+              <textarea
+                ref={textareaRef}
+                value={userPrompt}
+                onChange={(e) => setUserPrompt(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && (e.ctrlKey || e.metaKey)) {
+                    e.preventDefault();
+                    handleStartChat();
+                  }
+                }}
+                placeholder="What would you like to discuss?"
+                rows={3}
+                disabled={launching || acpAgents.length === 0}
+                className="w-full resize-none rounded-lg border border-border bg-muted/30 px-3 py-2.5 pr-12 text-sm text-foreground placeholder:text-muted-foreground outline-none focus:ring-1 focus:ring-ring transition-colors disabled:opacity-50"
+              />
+              <Button
+                variant="color"
+                color={accentColor}
+                size="icon-sm"
+                onClick={handleStartChat}
+                disabled={launching || acpAgents.length === 0}
+                loading={launching}
+                hoverEffect="scale-glow"
+                clickEffect="scale"
+                className="absolute right-2 bottom-2"
+                title="Start chat (Ctrl+Enter)"
+              >
+                {launching ? (
+                  <Loader2 className="size-3.5 animate-spin" />
+                ) : (
+                  <Send className="size-3.5" />
+                )}
+              </Button>
+            </div>
+          </div>
         </div>
       </div>
 

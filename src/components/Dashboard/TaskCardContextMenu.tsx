@@ -14,6 +14,7 @@ import {
   Lightbulb,
   Ungroup,
   Pencil,
+  Copy,
   ChevronRightIcon,
   CheckIcon,
 } from "lucide-react";
@@ -313,6 +314,18 @@ export default function TaskCardContextMenu({
               >
                 <Pencil className="size-3.5" />
                 Edit title
+              </MenuPrimitive.Item>
+
+              {/* Copy task ID */}
+              <MenuPrimitive.Item
+                className={menuItemClass}
+                onClick={() => {
+                  navigator.clipboard.writeText(task.id);
+                  setMenuOpen(false);
+                }}
+              >
+                <Copy className="size-3.5" />
+                Copy ID
               </MenuPrimitive.Item>
 
               <MenuPrimitive.Separator className="bg-border -mx-1 my-1 h-px" />

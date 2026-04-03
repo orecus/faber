@@ -152,7 +152,7 @@ const KanbanColumn = memo(function KanbanColumn({
 
   // Count blocked tasks for column subtitle
   const blockedCount = useMemo(() => {
-    if (status !== "backlog" && status !== "ready") return 0;
+    if (status === "done") return 0;
     return tasks.filter((t) => isTaskBlocked(t, taskMap)).length;
   }, [status, tasks, taskMap]);
 

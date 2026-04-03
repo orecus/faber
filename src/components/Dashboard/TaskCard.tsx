@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import { useDraggable } from "@dnd-kit/core";
-import { Lock, Github, Layers, ArrowUpRight, MoreVertical } from "lucide-react";
+import { Lock, Github, Layers, ArrowUpRight, MoreVertical, Filter } from "lucide-react";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { useAppStore } from "../../store/appStore";
 import type { Task, Session } from "../../types";
@@ -81,10 +81,9 @@ export default React.memo(function TaskCard({
     if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
       e.stopPropagation();
-      if (task.task_type === "epic" && onEpicClick) onEpicClick(task.id);
-      else onClick(task.id);
+      onClick(task.id);
     }
-  }, [task.id, task.task_type, onClick, onEpicClick]);
+  }, [task.id, onClick]);
   const accentColor = useProjectAccentColor();
   const activeProjectId = useAppStore((s) => s.activeProjectId);
   const priorities = useAppStore((s) =>
@@ -179,7 +178,7 @@ export default React.memo(function TaskCard({
         className={`relative group py-2 px-2.5 shrink-0 bg-card border rounded-[10px] select-none overflow-hidden transition-all duration-150 opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           isDragOverlay
             ? `${borderAccentColors[accentColor]} shadow-[0_8px_24px_rgba(0,0,0,0.3)] cursor-grabbing opacity-100`
-            : "border-border cursor-grab hover:opacity-70"
+            : "border-border cursor-grab hover:opacity-70 hover:border-foreground/15"
         } ${isDragging ? "opacity-20" : ""}`}
         style={{
           ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined),
@@ -241,8 +240,8 @@ export default React.memo(function TaskCard({
           : isSessionActive
             ? `cursor-default ${activeBorderClass}`
             : isEpic
-              ? "border-border cursor-pointer hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)] hover:border-border/80"
-              : "border-border cursor-grab hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)] hover:border-border/80"
+              ? "border-border cursor-pointer hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)] hover:border-foreground/15"
+              : "border-border cursor-grab hover:-translate-y-px hover:shadow-[0_4px_16px_rgba(0,0,0,0.25)] hover:border-foreground/15"
       } ${isDragging ? "opacity-0" : ""} ${isBlocked && !isDragOverlay ? "opacity-70" : ""}`}
       style={{
         ...(transform ? { transform: `translate3d(${transform.x}px, ${transform.y}px, 0)` } : undefined),
@@ -257,8 +256,7 @@ export default React.memo(function TaskCard({
       onClick={(e) => {
         if (isEditingTitle) return;
         e.stopPropagation();
-        if (isEpic && onEpicClick) onEpicClick(task.id);
-        else onClick(task.id);
+        onClick(task.id);
       }}
       onKeyDown={handleCardKeyDown}
       onContextMenu={onContextMenu}
@@ -307,21 +305,37 @@ export default React.memo(function TaskCard({
               </span>
             )}
 
-            {/* Context menu button (hover only, replaces old inline action buttons) */}
-            {!isDragOverlay && !isSessionActive && onContextMenu && (
-              <div className="opacity-0 group-hover:opacity-100 transition-opacity">
-                <Button
-                  variant="ghost"
-                  size="icon-xs"
-                  hoverEffect="scale"
-                  clickEffect="scale"
-                  aria-label="More actions"
-                  title="More actions"
-                  onClick={(e) => { e.stopPropagation(); onContextMenu(e); }}
-                  onPointerDown={(e) => e.stopPropagation()}
-                >
-                  <MoreVertical className="size-3" />
-                </Button>
+            {/* Epic filter button + context menu button (always visible dimmed, full on hover) */}
+            {!isDragOverlay && !isSessionActive && (
+              <div className="flex items-center gap-px opacity-30 group-hover:opacity-100 transition-opacity">
+                {isEpic && onEpicClick && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    hoverEffect="scale"
+                    clickEffect="scale"
+                    aria-label="Filter by this epic"
+                    title="Filter by this epic"
+                    onClick={(e) => { e.stopPropagation(); onEpicClick(task.id); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <Filter className="size-3" />
+                  </Button>
+                )}
+                {onContextMenu && (
+                  <Button
+                    variant="ghost"
+                    size="icon-xs"
+                    hoverEffect="scale"
+                    clickEffect="scale"
+                    aria-label="More actions"
+                    title="More actions"
+                    onClick={(e) => { e.stopPropagation(); onContextMenu(e); }}
+                    onPointerDown={(e) => e.stopPropagation()}
+                  >
+                    <MoreVertical className="size-3" />
+                  </Button>
+                )}
               </div>
             )}
           </div>
@@ -396,7 +410,13 @@ export default React.memo(function TaskCard({
                 <div key={d.id} className="flex items-center gap-[5px] text-[9px] py-px">
                   <span className="text-[8px] font-semibold uppercase tracking-[0.3px] text-warning shrink-0 w-12">waits on</span>
                   <span className={`size-[5px] rounded-full shrink-0 ${d.task ? TASK_STATUS_DOT_COLORS[d.task.status] : "bg-muted-foreground/30"}`} />
-                  <span className="text-dim-foreground truncate flex-1 min-w-0">{d.task?.title ?? d.id}</span>
+                  <span
+                    className="text-dim-foreground truncate flex-1 min-w-0 cursor-pointer hover:text-foreground hover:underline transition-colors"
+                    onClick={(e) => { e.stopPropagation(); onClick(d.id); }}
+                    role="link"
+                    tabIndex={0}
+                    onKeyDown={(e) => { if (e.key === "Enter") { e.stopPropagation(); onClick(d.id); } }}
+                  >{d.task?.title ?? d.id}</span>
                   {d.task && (
                     <span className={`text-[8px] px-1 py-px rounded-[2px] shrink-0 ${TASK_STATUS_DOT_COLORS[d.task.status]}/15 text-muted-foreground`}>
                       {TASK_STATUS_LABELS[d.task.status]}

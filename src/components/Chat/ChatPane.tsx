@@ -67,7 +67,10 @@ export default React.memo(function ChatPane({
   );
   const isStarting = sessionStatus === "starting";
   const isRunning = sessionStatus === "running";
-  const inputDisabled = !isRunning;
+  // Input is only disabled when the session is not active (ended/error/stopped).
+  // During "running" the user can type freely; submitting while the agent is
+  // working will interrupt-and-send (cancel current work, then send new message).
+  const inputDisabled = !isRunning && !isStarting;
 
   // Edit & resend state
   const [editResendText, setEditResendText] = useState<string | undefined>();
@@ -93,11 +96,10 @@ export default React.memo(function ChatPane({
 
   const isEmpty = timeline.length === 0;
 
-  // Check if the agent is actively working (for working indicator)
-  const isAgentWorking = promptPending && (
-    isEmpty ||
-    (entries.length > 0 && entries[entries.length - 1].type === "user-message")
-  );
+  // Working indicator stays visible for the entire generation duration (like
+  // Zed/t3-code), sitting at the bottom of the timeline as a persistent
+  // "still working" signal even while content streams above it.
+  const isAgentWorking = promptPending;
 
   return (
     <div className="flex flex-col h-full min-h-0">
@@ -157,7 +159,7 @@ export default React.memo(function ChatPane({
                 return null;
               })}
 
-              {/* Working indicator — shown when agent is active but hasn't produced anything yet */}
+              {/* Working indicator — visible for the entire turn while agent is generating */}
               {isAgentWorking && <WorkingIndicator />}
             </>
           )}
@@ -168,17 +170,20 @@ export default React.memo(function ChatPane({
       <ChatPlanQueue sessionId={sessionId} />
       </div>
 
-      <WaitingCard sessionId={sessionId} />
+      {/* Footer — input zone with distinct background */}
+      <div className="shrink-0 bg-card/60 backdrop-blur-md">
+        <WaitingCard sessionId={sessionId} />
 
-      <ChatInput
-        sessionId={sessionId}
-        disabled={inputDisabled}
-        placeholder={isStarting ? "Connecting to agent..." : undefined}
-        initialText={editResendText}
-        onInitialTextConsumed={handleEditResendConsumed}
-      />
+        <ChatInput
+          sessionId={sessionId}
+          disabled={inputDisabled}
+          placeholder={isStarting ? "Connecting to agent..." : undefined}
+          initialText={editResendText}
+          onInitialTextConsumed={handleEditResendConsumed}
+        />
 
-      <GitContextBar sessionId={sessionId} />
+        <GitContextBar sessionId={sessionId} />
+      </div>
     </div>
   );
 });

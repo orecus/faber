@@ -14,7 +14,7 @@ import { useAppStore } from "../../store/appStore";
 import { ptyBuffer } from "../../lib/ptyBuffer";
 import type { GridLayoutState } from "../../store/appStore";
 import type { Session } from "../../types";
-import ContinuousModeBar from "../Shell/ContinuousModeBar";
+import QueueModeBar from "../Shell/QueueModeBar";
 import LaunchTaskDialog from "../Launchers/LaunchTaskDialog";
 import { ViewLayout } from "../Shell/ViewLayout";
 import SessionsToolbar from "./SessionsToolbar";
@@ -27,7 +27,7 @@ import LaunchSessionDialog from "../Launchers/LaunchSessionDialog";
 export default function SessionsView() {
   const sessions = useAppStore((s) => s.sessions);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
-  const continuousMode = useAppStore((s) => s.continuousMode);
+  const queueMode = useAppStore((s) => s.queueMode);
   const gridLayout = useAppStore((s) => s.gridLayout);
   const setGridLayout = useAppStore((s) => s.setGridLayout);
   const dismissEndedPane = useAppStore((s) => s.dismissEndedPane);
@@ -286,7 +286,7 @@ export default function SessionsView() {
     return () => document.removeEventListener("keydown", handler);
   }, [activeView, visibleSessions, gridLayout.focusedPaneId, setGridLayout, handleStop]);
 
-  const hasContinuousRun = !!(activeProjectId && continuousMode[activeProjectId]);
+  const hasQueueRun = !!(activeProjectId && queueMode[activeProjectId]);
 
   return (
     <ViewLayout>
@@ -300,8 +300,8 @@ export default function SessionsView() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Main content */}
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
-          {activeProjectId && hasContinuousRun && (
-            <ContinuousModeBar projectId={activeProjectId} />
+          {activeProjectId && hasQueueRun && (
+            <QueueModeBar projectId={activeProjectId} />
           )}
 
           {visibleSessions.length === 0 ? (

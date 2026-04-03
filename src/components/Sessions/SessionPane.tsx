@@ -246,6 +246,20 @@ export default React.memo(function SessionPane({
           </Button>
         )}
 
+        {/* Orchestration source badge */}
+        {session.orchestration_source && (
+          <span
+            className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium ${
+              session.orchestration_source === "queue"
+                ? "bg-primary/15 text-primary"
+                : "bg-accent text-dim-foreground"
+            }`}
+            title={`Launched by ${session.orchestration_source}${session.orchestration_run_id ? ` (run ${session.orchestration_run_id})` : ""}`}
+          >
+            {session.orchestration_source === "queue" ? "Queue" : session.orchestration_source}
+          </span>
+        )}
+
         {/* MCP Progress + Status Message */}
         {mcpData?.current_step != null && mcpData.total_steps != null && (
           <span className="text-xs text-dim-foreground overflow-hidden text-ellipsis whitespace-nowrap flex-1 min-w-0">

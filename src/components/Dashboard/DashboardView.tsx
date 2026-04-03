@@ -5,8 +5,8 @@ import { useDashboardFilters } from "../../hooks/useDashboardFilters";
 import { useProjectAccentColor } from "../../hooks/useProjectAccentColor";
 import { usePersistedBoolean } from "../../hooks/usePersistedState";
 import { useAppStore } from "../../store/appStore";
-import LaunchContinuousDialog from "../Launchers/LaunchContinuousDialog";
-import ContinuousModeBar from "../Shell/ContinuousModeBar";
+import LaunchQueueDialog from "../Launchers/LaunchQueueDialog";
+import QueueModeBar from "../Shell/QueueModeBar";
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { ViewLayout } from "../Shell/ViewLayout";
 import CreateTaskDialog from "../TaskDetail/CreateTaskDialog";
@@ -60,15 +60,15 @@ export default function DashboardView() {
     return () => window.removeEventListener("keydown", handleKeyDown);
   }, []);
 
-  const continuousMode = useAppStore((s) => s.continuousMode);
-  const hasContinuousRun = !!(activeProjectId && continuousMode[activeProjectId]);
+  const queueMode = useAppStore((s) => s.queueMode);
+  const hasQueueRun = !!(activeProjectId && queueMode[activeProjectId]);
 
   // Dialog state
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [launchTaskId, setLaunchTaskId] = useState<string | null>(null);
   const [researchTaskId, setResearchTaskId] = useState<string | null>(null);
   const [breakdownTaskId, setBreakdownTaskId] = useState<string | null>(null);
-  const [showContinuousMode, setShowContinuousMode] = useState(false);
+  const [showQueueMode, setShowQueueMode] = useState(false);
 
   // Epic click on Kanban card → toggle FilterBar epic filter
   const handleEpicClick = useCallback(
@@ -92,7 +92,7 @@ export default function DashboardView() {
     [setGraphMode],
   );
 
-  // Ready tasks for continuous mode
+  // Ready tasks for queue mode
   const readyTasks = useMemo(
     () => tasks.filter((t) => t.status === "ready"),
     [tasks],
@@ -304,16 +304,16 @@ export default function DashboardView() {
     />
   );
 
-  // Continuous mode dialog
-  const continuousModeDialog = showContinuousMode && activeProjectId && (
-    <LaunchContinuousDialog
+  // Queue mode dialog
+  const queueModeDialog = showQueueMode && activeProjectId && (
+    <LaunchQueueDialog
       projectId={activeProjectId}
       readyTasks={readyTasks}
       onStarted={() => {
-        setShowContinuousMode(false);
+        setShowQueueMode(false);
         setActiveView("sessions");
       }}
-      onDismiss={() => setShowContinuousMode(false)}
+      onDismiss={() => setShowQueueMode(false)}
     />
   );
 
@@ -369,8 +369,8 @@ export default function DashboardView() {
       showArchived={filters.showArchived}
       onToggleArchived={handleToggleArchived}
       onNewTask={() => setShowCreateTask(true)}
-      onContinuousMode={() => setShowContinuousMode(true)}
-      continuousModeEnabled={readyTasks.length >= 2 && !hasContinuousRun}
+      onQueueMode={() => setShowQueueMode(true)}
+      queueModeEnabled={readyTasks.length >= 2 && !hasQueueRun}
       dashboardMode={dashboardMode}
       onDashboardModeChange={handleDashboardModeChange}
       hasDependencies={hasDependencies}
@@ -389,7 +389,7 @@ export default function DashboardView() {
         {launchTaskDialog}
         {researchTaskDialog}
         {breakdownTaskDialog}
-        {continuousModeDialog}
+        {queueModeDialog}
       </ViewLayout>
     );
   }
@@ -401,8 +401,8 @@ export default function DashboardView() {
       </ViewLayout.Toolbar>
 
       <div className="flex flex-col flex-1 min-h-0 gap-1.5">
-        {activeProjectId && hasContinuousRun && (
-          <ContinuousModeBar projectId={activeProjectId} />
+        {activeProjectId && hasQueueRun && (
+          <QueueModeBar projectId={activeProjectId} />
         )}
 
         <FilterBar
@@ -467,7 +467,7 @@ export default function DashboardView() {
       {launchTaskDialog}
       {researchTaskDialog}
       {breakdownTaskDialog}
-      {continuousModeDialog}
+      {queueModeDialog}
     </ViewLayout>
   );
 }

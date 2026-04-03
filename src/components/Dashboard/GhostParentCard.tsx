@@ -19,7 +19,9 @@ const GhostParentCard = memo(function GhostParentCard({
 }: GhostParentCardProps) {
   return (
     <div
-      className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-dashed border-border/40 bg-card/30 cursor-pointer hover:bg-card/50 transition-colors"
+      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-[8px] border border-dashed border-border/40 bg-card/30 cursor-pointer hover:bg-card/50 transition-colors ${
+        parentTask.task_type === "epic" ? "border-l-[3px] border-l-primary" : ""
+      }`}
       onClick={(e) => {
         e.stopPropagation();
         onClick?.(parentTask.id);

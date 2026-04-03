@@ -26,9 +26,12 @@ import type {
   AgentInfo,
   AgentUsageData,
   CommitInfo,
-  ContinuousModeFinished,
-  ContinuousModeUpdate,
-  ContinuousRun,
+  MergeConflictEvent,
+  QueueModeFinished,
+  QueueModeUpdate,
+  QueueRun,
+  RunCompletedEvent,
+  TaskMergedEvent,
   GhAuthStatus,
   McpComplete,
   McpError as McpErrorEvent,
@@ -165,7 +168,7 @@ interface AppState {
   worktrees: WorktreeInfo[];
   reviewWorktreePath: string | null;
   ghAuthStatus: GhAuthStatus | null;
-  continuousMode: Record<string, ContinuousRun>;
+  queueMode: Record<string, QueueRun>;
   agentUsage: AgentUsageData[];
   agentUsageLoading: boolean;
   promptTemplates: PromptTemplate[];
@@ -258,8 +261,8 @@ interface AppState {
   /** Set the session ID to show LaunchTaskDialog for (null to close). */
   setLaunchTaskForSession: (sessionId: string | null) => void;
 
-  // Continuous mode
-  setContinuousMode: (projectId: string, run: ContinuousRun | null) => void;
+  // Queue mode
+  setQueueMode: (projectId: string, run: QueueRun | null) => void;
 
   // Per-project data actions
   updateProjectSessions: (projectId: string, sessions: Session[]) => void;
@@ -363,7 +366,7 @@ export const useAppStore = create<AppState>()(
     worktrees: [],
     reviewWorktreePath: null,
     ghAuthStatus: null,
-    continuousMode: {},
+    queueMode: {},
     agentUsage: [],
     agentUsageLoading: false,
     promptTemplates: [],
@@ -1176,16 +1179,16 @@ export const useAppStore = create<AppState>()(
       }
     },
 
-    // ── Continuous mode ──
+    // ── Queue mode ──
 
-    setContinuousMode: (projectId, run) =>
+    setQueueMode: (projectId, run) =>
       set((state) => {
         if (run === null) {
-          const { [projectId]: _, ...rest } = state.continuousMode;
-          return { continuousMode: rest };
+          const { [projectId]: _, ...rest } = state.queueMode;
+          return { queueMode: rest };
         }
         return {
-          continuousMode: { ...state.continuousMode, [projectId]: run },
+          queueMode: { ...state.queueMode, [projectId]: run },
         };
       }),
 
@@ -2196,21 +2199,21 @@ export const useAppStore = create<AppState>()(
         }),
       );
 
-      // Continuous mode events
+      // Queue mode events
       eventCleanups.push(
-        listen<ContinuousModeUpdate>("continuous-mode-update", (event) => {
+        listen<QueueModeUpdate>("queue-mode-update", (event) => {
           if (disposed) return;
           const { project_id, run } = event.payload;
           // Keep completed runs visible — user must dismiss to close sessions
-          get().setContinuousMode(project_id, run);
+          get().setQueueMode(project_id, run);
         }),
       );
 
       eventCleanups.push(
-        listen<ContinuousModeFinished>("continuous-mode-finished", (event) => {
+        listen<QueueModeFinished>("queue-mode-finished", (event) => {
           if (disposed) return;
           const { project_id, completed_count } = event.payload;
-          get().setContinuousMode(project_id, null);
+          get().setQueueMode(project_id, null);
           // Refresh tasks for the project since statuses changed
           invoke<Task[]>("list_tasks", { projectId: project_id })
             .then((tasks) => {
@@ -2222,11 +2225,53 @@ export const useAppStore = create<AppState>()(
           // Send notification
           maybeNotify(
             "complete",
-            `continuous-${project_id}`,
-            "Continuous Mode",
+            `queue-${project_id}`,
+            "Queue Mode",
             `All ${completed_count} tasks completed`,
             get().activeView,
             project_id === get().activeProjectId,
+          );
+        }),
+      );
+
+      // Integration branch events
+      eventCleanups.push(
+        listen<TaskMergedEvent>("task-merged", (event) => {
+          if (disposed) return;
+          const { task_id } = event.payload;
+          // Refresh the merged task's status
+          const pid = get().activeProjectId;
+          if (!pid) return;
+          invoke<Task[]>("list_tasks", { projectId: pid })
+            .then((tasks) => {
+              if (pid === get().activeProjectId) set({ tasks });
+            })
+            .catch(() => {});
+          console.debug(`[queue] Task ${task_id} merged into integration branch`);
+        }),
+      );
+
+      eventCleanups.push(
+        listen<MergeConflictEvent>("merge-conflict", (event) => {
+          if (disposed) return;
+          const { task_id, conflicting_files } = event.payload;
+          get().flashError(
+            `Merge conflict on task ${task_id}: ${conflicting_files.length} file${conflicting_files.length !== 1 ? "s" : ""} in conflict`,
+          );
+        }),
+      );
+
+      eventCleanups.push(
+        listen<RunCompletedEvent>("run-completed", (event) => {
+          if (disposed) return;
+          const { integration_branch, merged_count } = event.payload;
+          maybeNotify(
+            "complete",
+            `run-${event.payload.run_id}`,
+            "Queue Run Complete",
+            `${merged_count} tasks merged to ${integration_branch}`,
+            get().activeView,
+            true,
           );
         }),
       );

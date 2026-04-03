@@ -1,14 +1,15 @@
 import {
+  ArrowRight,
   ChevronRight,
   CircleCheck,
+  ClipboardList,
+  Eye,
   FolderCode,
   FolderOpen,
   FolderPlus,
-  GitCompareArrows,
-  LayoutDashboard,
   Loader2,
   type LucideIcon,
-  TerminalSquare,
+  Play,
 } from "lucide-react";
 import { AnimatePresence, LayoutGroup, motion } from "motion/react";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -28,24 +29,37 @@ import {
 import CreateProjectDialog from "./CreateProjectDialog";
 import WindowControls from "./WindowControls";
 
-const CAPABILITIES: { icon: LucideIcon; label: string; description: string }[] =
-  [
-    {
-      icon: LayoutDashboard,
-      label: "Task Board",
-      description: "Kanban workflow for AI tasks",
-    },
-    {
-      icon: TerminalSquare,
-      label: "Terminals",
-      description: "Multi-pane terminal grid",
-    },
-    {
-      icon: GitCompareArrows,
-      label: "Git Isolation",
-      description: "Worktree per task",
-    },
-  ];
+const WORKFLOW_STEPS: {
+  step: number;
+  icon: LucideIcon;
+  label: string;
+  description: string;
+}[] = [
+  {
+    step: 1,
+    icon: FolderOpen,
+    label: "Open a project",
+    description: "Point Faber at any code folder to get started",
+  },
+  {
+    step: 2,
+    icon: ClipboardList,
+    label: "Create tasks",
+    description: "Add tasks describing the work for AI agents",
+  },
+  {
+    step: 3,
+    icon: Play,
+    label: "Launch sessions",
+    description: "Agents work on your tasks, optionally in isolated worktrees",
+  },
+  {
+    step: 4,
+    icon: Eye,
+    label: "Review changes",
+    description: "Inspect diffs, approve, and merge results",
+  },
+];
 
 
 const LOADING_LABELS = [
@@ -227,36 +241,58 @@ export default function WelcomeScreen() {
                 </CardContent>
               </Card>
 
-              {/* Capabilities — only shown for first-time users */}
+              {/* Workflow steps — only shown for first-time users */}
               {!hasProjects && (
-                <div className="grid grid-cols-3 gap-3 w-full mt-5">
-                  {CAPABILITIES.map((cap, i) => {
-                    const Icon = cap.icon;
-                    return (
-                      <Card
-                        key={cap.label}
-                        type="subtle"
-                        radius="md"
-                        border
-                        animationPreset="slide-up"
-                        animationDelay={0.15 + i * STAGGER_DELAYS.fast}
-                        className="text-center"
-                      >
-                        <CardContent className="p-4 flex flex-col items-center gap-1.5">
-                          <div className="text-muted-foreground">
-                            <Icon size={18} strokeWidth={1.5} />
-                          </div>
-                          <div className="text-xs font-medium text-dim-foreground">
-                            {cap.label}
-                          </div>
-                          <div className="text-2xs text-muted-foreground leading-snug">
-                            {cap.description}
-                          </div>
-                        </CardContent>
-                      </Card>
-                    );
-                  })}
-                </div>
+                <Card
+                  type="subtle"
+                  radius="lg"
+                  border
+                  animationPreset="slide-up"
+                  animationDelay={0.15}
+                  className="w-full mt-5"
+                >
+                  <CardContent className="p-5">
+                    <div className="text-2xs font-medium tracking-[0.1em] uppercase text-muted-foreground mb-3">
+                      How it works
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      {WORKFLOW_STEPS.map((ws, i) => {
+                        const Icon = ws.icon;
+                        return (
+                          <motion.div
+                            key={ws.step}
+                            initial={{ opacity: 0, x: -8 }}
+                            animate={{ opacity: 1, x: 0 }}
+                            transition={{
+                              duration: 0.3,
+                              delay: 0.25 + i * 0.06,
+                              ease: EASE.out,
+                            }}
+                            className="flex items-center gap-3"
+                          >
+                            <div className="flex items-center justify-center size-7 rounded-md bg-primary/10 text-primary shrink-0">
+                              <Icon size={14} strokeWidth={2} />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <span className="text-xs font-medium text-foreground">
+                                {ws.label}
+                              </span>
+                              <span className="text-2xs text-muted-foreground ml-2">
+                                {ws.description}
+                              </span>
+                            </div>
+                            {i < WORKFLOW_STEPS.length - 1 && (
+                              <ArrowRight
+                                size={10}
+                                className="text-muted-foreground/40 shrink-0"
+                              />
+                            )}
+                          </motion.div>
+                        );
+                      })}
+                    </div>
+                  </CardContent>
+                </Card>
               )}
 
               {/* Supported agents — 3-per-row card grid */}
