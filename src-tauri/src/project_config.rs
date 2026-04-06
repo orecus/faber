@@ -196,7 +196,7 @@ impl Default for AcpConfig {
 }
 
 /// Queue/autonomous mode upstream settings.
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, PartialEq)]
 #[serde(rename_all = "camelCase")]
 pub struct QueueConfig {
     /// Push integration branch to remote after run completion. Default: false.
@@ -207,15 +207,6 @@ pub struct QueueConfig {
     /// Requires `auto_push` to be true.
     #[serde(default)]
     pub auto_create_pr: bool,
-}
-
-impl Default for QueueConfig {
-    fn default() -> Self {
-        Self {
-            auto_push: false,
-            auto_create_pr: false,
-        }
-    }
 }
 
 impl Default for ProjectConfig {

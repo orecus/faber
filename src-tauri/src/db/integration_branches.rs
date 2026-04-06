@@ -5,24 +5,29 @@ use crate::error::AppError;
 
 use super::models::IntegrationBranch;
 
+/// Parameters for creating an integration branch.
+pub struct CreateParams<'a> {
+    pub run_type: &'a str,
+    pub run_id: &'a str,
+    pub project_id: &'a str,
+    pub branch_name: &'a str,
+    pub base_branch: &'a str,
+    pub worktree_strategy: &'a str,
+    pub pending_tasks: &'a [String],
+}
+
 /// Create a new integration branch record.
 pub fn create(
     conn: &Connection,
-    run_type: &str,
-    run_id: &str,
-    project_id: &str,
-    branch_name: &str,
-    base_branch: &str,
-    worktree_strategy: &str,
-    pending_tasks: &[String],
+    params: &CreateParams<'_>,
 ) -> Result<IntegrationBranch, AppError> {
     let id = db::generate_id("ib");
-    let pending_json = serde_json::to_string(pending_tasks).unwrap_or_else(|_| "[]".to_string());
+    let pending_json = serde_json::to_string(params.pending_tasks).unwrap_or_else(|_| "[]".to_string());
 
     conn.execute(
         "INSERT INTO integration_branches (id, run_type, run_id, project_id, branch_name, base_branch, worktree_strategy, pending_tasks)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8)",
-        rusqlite::params![id, run_type, run_id, project_id, branch_name, base_branch, worktree_strategy, pending_json],
+        rusqlite::params![id, params.run_type, params.run_id, params.project_id, params.branch_name, params.base_branch, params.worktree_strategy, pending_json],
     )?;
 
     get(conn, &id)?.ok_or_else(|| AppError::NotFound("Integration branch just created".into()))
@@ -42,6 +47,7 @@ pub fn get(conn: &Connection, id: &str) -> Result<Option<IntegrationBranch>, App
 }
 
 /// Get the active integration branch for a run.
+#[allow(dead_code)]
 pub fn get_by_run(
     conn: &Connection,
     run_type: &str,
@@ -148,6 +154,7 @@ pub fn mark_pushed(conn: &Connection, id: &str) -> Result<(), AppError> {
 }
 
 /// Store the PR URL.
+#[allow(dead_code)]
 pub fn set_pr_url(conn: &Connection, id: &str, pr_url: &str) -> Result<(), AppError> {
     conn.execute(
         "UPDATE integration_branches SET pr_url = ?1, updated_at = datetime('now') WHERE id = ?2",

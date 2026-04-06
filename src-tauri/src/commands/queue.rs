@@ -133,11 +133,9 @@ pub fn start_queue_mode(
     let run_id = db::generate_id("qr");
 
     // Determine effective worktree strategy
-    let effective_wt_strategy = wt_strategy.unwrap_or_else(|| {
-        match strategy {
-            BranchingStrategy::Chained | BranchingStrategy::Dag => queue::WorktreeStrategy::Integration,
-            BranchingStrategy::Independent => queue::WorktreeStrategy::Independent,
-        }
+    let effective_wt_strategy = wt_strategy.unwrap_or(match strategy {
+        BranchingStrategy::Chained | BranchingStrategy::Dag => queue::WorktreeStrategy::Integration,
+        BranchingStrategy::Independent => queue::WorktreeStrategy::Independent,
     });
 
     // Create integration branch if using Integration strategy
@@ -153,8 +151,16 @@ pub fn start_queue_mode(
                 Ok(_) => {
                     let pending: Vec<String> = task_ids.clone();
                     match db::integration_branches::create(
-                        &conn, "queue", &run_id, &project_id, &ib_name, base,
-                        effective_wt_strategy.as_str(), &pending,
+                        &conn,
+                        &db::integration_branches::CreateParams {
+                            run_type: "queue",
+                            run_id: &run_id,
+                            project_id: &project_id,
+                            branch_name: &ib_name,
+                            base_branch: base,
+                            worktree_strategy: effective_wt_strategy.as_str(),
+                            pending_tasks: &pending,
+                        },
                     ) {
                         Ok(ib) => {
                             integration_branch_id = Some(ib.id);
@@ -463,7 +469,7 @@ pub fn resume_queue_mode(
             run.queue.iter().enumerate()
                 .filter(|(_, item)| {
                     item.status == QueueItemStatus::Running
-                        && item.session_id.as_ref().map_or(false, |sid| {
+                        && item.session_id.as_ref().is_some_and(|sid| {
                             mcp_guard.sessions.get(sid.as_str())
                                 .map(|d| d.completed)
                                 .unwrap_or(false)
