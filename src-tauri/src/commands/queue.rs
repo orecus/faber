@@ -66,6 +66,7 @@ pub fn start_queue_mode(
         _ => BranchingStrategy::Independent,
     };
 
+    #[allow(deprecated)]
     let wt_strategy = match worktree_strategy.as_deref() {
         Some("integration") => Some(queue::WorktreeStrategy::Integration),
         Some("sequential") => Some(queue::WorktreeStrategy::Sequential),
@@ -134,8 +135,8 @@ pub fn start_queue_mode(
     // Determine effective worktree strategy
     let effective_wt_strategy = wt_strategy.unwrap_or_else(|| {
         match strategy {
-            BranchingStrategy::Chained => queue::WorktreeStrategy::Integration,
-            BranchingStrategy::Independent | BranchingStrategy::Dag => queue::WorktreeStrategy::Independent,
+            BranchingStrategy::Chained | BranchingStrategy::Dag => queue::WorktreeStrategy::Integration,
+            BranchingStrategy::Independent => queue::WorktreeStrategy::Independent,
         }
     });
 

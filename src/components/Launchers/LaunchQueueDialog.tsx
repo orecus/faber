@@ -1,12 +1,10 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   AlertTriangle,
-  ArrowRight,
   ChevronDown,
   ChevronUp,
   GitBranch,
   Info,
-  Link,
   MessageSquare,
   Network,
   Play,
@@ -326,100 +324,21 @@ export default function LaunchQueueDialog({
         <DialogHeader>
           <DialogTitle>Queue Mode</DialogTitle>
           <DialogDescription className="text-dim-foreground">
-            Launch tasks in parallel, sequentially, or respecting dependencies
+            Launch tasks in parallel or with dependency-aware orchestration
           </DialogDescription>
         </DialogHeader>
 
         {/* ── Two-column layout ── */}
         <div className="grid grid-cols-[1fr_340px] gap-5 min-h-0">
 
-          {/* ── Left column: Tasks & Strategy ── */}
+          {/* ── Left column: Strategy & Task Queue ── */}
           <div className="flex flex-col gap-3 min-h-0 overflow-y-auto max-h-[525px] pr-1">
-            {/* Task Queue */}
-            <div>
-              <label className="mb-1.5 block text-xs text-dim-foreground">
-                Task Queue ({selectedTaskIds.length} selected)
-              </label>
-              <div className="flex flex-col gap-1 rounded-[var(--radius-element)] border border-border bg-popover p-1.5 max-h-[300px] overflow-y-auto">
-                {orderedTasks.map((item, index) => {
-                  const selectedIndex = orderedTasks
-                    .slice(0, index + 1)
-                    .filter((t) => t.selected).length;
-                  return (
-                    <div
-                      key={item.task.id}
-                      className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
-                        item.selected
-                          ? "bg-accent/50"
-                          : "opacity-50"
-                      }`}
-                    >
-                      <Checkbox
-                        checked={item.selected}
-                        onCheckedChange={() => handleToggleTask(index)}
-                      />
-                      <span className="text-xs tabular-nums text-muted-foreground w-4 text-center shrink-0">
-                        {item.selected ? selectedIndex : "-"}
-                      </span>
-                      <span className="text-xs text-foreground truncate flex-1">
-                        {item.task.title}
-                        {item.task.depends_on.length > 0 && (
-                          <span
-                            className="ml-1 text-2xs text-muted-foreground"
-                            title={`Depends on: ${item.task.depends_on.join(", ")}`}
-                          >
-                            (deps: {item.task.depends_on.filter((d) => orderedTasks.some((t) => t.task.id === d)).length})
-                          </span>
-                        )}
-                      </span>
-                      {item.task.agent && item.task.agent !== selectedAgentName && (
-                        <span
-                          className="shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium bg-primary/15 text-primary"
-                          title={`This task will use ${item.task.agent} instead of ${selectedAgentName}`}
-                        >
-                          {item.task.agent}
-                        </span>
-                      )}
-                      <span
-                        className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium ${getPriorityBadgeClass(item.task.priority, priorities)}`}
-                      >
-                        {item.task.priority}
-                      </span>
-                      <div className="flex shrink-0">
-                        <button
-                          onClick={() => handleMoveUp(index)}
-                          disabled={index === 0}
-                          title="Move up"
-                          className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-default"
-                        >
-                          <ChevronUp className="size-3" />
-                        </button>
-                        <button
-                          onClick={() => handleMoveDown(index)}
-                          disabled={index === orderedTasks.length - 1}
-                          title="Move down"
-                          className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-default"
-                        >
-                          <ChevronDown className="size-3" />
-                        </button>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-              {selectedTaskIds.length < 2 && (
-                <p className="mt-1 text-xs text-warning">
-                  Select at least 2 tasks to start queue mode
-                </p>
-              )}
-            </div>
-
             {/* Branching Strategy */}
             <div>
               <label className="mb-1.5 block text-xs text-dim-foreground">
-                Branching Strategy
+                Strategy
               </label>
-              <div className="grid grid-cols-3 gap-2">
+              <div className="grid grid-cols-2 gap-2">
                 <button
                   onClick={() => setStrategy("independent")}
                   className={`flex items-start gap-2 rounded-[var(--radius-element)] px-2.5 py-2 text-left transition-all duration-150 border ${
@@ -436,27 +355,7 @@ export default function LaunchQueueDialog({
                       Independent
                     </span>
                     <div className="text-2xs leading-snug text-muted-foreground mt-0.5">
-                      All parallel, each from base
-                    </div>
-                  </div>
-                </button>
-                <button
-                  onClick={() => setStrategy("chained")}
-                  className={`flex items-start gap-2 rounded-[var(--radius-element)] px-2.5 py-2 text-left transition-all duration-150 border ${
-                    strategy === "chained"
-                      ? `${borderAccentColors[accentColor]} bg-accent`
-                      : "border-border bg-popover"
-                  } cursor-pointer`}
-                >
-                  <Link className="size-3.5 shrink-0 mt-0.5 text-muted-foreground" />
-                  <div>
-                    <span
-                      className={`text-xs ${strategy === "chained" ? "font-medium text-foreground" : "text-foreground"}`}
-                    >
-                      Chained
-                    </span>
-                    <div className="text-2xs leading-snug text-muted-foreground mt-0.5">
-                      Sequential, each from previous
+                      All parallel from base. No auto-merge.
                     </div>
                   </div>
                 </button>
@@ -473,10 +372,10 @@ export default function LaunchQueueDialog({
                     <span
                       className={`text-xs ${strategy === "dag" ? "font-medium text-foreground" : "text-foreground"}`}
                     >
-                      Dependency
+                      Orchestrated
                     </span>
                     <div className="text-2xs leading-snug text-muted-foreground mt-0.5">
-                      Respects task dependencies
+                      Dependency-aware with auto-merge
                     </div>
                   </div>
                 </button>
@@ -500,11 +399,11 @@ export default function LaunchQueueDialog({
                             onClick={() => setStrategy(depAnalysis.suggestion!)}
                             className="text-primary hover:underline"
                           >
-                            Use {depAnalysis.suggestion}?
+                            Use {depAnalysis.suggestion === "dag" ? "orchestrated" : depAnalysis.suggestion}?
                           </button>
                         </>
                       )}
-                    {(strategy === "chained" || strategy === "dag") && (
+                    {strategy === "dag" && (
                       <span className="text-success"> (auto-sorted by dependencies)</span>
                     )}
                   </span>
@@ -512,67 +411,161 @@ export default function LaunchQueueDialog({
               )}
             </div>
 
-            {/* DAG Execution Plan Preview */}
-            {dagPhases && dagPhases.length > 0 && (
-              <div>
-                <label className="mb-1.5 block text-xs text-dim-foreground">
-                  Execution Plan — {dagPhases.length} phase{dagPhases.length !== 1 ? "s" : ""}
-                </label>
-                <div className="rounded-[var(--radius-element)] border border-border bg-popover p-3">
-                  <div className="flex items-stretch gap-0">
-                    {dagPhases.map((phase, phaseIdx) => {
-                      const taskMap = new Map(orderedTasks.map((item) => [item.task.id, item.task]));
-                      return (
-                        <div key={phaseIdx} className="flex items-stretch flex-1 min-w-0">
-                          {/* Phase column */}
-                          <div className="flex flex-col flex-1 min-w-0">
-                            {/* Phase header */}
-                            <div className="flex items-center gap-1.5 mb-1.5">
-                              <span className={`flex items-center justify-center size-5 rounded-full text-2xs font-bold shrink-0 ${
-                                phaseIdx === 0 ? "bg-primary text-primary-foreground" : "bg-accent text-dim-foreground"
-                              }`}>
-                                {phaseIdx + 1}
-                              </span>
-                              <span className="text-xs font-medium text-foreground">
-                                Phase {phaseIdx + 1}
-                              </span>
-                              {phase.length > 1 && (
-                                <span className="text-2xs text-primary font-medium">
-                                  {phase.length} parallel
-                                </span>
-                              )}
-                            </div>
-                            {/* Task list */}
-                            <div className="flex flex-col gap-1 pl-2.5 ml-[9px] border-l-2 border-border">
-                              {phase.map((id) => {
-                                const task = taskMap.get(id);
-                                return (
-                                  <div
-                                    key={id}
-                                    className="flex items-center gap-1.5 rounded px-2 py-1 bg-accent/40"
-                                  >
-                                    <span className="size-1.5 rounded-full bg-muted-foreground/50 shrink-0" />
-                                    <span className="text-xs text-dim-foreground truncate" title={task?.title ?? id}>
-                                      {task?.title ?? id}
-                                    </span>
-                                  </div>
-                                );
-                              })}
-                            </div>
-                          </div>
-                          {/* Arrow connector between phases */}
-                          {phaseIdx < dagPhases.length - 1 && (
-                            <div className="flex items-center px-2 shrink-0">
-                              <ArrowRight className="size-3.5 text-muted-foreground" />
-                            </div>
+            {/* Unified Task Queue / Execution Plan */}
+            <div className="flex-1 min-h-0">
+              <label className="mb-1.5 block text-xs text-dim-foreground">
+                {strategy === "dag" && dagPhases && dagPhases.length > 1
+                  ? `Execution Plan — ${dagPhases.length} phases (${selectedTaskIds.length} tasks)`
+                  : `Task Queue (${selectedTaskIds.length} selected)`
+                }
+              </label>
+              <div className="flex flex-col gap-0 rounded-[var(--radius-element)] border border-border bg-popover p-1.5 max-h-[380px] overflow-y-auto">
+                {strategy === "dag" && dagPhases && dagPhases.length > 0 ? (
+                  /* ── Orchestrated: vertical phases ── */
+                  dagPhases.map((phase, phaseIdx) => {
+                    const taskMap = new Map(orderedTasks.map((item) => [item.task.id, item]));
+                    return (
+                      <div key={phaseIdx}>
+                        {/* Phase header */}
+                        <div className={`flex items-center gap-1.5 px-2 py-1.5 ${phaseIdx > 0 ? "mt-1 border-t border-border/50" : ""}`}>
+                          <span className={`flex items-center justify-center size-5 rounded-full text-2xs font-bold shrink-0 ${
+                            phaseIdx === 0 ? "bg-primary text-primary-foreground" : "bg-accent text-dim-foreground"
+                          }`}>
+                            {phaseIdx + 1}
+                          </span>
+                          <span className="text-xs font-medium text-foreground">
+                            Phase {phaseIdx + 1}
+                          </span>
+                          {phase.length > 1 && (
+                            <span className="text-2xs text-primary font-medium">
+                              {phase.length} parallel
+                            </span>
                           )}
+                        </div>
+                        {/* Phase tasks */}
+                        <div className="flex flex-col gap-0.5 ml-[9px] pl-2.5 border-l-2 border-border pb-1">
+                          {phase.map((id) => {
+                            const entry = taskMap.get(id);
+                            if (!entry) return null;
+                            const item = entry;
+                            const globalIndex = orderedTasks.findIndex((t) => t.task.id === id);
+                            return (
+                              <div
+                                key={id}
+                                className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                                  item.selected ? "bg-accent/50" : "opacity-50"
+                                }`}
+                              >
+                                <Checkbox
+                                  checked={item.selected}
+                                  onCheckedChange={() => handleToggleTask(globalIndex)}
+                                />
+                                <span className="text-xs text-foreground truncate flex-1">
+                                  {item.task.title}
+                                  {item.task.depends_on.length > 0 && (
+                                    <span
+                                      className="ml-1 text-2xs text-muted-foreground"
+                                      title={`Depends on: ${item.task.depends_on.join(", ")}`}
+                                    >
+                                      (deps: {item.task.depends_on.filter((d) => orderedTasks.some((t) => t.task.id === d)).length})
+                                    </span>
+                                  )}
+                                </span>
+                                {item.task.agent && item.task.agent !== selectedAgentName && (
+                                  <span
+                                    className="shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium bg-primary/15 text-primary"
+                                    title={`This task will use ${item.task.agent} instead of ${selectedAgentName}`}
+                                  >
+                                    {item.task.agent}
+                                  </span>
+                                )}
+                                <span
+                                  className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium ${getPriorityBadgeClass(item.task.priority, priorities)}`}
+                                >
+                                  {item.task.priority}
+                                </span>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    );
+                  })
+                ) : (
+                  /* ── Independent: flat reorderable list ── */
+                  <div className="flex flex-col gap-0.5">
+                    {orderedTasks.map((item, index) => {
+                      const selectedIndex = orderedTasks
+                        .slice(0, index + 1)
+                        .filter((t) => t.selected).length;
+                      return (
+                        <div
+                          key={item.task.id}
+                          className={`flex items-center gap-2 rounded-md px-2 py-1.5 transition-colors ${
+                            item.selected ? "bg-accent/50" : "opacity-50"
+                          }`}
+                        >
+                          <Checkbox
+                            checked={item.selected}
+                            onCheckedChange={() => handleToggleTask(index)}
+                          />
+                          <span className="text-xs tabular-nums text-muted-foreground w-4 text-center shrink-0">
+                            {item.selected ? selectedIndex : "-"}
+                          </span>
+                          <span className="text-xs text-foreground truncate flex-1">
+                            {item.task.title}
+                            {item.task.depends_on.length > 0 && (
+                              <span
+                                className="ml-1 text-2xs text-muted-foreground"
+                                title={`Depends on: ${item.task.depends_on.join(", ")}`}
+                              >
+                                (deps: {item.task.depends_on.filter((d) => orderedTasks.some((t) => t.task.id === d)).length})
+                              </span>
+                            )}
+                          </span>
+                          {item.task.agent && item.task.agent !== selectedAgentName && (
+                            <span
+                              className="shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium bg-primary/15 text-primary"
+                              title={`This task will use ${item.task.agent} instead of ${selectedAgentName}`}
+                            >
+                              {item.task.agent}
+                            </span>
+                          )}
+                          <span
+                            className={`shrink-0 rounded px-1.5 py-0.5 text-2xs font-medium ${getPriorityBadgeClass(item.task.priority, priorities)}`}
+                          >
+                            {item.task.priority}
+                          </span>
+                          <div className="flex shrink-0">
+                            <button
+                              onClick={() => handleMoveUp(index)}
+                              disabled={index === 0}
+                              title="Move up"
+                              className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-default"
+                            >
+                              <ChevronUp className="size-3" />
+                            </button>
+                            <button
+                              onClick={() => handleMoveDown(index)}
+                              disabled={index === orderedTasks.length - 1}
+                              title="Move down"
+                              className="p-0.5 text-muted-foreground hover:text-foreground disabled:opacity-30 disabled:cursor-default"
+                            >
+                              <ChevronDown className="size-3" />
+                            </button>
+                          </div>
                         </div>
                       );
                     })}
                   </div>
-                </div>
+                )}
               </div>
-            )}
+              {selectedTaskIds.length < 2 && (
+                <p className="mt-1 text-xs text-warning">
+                  Select at least 2 tasks to start queue mode
+                </p>
+              )}
+            </div>
           </div>
 
           {/* ── Right column: Configuration ── */}

@@ -1,13 +1,13 @@
 ---
 title: Queue Mode
-description: Queue tasks and run them sequentially with automatic handoff
+description: Run multiple tasks with automatic handoff and dependency orchestration
 icon: list-checks
 order: 4
 ---
 
 # Queue Mode
 
-Queue Mode lets you queue multiple tasks and run them sequentially with automatic handoff between agents. When one task finishes, the next one starts automatically — no manual intervention needed.
+Queue Mode lets you run multiple tasks with automatic handoff between agents. Tasks can run in parallel (Independent) or with dependency-aware orchestration that auto-merges completed work into a shared branch.
 
 ---
 
@@ -25,26 +25,29 @@ The first task launches immediately. When the agent calls `report_complete`, Fab
 
 ## The Launch Dialog
 
-### Task Queue
+### Strategy
 
-All tasks in **Ready** status are listed with checkboxes. You can:
-
-- **Uncheck** tasks you don't want to include (minimum 2 required)
-- **Reorder** tasks using the up/down arrows
-- See **priority badges** and **dependency counts** for each task
-
-### Branching Strategy
+Choose how tasks are executed and how branches are managed:
 
 | Strategy | Behavior |
 |---|---|
-| **Independent** | Each task gets its own branch from the base branch. Tasks are isolated from each other. Best for unrelated work. |
-| **Chained** | Each task branches from the previous task's branch. Changes accumulate. Best for sequential work where later tasks build on earlier ones. |
+| **Independent** | Each task gets its own branch from the base branch. All tasks run in parallel. No auto-merge — you manage merge ordering. Best for unrelated work. |
+| **Orchestrated** | Dependency-aware execution with auto-merge. Tasks launch when their dependencies complete, and finished work is automatically merged into a shared integration branch. Best for related work with dependencies. |
+
+### Task Queue
+
+The task list adapts based on your chosen strategy:
+
+- **Independent**: A flat, reorderable list. Use checkboxes to include/exclude tasks and arrows to reorder.
+- **Orchestrated**: Tasks are grouped into **execution phases**. Phase 1 contains tasks with no dependencies (they run in parallel). Phase 2 contains tasks that depend on Phase 1, and so on. Each phase starts only after the previous phase completes.
+
+Both views show **priority badges**, **dependency counts**, and **per-task agent overrides**.
 
 ### Smart Strategy Suggestion
 
 If your tasks have `depends_on` relationships (set manually or detected during [GitHub import](/help/github_workflow)), Faber analyzes the dependency graph and:
 
-- **Auto-suggests Chained** when tasks have dependency links
+- **Auto-suggests Orchestrated** when tasks have dependency links
 - **Auto-sorts** tasks in dependency order (dependencies run first)
 - Shows an info banner explaining the detected relationships
 
@@ -74,14 +77,16 @@ While Queue Mode is active, a status bar appears at the top of the Dashboard vie
 
 ### Normal Flow
 
+**Independent**: All tasks launch in parallel. As each agent calls `report_complete`, its task moves to **In Review**. The queue finishes when all tasks are done.
+
+**Orchestrated**: Root tasks (no dependencies) launch first. When an agent completes, its branch is auto-merged into the integration branch, the task moves to **In Review**, and any newly-unblocked tasks in the next phase launch automatically.
+
 ```
-Task 1 (running) → agent completes → mark "in-review" → stop session
+Phase 1 tasks launch → agents complete → merge to integration branch
     ↓
-Task 2 (running) → agent completes → mark "in-review" → stop session
+Phase 2 tasks launch (deps satisfied) → agents complete → merge
     ↓
-Task 3 (running) → agent completes → mark "in-review" → stop session
-    ↓
-All done — queue mode finishes
+All phases done — queue mode finishes
 ```
 
 Each task transition includes a 2-second delay to let the agent's terminal finish writing output before the session is stopped.
@@ -110,7 +115,7 @@ If you manually stop a session that's part of a queue run, the run is paused (no
 
 ---
 
-## Branching Strategies in Detail
+## Strategies in Detail
 
 ### Independent
 
@@ -120,16 +125,22 @@ main ──┬── feat/T-001-auth ──── (task 1 work)
        └── feat/T-003-ui ────── (task 3 work)
 ```
 
-Each task gets a clean branch from the base. No task can see another task's changes. This is ideal when tasks are unrelated and can be reviewed/merged independently.
+Each task gets a clean branch from the base. All tasks launch in parallel. No auto-merge — you review and merge each branch independently. Ideal when tasks are unrelated.
 
-### Chained
+### Orchestrated
 
 ```
-main ── feat/T-001-auth ── feat/T-002-api ── feat/T-003-ui
-         (task 1 work)      (task 2 work)     (task 3 work)
+main ── queue/qr_abc123 (integration branch)
+           ↑ merge T-001  ↑ merge T-002  ↑ merge T-003
+
+Phase 1: T-001 (no deps)     ← runs immediately
+Phase 2: T-002 (depends on T-001) ← runs after Phase 1 completes
+Phase 3: T-003 (depends on T-002) ← runs after Phase 2 completes
 ```
 
-Each task branches from the previous task's branch. Later tasks can see and build on earlier changes. This is ideal when tasks form a sequence — for example, "set up auth" → "build API endpoints using auth" → "build UI using the API".
+Tasks are grouped into phases based on their dependency graph. Within each phase, tasks with no mutual dependencies run in parallel. After each task completes, its branch is automatically merged into a shared **integration branch** (`queue/<run_id>`). Later phases branch from this integration branch, so they can see all previously merged work.
+
+If a merge conflict occurs, the queue pauses and you can resolve it manually, then either **retry the merge** or **skip** the conflicted task.
 
 ---
 
@@ -151,8 +162,8 @@ Dependencies can also be **auto-detected** when importing GitHub issues. If an i
 
 When you open the Queue Mode dialog with tasks that have dependencies:
 
-1. The strategy is auto-set to **Chained**
-2. Tasks are auto-sorted so dependencies run before dependents
+1. The strategy is auto-set to **Orchestrated**
+2. Tasks are grouped into execution phases based on the dependency graph
 3. An info banner shows the detected dependency links
 
 ---

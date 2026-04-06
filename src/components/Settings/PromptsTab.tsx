@@ -93,7 +93,7 @@ const SESSION_VARS: { name: string; description: string; modes?: string[] }[] = 
   { name: "task_id", description: "Task ID (e.g. T-037)" },
   { name: "task_title", description: "Task title from DB" },
   { name: "worktree_hint", description: "Worktree path instruction (or empty)", modes: ["task", "task-continue"] },
-  { name: "mode", description: '"parallel" or "chained"', modes: ["queue"] },
+  { name: "mode", description: '"parallel" or "dag"', modes: ["queue"] },
   { name: "project_name", description: "Project name" },
   { name: "branch_name", description: "Current git branch" },
 ];

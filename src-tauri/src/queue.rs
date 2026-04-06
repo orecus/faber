@@ -58,10 +58,13 @@ pub enum WorktreeStrategy {
     /// Current behavior — user manages merge ordering.
     Independent,
     /// Single worktree, concurrency=1, all tasks commit sequentially.
+    /// Deprecated: not exposed in UI — kept for potential future use.
+    #[deprecated(note = "Not exposed in UI — kept for potential future use")]
     Sequential,
 }
 
 impl WorktreeStrategy {
+    #[allow(deprecated)]
     pub fn as_str(&self) -> &'static str {
         match self {
             Self::Integration => "integration",
