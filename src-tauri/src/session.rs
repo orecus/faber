@@ -14,7 +14,7 @@ use crate::acp::state::{AcpSessionState, AcpState};
 use crate::acp::types::{AcpConfigOptionUpdatePayload, AcpErrorPayload, AcpPromptCompletePayload, EVENT_ACP_CONFIG_OPTION_UPDATE, EVENT_ACP_ERROR, EVENT_ACP_PROMPT_COMPLETE};
 use crate::agent::{self, AgentLaunchConfig};
 use crate::commands::tasks::do_update_task_status;
-use crate::continuous;
+use crate::queue;
 use crate::db;
 use crate::db::models::{
     NewSession, Session, SessionMode, SessionStatus, SessionTransport,
@@ -27,125 +27,29 @@ use crate::mcp::server::McpSessionData;
 use crate::pty::{self, PtyState};
 use crate::tasks;
 
-// ── MCP tool descriptions (shared between system prompt and instruction files) ──
-
-/// Universal status tools description — available in all session modes.
-const MCP_TOOLS_UNIVERSAL: &str = "\
-You have MCP tools provided by the Faber IDE for reporting your progress. \
-You MUST use them throughout your workflow.
-
-## Status Reporting (required)
-
-- `report_status(status, message, activity?)` — Call FIRST when you start working (status: \"working\"). Call again when your activity changes. Activity options: \"researching\", \"exploring\", \"planning\", \"coding\", \"testing\", \"debugging\", \"reviewing\".
-- `report_progress(current_step, total_steps, description)` — Call before each major step so the IDE shows a progress bar.
-- `report_files_changed(files)` — Call after modifying files so the IDE can track changes.
-- `report_error(error, details?)` — Call if you hit a hard blocker (build failure, missing dependency, etc.). After calling this, STOP and wait for the user.
-- `report_waiting(question)` — Call if you need user input or a decision. After calling this, STOP and wait — the session pauses until the user responds.";
-
-/// Task management tools description — only for task-linked sessions.
-const MCP_TOOLS_TASK: &str = "
-
-## Task Management
-
-- `get_task(task_id?)` — Fetch task metadata and body. Omit task_id to get the current session's task. Call this first to understand what you need to work on.
-- `update_task(task_id?, status?, priority?, title?, labels?, depends_on?, github_issue?, github_pr?)` — Update task metadata (status, priority, labels, etc.).
-- `update_task_plan(plan, task_id?)` — Update the implementation plan in the task file.
-- `create_task(title, body?, priority?, labels?, depends_on?)` — Create a new task (always created as backlog).
-- `list_tasks(status?, label?)` — List all tasks in the current project with optional filters.";
-
-/// Task completion tool description — only for task/continuous sessions.
-const MCP_TOOLS_COMPLETION: &str = "
-
-## Completing Work
-
-- `report_complete(summary)` — Call ONLY ONCE when ALL work is done (code written, tested, verified). \
-This is a terminal action: the task moves to 'in-review' and in continuous mode the next task auto-launches. \
-Do NOT call prematurely. If you need input, use `report_waiting`. If blocked, use `report_error`.";
-
-/// Research session completion guidance — uses report_researched instead of report_complete.
-const MCP_TOOLS_RESEARCH_LIFECYCLE: &str = "
-
-## Completing Research
-
-- `report_researched(summary)` — Call when your research and analysis is complete. \
-Make sure to save your findings using `update_task_plan` before calling this. \
-The user will be prompted to decide whether to continue to implementation.";
-
-/// Breakdown session guidance — used instead of MCP_TOOLS_COMPLETION for breakdown mode.
-const MCP_TOOLS_BREAKDOWN_LIFECYCLE: &str = "
-
-## Completing Breakdown
-
-Break the epic into concrete child tasks using `create_task` with the `epic_id` parameter. \
-Present the breakdown plan to the user before creating tasks. \
-There is no `report_complete` tool in breakdown mode — the user will review the created tasks.";
-
-/// Build the lifecycle instructions section for a given session mode.
-const MCP_TOOLS_LIFECYCLE_TASK: &str = "
-
-## Workflow
-
-1. Call `report_status(\"working\", ...)` immediately when you begin
-2. Call `get_task()` to fetch the task details
-3. Call `report_progress(...)` before each step
-4. Do the work — call `report_files_changed(...)` after modifying files
-5. When ALL work is done and verified, call `report_complete(summary)`
-6. If you need user input at any point, call `report_waiting(question)` and STOP";
-
-const MCP_TOOLS_LIFECYCLE_RESEARCH: &str = "
-
-## Workflow
-
-1. Call `report_status(\"working\", ...)` immediately when you begin
-2. Call `get_task()` to fetch the task details
-3. Research the codebase, explore approaches, and discuss with the user
-4. Save your findings using `update_task_plan(plan)`
-5. Call `report_researched(summary)` when research is complete
-6. If you need user input at any point, call `report_waiting(question)` and STOP";
-
 // ── Agent instruction file management ──
 
 const MCP_INSTRUCTION_MARKER_START: &str = "<!-- Faber:MCP -->";
 const MCP_INSTRUCTION_MARKER_END: &str = "<!-- /Faber:MCP -->";
 
-/// Build the MCP tools description for a given session mode.
-fn mcp_tools_text(session_mode: Option<&str>) -> String {
-    let mut text = MCP_TOOLS_UNIVERSAL.to_string();
-
-    let is_task_linked = matches!(
-        session_mode,
-        Some("task" | "continuous" | "research" | "breakdown")
-    );
-    let is_task_completion = matches!(session_mode, Some("task" | "continuous"));
-
-    if is_task_linked {
-        text.push_str(MCP_TOOLS_TASK);
-    }
-
-    if is_task_completion {
-        text.push_str(MCP_TOOLS_COMPLETION);
-        text.push_str(MCP_TOOLS_LIFECYCLE_TASK);
-    } else if session_mode == Some("research") {
-        text.push_str(MCP_TOOLS_RESEARCH_LIFECYCLE);
-        text.push_str(MCP_TOOLS_LIFECYCLE_RESEARCH);
-    } else if session_mode == Some("breakdown") {
-        text.push_str(MCP_TOOLS_BREAKDOWN_LIFECYCLE);
-    }
-
-    text
-}
+/// Static instruction pointing agents to the get_instructions MCP tool.
+/// This never changes between sessions, so instruction files stay clean in git.
+const MCP_INSTRUCTION_CONTENT: &str = "\
+You have MCP tools provided by the Faber IDE. \
+IMPORTANT: Call the `get_instructions` MCP tool FIRST before doing any work. \
+It provides your session-specific workflow, available tools, and task context.";
 
 /// Build the MCP system prompt string (for agents that support --system-prompt).
-fn mcp_system_prompt_text(session_mode: Option<&str>) -> String {
-    mcp_tools_text(session_mode)
+fn mcp_system_prompt_text() -> String {
+    MCP_INSTRUCTION_CONTENT.to_string()
 }
 
 /// Build the MCP instruction section for agent instruction files (CLAUDE.md, etc.).
-fn mcp_instruction_section(session_mode: Option<&str>) -> String {
+fn mcp_instruction_section() -> String {
     format!(
         "{}\n## Faber Integration\n\n{}\n{}",
         MCP_INSTRUCTION_MARKER_START,
-        mcp_tools_text(session_mode),
+        MCP_INSTRUCTION_CONTENT,
         MCP_INSTRUCTION_MARKER_END
     )
 }
@@ -192,10 +96,11 @@ pub fn upsert_mcp_section(content: &str, section: &str) -> String {
 }
 
 /// Write or update the MCP section in a single instruction file.
-pub fn write_instruction_file(dir: &Path, filename: &str, session_mode: Option<&str>) {
+/// Content is static (just points to get_instructions), so the file only changes on first write.
+pub fn write_instruction_file(dir: &Path, filename: &str) {
     let path = dir.join(filename);
     let existing = std::fs::read_to_string(&path).unwrap_or_default();
-    let section = mcp_instruction_section(session_mode);
+    let section = mcp_instruction_section();
     let updated = upsert_mcp_section(&existing, &section);
     if updated != existing {
         let _ = std::fs::write(&path, &updated);
@@ -225,9 +130,9 @@ pub(crate) struct SessionStatusChanged {
 }
 
 /// Returns the MCP system prompt if the agent supports the system prompt flag.
-fn mcp_system_prompt(adapter: &dyn agent::AgentAdapter, mcp_connected: bool, session_mode: Option<&str>) -> Option<String> {
+fn mcp_system_prompt(adapter: &dyn agent::AgentAdapter, mcp_connected: bool) -> Option<String> {
     if mcp_connected && adapter.supports_system_prompt_flag() {
-        Some(mcp_system_prompt_text(session_mode))
+        Some(mcp_system_prompt_text())
     } else {
         None
     }
@@ -269,7 +174,7 @@ fn inject_mcp(
         return None;
     }
 
-    match mcp::server::write_mcp_config(cwd, agent_name, session_mode) {
+    match mcp::server::write_mcp_config(cwd, agent_name) {
         Ok(Some(_)) => {
             let mut guard = mcp_state.blocking_lock();
             guard.sessions.insert(session_id.to_string(), McpSessionData {
@@ -413,7 +318,7 @@ pub fn start_task_session(
     }
 
     let launch_config = AgentLaunchConfig {
-        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("task")),
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
         prompt: user_prompt_str,
         model: model.clone(),
         extra_flags,
@@ -572,7 +477,7 @@ pub fn start_vibe_session(
     }
 
     let launch_config = AgentLaunchConfig {
-        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("vibe")),
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
         prompt: user_prompt_str,
         model: model.clone(),
         extra_flags,
@@ -702,7 +607,7 @@ pub fn start_research_session(
     }
 
     let launch_config = AgentLaunchConfig {
-        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("research")),
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
         prompt: user_prompt_str,
         model: model.clone(),
         extra_flags,
@@ -954,7 +859,7 @@ fn register_acp_mcp_session(
 
     // Write instruction file for agent context (not MCP config)
     if let Some(filename) = agent_instruction_filename(agent_name) {
-        write_instruction_file(cwd, filename, session_mode);
+        write_instruction_file(cwd, filename);
     }
 
     let mut guard = mcp_state.blocking_lock();
@@ -1338,7 +1243,7 @@ pub struct AcpTaskSessionOpts<'a> {
     /// Whether this session runs in trust mode (autonomous permission handling).
     /// When true, the ACP permission policy engine uses the trust mode policy
     /// (auto_approve / deny_writes) instead of normal rule evaluation.
-    /// Typically enabled for continuous mode auto-launch queues.
+    /// Typically enabled for queue mode auto-launch queues.
     pub is_trust_mode: bool,
 }
 
@@ -2128,7 +2033,7 @@ pub fn start_breakdown_session(
     }
 
     let launch_config = AgentLaunchConfig {
-        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some("breakdown")),
+        system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
         prompt: user_prompt_str,
         model: model.clone(),
         extra_flags,
@@ -2359,7 +2264,7 @@ pub fn relaunch_session(
             let relaunch_prompt = Some(interpolate_vars(&template.prompt, &vars));
 
             let launch_config = AgentLaunchConfig {
-                system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some(), Some(old.mode.as_str())),
+                system_prompt: mcp_system_prompt(adapter.as_ref(), mcp_conn.is_some()),
                 prompt: relaunch_prompt,
                 model: model.clone(),
                 extra_flags,
@@ -2644,8 +2549,8 @@ pub fn stop_session(
     // 5. Update status to Stopped
     db::sessions::update_status(conn, session_id, SessionStatus::Stopped)?;
 
-    // 6. Pause continuous mode if this session was manually stopped
-    continuous::handle_manual_stop(app, session_id);
+    // 6. Pause queue mode if this session was manually stopped
+    queue::handle_manual_stop(app, session_id);
 
     // 7. Emit events
     let updated = db::sessions::get(conn, session_id)?
@@ -2670,7 +2575,7 @@ pub fn stop_session(
 /// the frontend refreshes and re-fetches the session before `remove_session`
 /// can delete it.
 ///
-/// All cleanup logic (PTY kill, MCP, worktree, continuous mode) mirrors
+/// All cleanup logic (PTY kill, MCP, worktree, queue mode) mirrors
 /// `stop_session` exactly — the only difference is that we delete from DB
 /// and emit `session-removed` instead of updating status + emitting `session-stopped`.
 pub fn stop_and_remove_session(
@@ -2744,8 +2649,8 @@ pub fn stop_and_remove_session(
         }
     }
 
-    // 5. Pause continuous mode if this session was manually stopped
-    continuous::handle_manual_stop(app, session_id);
+    // 5. Pause queue mode if this session was manually stopped
+    queue::handle_manual_stop(app, session_id);
 
     // 6. Delete from DB (full removal, not just status update)
     db::sessions::delete(conn, session_id)?;
@@ -2802,7 +2707,7 @@ mod tests {
 
     #[test]
     fn upsert_mcp_section_appends_to_empty() {
-        let section = mcp_instruction_section(Some("task"));
+        let section = mcp_instruction_section();
         let result = upsert_mcp_section("", &section);
         assert!(result.contains(MCP_INSTRUCTION_MARKER_START));
         assert!(result.contains(MCP_INSTRUCTION_MARKER_END));
@@ -2811,7 +2716,7 @@ mod tests {
     #[test]
     fn upsert_mcp_section_appends_to_existing() {
         let existing = "# My Project\n\nSome content here.\n";
-        let section = mcp_instruction_section(Some("task"));
+        let section = mcp_instruction_section();
         let result = upsert_mcp_section(existing, &section);
         assert!(result.starts_with("# My Project"));
         assert!(result.contains(MCP_INSTRUCTION_MARKER_START));
@@ -2823,11 +2728,11 @@ mod tests {
             "# Header\n\n{}\nold content\n{}\n\n# Footer\n",
             MCP_INSTRUCTION_MARKER_START, MCP_INSTRUCTION_MARKER_END
         );
-        let section = mcp_instruction_section(Some("task"));
+        let section = mcp_instruction_section();
         let result = upsert_mcp_section(&existing, &section);
         assert!(result.contains("# Header"));
         assert!(result.contains("# Footer"));
-        assert!(result.contains("report_status"));
+        assert!(result.contains("get_instructions"));
         // Old markers replaced, only one start marker
         assert_eq!(result.matches(MCP_INSTRUCTION_MARKER_START).count(), 1);
     }
@@ -2835,11 +2740,12 @@ mod tests {
     #[test]
     fn write_instruction_file_creates_new() {
         let tmp = tempfile::tempdir().unwrap();
-        write_instruction_file(tmp.path(), "CLAUDE.md", Some("task"));
+        write_instruction_file(tmp.path(), "CLAUDE.md");
         let path = tmp.path().join("CLAUDE.md");
         assert!(path.exists());
         let content = std::fs::read_to_string(&path).unwrap();
         assert!(content.contains(MCP_INSTRUCTION_MARKER_START));
+        assert!(content.contains("get_instructions"));
     }
 
     #[test]
@@ -2847,7 +2753,7 @@ mod tests {
         let tmp = tempfile::tempdir().unwrap();
         let path = tmp.path().join("CLAUDE.md");
         std::fs::write(&path, "# My Project Instructions\n").unwrap();
-        write_instruction_file(tmp.path(), "CLAUDE.md", Some("task"));
+        write_instruction_file(tmp.path(), "CLAUDE.md");
         let content = std::fs::read_to_string(&path).unwrap();
         assert!(content.contains("# My Project Instructions"));
         assert!(content.contains(MCP_INSTRUCTION_MARKER_START));

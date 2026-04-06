@@ -8,7 +8,6 @@ import {
   FileText,
   Loader2,
   SquareTerminal,
-  ChevronsUpDown,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -28,6 +27,7 @@ import {
   TerminalContent,
 } from "@/components/ai-elements/terminal";
 
+import { DiffRenderer, fromTexts } from "@/components/Diff";
 import type { ToolCallContentItem } from "../../types";
 
 // ── Main Component ──
@@ -172,9 +172,6 @@ function TextCrease({
 
 // ── Diff Crease ──
 
-/** Maximum consecutive context lines before collapsing. */
-const CONTEXT_COLLAPSE_THRESHOLD = 4;
-
 function DiffCrease({
   path,
   oldText,
@@ -188,169 +185,35 @@ function DiffCrease({
   defaultOpen: boolean;
   flat: boolean;
 }) {
-  const [showAllContext, setShowAllContext] = useState(false);
-
-  const diffLines = useMemo(
-    () => computeSimpleDiff(oldText, newText),
-    [oldText, newText],
+  const diffFile = useMemo(
+    () => fromTexts(path, oldText, newText),
+    [path, oldText, newText],
   );
 
   const stats = useMemo(() => {
     let added = 0;
     let removed = 0;
-    for (const line of diffLines) {
-      if (line.type === "add") added++;
-      else if (line.type === "remove") removed++;
+    for (const hunk of diffFile.hunks) {
+      for (const line of hunk.lines) {
+        if (line.type === "add") added++;
+        else if (line.type === "remove") removed++;
+      }
     }
     return { added, removed };
-  }, [diffLines]);
+  }, [diffFile.hunks]);
 
   const isNewFile = oldText === null;
-
-  // Compute line numbers (old and new) for the gutter
-  const numberedLines = useMemo(() => {
-    let oldLineNo = 1;
-    let newLineNo = 1;
-    return diffLines.map((line) => {
-      const result = {
-        ...line,
-        oldLineNo: line.type === "add" ? null : oldLineNo,
-        newLineNo: line.type === "remove" ? null : newLineNo,
-      };
-      if (line.type === "remove") oldLineNo++;
-      else if (line.type === "add") newLineNo++;
-      else {
-        oldLineNo++;
-        newLineNo++;
-      }
-      return result;
-    });
-  }, [diffLines]);
-
-  // Collapse long runs of unchanged context lines
-  const displayLines = useMemo(() => {
-    if (showAllContext) return numberedLines.map((line) => ({ ...line, collapsed: false as const }));
-
-    type DisplayLine = typeof numberedLines[number] & { collapsed: false } | { collapsed: true; count: number; fromOld: number; fromNew: number };
-    const result: DisplayLine[] = [];
-    let contextRun: typeof numberedLines = [];
-
-    const flushContext = () => {
-      if (contextRun.length <= CONTEXT_COLLAPSE_THRESHOLD) {
-        // Show all context lines
-        for (const line of contextRun) {
-          result.push({ ...line, collapsed: false as const });
-        }
-      } else {
-        // Show first 2, collapse middle, show last 2
-        for (let k = 0; k < 2; k++) {
-          result.push({ ...contextRun[k], collapsed: false as const });
-        }
-        result.push({
-          collapsed: true as const,
-          count: contextRun.length - 4,
-          fromOld: contextRun[2].oldLineNo ?? 0,
-          fromNew: contextRun[2].newLineNo ?? 0,
-        });
-        for (let k = contextRun.length - 2; k < contextRun.length; k++) {
-          result.push({ ...contextRun[k], collapsed: false as const });
-        }
-      }
-      contextRun = [];
-    };
-
-    for (const line of numberedLines) {
-      if (line.type === "context") {
-        contextRun.push(line);
-      } else {
-        if (contextRun.length > 0) flushContext();
-        result.push({ ...line, collapsed: false as const });
-      }
-    }
-    if (contextRun.length > 0) flushContext();
-
-    return result;
-  }, [numberedLines, showAllContext]);
-
-  const hasCollapsed = displayLines.some((l) => l.collapsed);
-
-  const toggleShowAll = useCallback((e: React.MouseEvent) => {
-    e.stopPropagation();
-    setShowAllContext((v) => !v);
-  }, []);
 
   /** The inner diff content (shared between flat and collapsible modes). */
   const diffContent = (
     <div className={`${flat ? "" : "mt-1 "}rounded-md bg-muted/30 border border-border/30 overflow-hidden`}>
-      {/* Sticky file header */}
-      <div className="flex items-center justify-between px-3 py-1 border-b border-border/20 bg-muted/50 sticky top-0 z-10">
-        <span className="text-2xs font-mono text-muted-foreground/70 truncate" title={path}>
-          {path}
-        </span>
-        <div className="flex items-center gap-2 shrink-0">
-          {stats.added > 0 && (
-            <span className="text-2xs text-success/80">+{stats.added}</span>
-          )}
-          {stats.removed > 0 && (
-            <span className="text-2xs text-destructive/80">−{stats.removed}</span>
-          )}
-          {hasCollapsed && (
-            <button
-              type="button"
-              onClick={toggleShowAll}
-              className="text-2xs text-muted-foreground/50 hover:text-muted-foreground transition-colors flex items-center gap-0.5"
-              title={showAllContext ? "Collapse context" : "Show all lines"}
-            >
-              <ChevronsUpDown size={10} />
-              {showAllContext ? "Collapse" : "Expand all"}
-            </button>
-          )}
-        </div>
-      </div>
-
-      {/* Diff lines with line number gutters */}
       <div className="max-h-[500px] overflow-y-auto overflow-x-auto">
-        <pre className="text-xs leading-relaxed font-mono">
-          {displayLines.map((line, i) =>
-            line.collapsed ? (
-              <div
-                key={`collapse-${i}`}
-                className="flex items-center gap-2 px-3 py-1 bg-accent/20 border-y border-border/15 text-muted-foreground/40 text-2xs cursor-pointer hover:bg-accent/30 transition-colors"
-                onClick={toggleShowAll}
-              >
-                <ChevronsUpDown size={10} />
-                <span>
-                  {line.count} unchanged line{line.count !== 1 ? "s" : ""} hidden
-                </span>
-              </div>
-            ) : (
-              <div
-                key={i}
-                className={`flex ${DIFF_LINE_STYLES[line.type]}`}
-              >
-                {/* Line number gutters */}
-                <span className="select-none text-2xs text-muted-foreground/25 w-8 text-right pr-1 shrink-0 border-r border-border/10 self-stretch flex items-center justify-end">
-                  {line.oldLineNo ?? ""}
-                </span>
-                <span className="select-none text-2xs text-muted-foreground/25 w-8 text-right pr-1 shrink-0 border-r border-border/10 self-stretch flex items-center justify-end">
-                  {line.newLineNo ?? ""}
-                </span>
-                {/* +/- indicator */}
-                <span className="select-none text-muted-foreground/40 w-5 text-center shrink-0">
-                  {line.type === "add"
-                    ? "+"
-                    : line.type === "remove"
-                      ? "-"
-                      : " "}
-                </span>
-                {/* Line content */}
-                <span className="flex-1 px-1 py-px whitespace-pre">
-                  {line.text}
-                </span>
-              </div>
-            ),
-          )}
-        </pre>
+        <DiffRenderer
+          files={[diffFile]}
+          viewMode="unified"
+          contextThreshold={4}
+          showFileHeaders
+        />
       </div>
     </div>
   );
@@ -379,7 +242,7 @@ function DiffCrease({
           )}
           {stats.removed > 0 && (
             <span className="text-2xs text-destructive font-medium">
-              −{stats.removed}
+              &minus;{stats.removed}
             </span>
           )}
         </span>
@@ -394,12 +257,6 @@ function DiffCrease({
     </Collapsible>
   );
 }
-
-const DIFF_LINE_STYLES: Record<string, string> = {
-  context: "text-dim-foreground",
-  add: "bg-success/8 text-success",
-  remove: "bg-destructive/8 text-destructive",
-};
 
 // ── Terminal Crease ──
 
@@ -565,80 +422,3 @@ function TerminalCrease({
   );
 }
 
-// ── Diff Helpers ──
-
-interface DiffLine {
-  type: "context" | "add" | "remove";
-  text: string;
-}
-
-/**
- * Compute a simple line-by-line diff between old and new text.
- * Uses a basic LCS approach for small files, falls back to showing
- * all-removed + all-added for very large diffs.
- */
-function computeSimpleDiff(
-  oldText: string | null,
-  newText: string,
-): DiffLine[] {
-  if (oldText === null) {
-    // New file — all lines are additions
-    return newText.split("\n").map((line) => ({ type: "add", text: line }));
-  }
-
-  const oldLines = oldText.split("\n");
-  const newLines = newText.split("\n");
-
-  // For large files, use a simple fallback
-  if (oldLines.length + newLines.length > 2000) {
-    return [
-      ...oldLines.map((line): DiffLine => ({ type: "remove", text: line })),
-      ...newLines.map((line): DiffLine => ({ type: "add", text: line })),
-    ];
-  }
-
-  // Simple LCS-based diff
-  return lcsBasedDiff(oldLines, newLines);
-}
-
-/** LCS-based line diff producing context/add/remove lines. */
-function lcsBasedDiff(oldLines: string[], newLines: string[]): DiffLine[] {
-  const m = oldLines.length;
-  const n = newLines.length;
-
-  // Build LCS table (space-optimized is possible but clarity wins here)
-  const dp: number[][] = Array.from({ length: m + 1 }, () =>
-    new Array(n + 1).fill(0),
-  );
-
-  for (let i = 1; i <= m; i++) {
-    for (let j = 1; j <= n; j++) {
-      if (oldLines[i - 1] === newLines[j - 1]) {
-        dp[i][j] = dp[i - 1][j - 1] + 1;
-      } else {
-        dp[i][j] = Math.max(dp[i - 1][j], dp[i][j - 1]);
-      }
-    }
-  }
-
-  // Backtrack to produce diff
-  const result: DiffLine[] = [];
-  let i = m;
-  let j = n;
-
-  while (i > 0 || j > 0) {
-    if (i > 0 && j > 0 && oldLines[i - 1] === newLines[j - 1]) {
-      result.push({ type: "context", text: oldLines[i - 1] });
-      i--;
-      j--;
-    } else if (j > 0 && (i === 0 || dp[i][j - 1] >= dp[i - 1][j])) {
-      result.push({ type: "add", text: newLines[j - 1] });
-      j--;
-    } else {
-      result.push({ type: "remove", text: oldLines[i - 1] });
-      i--;
-    }
-  }
-
-  return result.reverse();
-}

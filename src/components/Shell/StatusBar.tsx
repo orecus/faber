@@ -3,6 +3,7 @@ import {
   AlertTriangle,
   BarChart3,
   Check,
+  CircleHelp,
   Copy,
   Loader2,
   Radio,
@@ -253,7 +254,7 @@ const McpStatus = React.memo(function McpStatus() {
     <button
       onClick={handleCopy}
       title={mcpOnline ? "Click to copy MCP sidecar path" : "MCP offline"}
-      className="group/mcp inline-flex items-center gap-1.5 px-2 h-full text-xs text-dim-foreground hover:bg-accent/40 rounded-sm transition-colors"
+      className="group/mcp inline-flex items-center gap-1.5 px-2 h-full text-xs text-dim-foreground cursor-pointer hover:bg-accent/40 rounded-sm transition-colors"
     >
       <Radio
         size={12}
@@ -390,7 +391,7 @@ export default function StatusBar() {
         {/* Settings */}
         <button
           onClick={() => setActiveView("settings")}
-          className={`inline-flex items-center gap-1.5 px-1.5 h-5 rounded-sm transition-colors ${
+          className={`inline-flex items-center gap-1.5 px-1.5 h-5 rounded-sm cursor-pointer transition-colors ${
             activeView === "settings"
               ? "text-primary bg-accent/60"
               : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
@@ -399,6 +400,19 @@ export default function StatusBar() {
         >
           <Settings size={13} />
           <span className="text-xs">Settings</span>
+        </button>
+
+        {/* Help */}
+        <button
+          onClick={() => setActiveView("help")}
+          className={`inline-flex items-center gap-1.5 px-1.5 h-5 rounded-sm cursor-pointer transition-colors ${
+            activeView === "help"
+              ? "text-primary bg-accent/60"
+              : "text-muted-foreground hover:text-foreground hover:bg-accent/40"
+          }`}
+          title="Help"
+        >
+          <CircleHelp size={13} />
         </button>
 
         {/* Version */}

@@ -73,6 +73,8 @@ export interface Session {
   worktree_path: string | null;
   mcp_connected: boolean;
   acp_session_id: string | null;
+  orchestration_source: string | null;
+  orchestration_run_id: string | null;
   started_at: string;
   ended_at: string | null;
 }
@@ -779,38 +781,90 @@ export interface PromptTemplate {
   sort_order: number;
 }
 
-// ── Continuous Mode types ──
+// ── Queue Mode types ──
 
-export type BranchingStrategy = "independent" | "chained";
-export type ContinuousStatus = "running" | "paused" | "completed";
-export type QueueItemStatus = "pending" | "running" | "completed" | "error";
+export type BranchingStrategy = "independent" | "chained" | "dag";
+export type WorktreeStrategy = "integration" | "independent" | "sequential";
+export type QueueStatus = "running" | "paused" | "completed";
+export type QueueItemStatus = "pending" | "running" | "completed" | "error" | "blocked";
 
-export interface ContinuousQueueItem {
+export interface QueueItem {
   task_id: string;
   status: QueueItemStatus;
   session_id: string | null;
   error: string | null;
   agent_name: string | null;
+  depends_on: string[];
 }
 
-export interface ContinuousRun {
+export interface QueueRun {
   project_id: string;
-  status: ContinuousStatus;
-  queue: ContinuousQueueItem[];
+  status: QueueStatus;
+  queue: QueueItem[];
   current_index: number;
   strategy: BranchingStrategy;
   base_branch: string | null;
   agent_name: string | null;
   model: string | null;
   last_branch: string | null;
+  worktree_strategy: WorktreeStrategy | null;
+  integration_branch_id: string | null;
+  run_id: string | null;
 }
 
-export interface ContinuousModeUpdate {
+export interface QueueModeUpdate {
   project_id: string;
-  run: ContinuousRun;
+  run: QueueRun;
 }
 
-export interface ContinuousModeFinished {
+export interface QueueModeFinished {
   project_id: string;
   completed_count: number;
+}
+
+// ── Integration Branch types ──
+
+export type IntegrationBranchStatus = "active" | "completed" | "conflict" | "cleaned_up";
+
+export interface IntegrationBranch {
+  id: string;
+  run_type: string;
+  run_id: string;
+  project_id: string;
+  branch_name: string;
+  base_branch: string;
+  worktree_strategy: WorktreeStrategy;
+  merged_tasks: string[];
+  pending_tasks: string[];
+  conflict_task: string | null;
+  conflict_files: string[];
+  pushed: boolean;
+  pr_url: string | null;
+  status: IntegrationBranchStatus;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface TaskMergedEvent {
+  task_id: string;
+  integration_branch: string;
+  merge_commit: string;
+}
+
+export interface MergeConflictEvent {
+  task_id: string;
+  integration_branch: string;
+  conflicting_files: string[];
+}
+
+export interface RunCompletedEvent {
+  run_id: string;
+  integration_branch: string;
+  merged_count: number;
+}
+
+export interface IntegrationBranchUpdatedEvent {
+  branch_name: string;
+  merged_count: number;
+  pending_count: number;
 }

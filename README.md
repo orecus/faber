@@ -18,7 +18,7 @@
 
 <p align="center">
   A cross-platform desktop app for orchestrating AI coding agents.<br/>
-  Wraps CLI-based agents with a task-driven workflow: Kanban board, git worktree isolation, multi-pane terminal sessions, GitHub integration, skills &amp; rules management, and continuous mode.
+  Wraps CLI-based agents with a task-driven workflow: Kanban board, git worktree isolation, multi-pane terminal sessions, GitHub integration, skills &amp; rules management, and queue mode.
 </p>
 
 ---
@@ -52,7 +52,7 @@ Download the latest release for your platform from the [Releases page](https://g
 - **Git worktree isolation** — each task runs in its own worktree and branch, so multiple agents can work in parallel without conflicts
 - **Multi-pane session grid** — run multiple agent sessions side-by-side with drag-and-drop layout and resizable panes
 - **Four session modes** — Task (structured implementation), Research (explore & plan), Vibe (freeform coding), Shell (raw terminal)
-- **Continuous mode** — auto-launch a queue of ready tasks with independent or chained branching strategies
+- **Queue mode** — auto-launch a queue of ready tasks with independent or chained branching strategies
 - **Prompt templates & quick actions** — configurable prompt templates with `{{variable}}` interpolation for all session types, plus one-click Quick Action buttons on session panes
 - **Skills & rules** — install and manage agent skills and project rules to extend agent capabilities
 - **GitHub integration** — issue import, PR creation, commit graph visualization, and label sync

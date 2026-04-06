@@ -254,6 +254,60 @@ pub async fn unstage_file(
 }
 
 #[tauri::command]
+pub async fn discard_file(
+    state: State<'_, DbState>,
+    project_id: String,
+    worktree_path: String,
+    file_path: String,
+) -> Result<(), AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    let validated_wt = validate_worktree_path(&project_path, &worktree_path)?;
+    tokio::task::spawn_blocking(move || git::discard_file(&validated_wt, &file_path))
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn commit_amend(
+    state: State<'_, DbState>,
+    project_id: String,
+    worktree_path: String,
+    message: Option<String>,
+) -> Result<String, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    let validated_wt = validate_worktree_path(&project_path, &worktree_path)?;
+    tokio::task::spawn_blocking(move || git::commit_amend(&validated_wt, message.as_deref()))
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_last_commit_message(
+    state: State<'_, DbState>,
+    project_id: String,
+    worktree_path: String,
+) -> Result<String, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    let validated_wt = validate_worktree_path(&project_path, &worktree_path)?;
+    tokio::task::spawn_blocking(move || git::get_last_commit_message(&validated_wt))
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
+pub async fn get_staged_diff(
+    state: State<'_, DbState>,
+    project_id: String,
+    worktree_path: String,
+) -> Result<String, AppError> {
+    let project_path = get_project_path(&state, &project_id)?;
+    let validated_wt = validate_worktree_path(&project_path, &worktree_path)?;
+    tokio::task::spawn_blocking(move || git::get_staged_diff(&validated_wt))
+        .await
+        .map_err(|e| AppError::Io(e.to_string()))?
+}
+
+#[tauri::command]
 pub async fn push_branch(
     state: State<'_, DbState>,
     project_id: String,

@@ -9,6 +9,7 @@ function ViewLayoutRoot({
 }: HTMLAttributes<HTMLDivElement>) {
   return (
     <div
+      role="main"
       className={cn(
         "flex flex-col px-3 py-2 gap-2 min-h-0 overflow-hidden bg-card/80",
         className,

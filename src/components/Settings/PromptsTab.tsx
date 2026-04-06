@@ -93,7 +93,7 @@ const SESSION_VARS: { name: string; description: string; modes?: string[] }[] = 
   { name: "task_id", description: "Task ID (e.g. T-037)" },
   { name: "task_title", description: "Task title from DB" },
   { name: "worktree_hint", description: "Worktree path instruction (or empty)", modes: ["task", "task-continue"] },
-  { name: "mode", description: '"parallel" or "chained"', modes: ["continuous"] },
+  { name: "mode", description: '"parallel" or "dag"', modes: ["queue"] },
   { name: "project_name", description: "Project name" },
   { name: "branch_name", description: "Current git branch" },
 ];
@@ -470,7 +470,7 @@ export function PromptsTab() {
       <section>
         <div className={sectionHeadingClass}>Session Prompts</div>
         <p className="text-xs text-muted-foreground mb-3 -mt-1">
-          Default prompts used when launching task, research, and continuous mode sessions.
+          Default prompts used when launching task, research, and queue mode sessions.
           These cannot be deleted but can be customized.
         </p>
         <div className="flex flex-col gap-2">

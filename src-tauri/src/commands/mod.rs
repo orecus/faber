@@ -1,6 +1,6 @@
 pub mod acp_permissions;
 pub mod agents;
-pub mod continuous;
+pub mod queue;
 pub mod docs;
 pub mod files;
 pub mod fonts;

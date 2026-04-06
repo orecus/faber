@@ -19,14 +19,7 @@ import {
 import { Button } from "../ui/orecus.io/components/enhanced-button";
 import { colorStyles, solidColorGradients } from "../ui/orecus.io/lib/color-utils";
 import BranchSelect from "../ui/BranchSelect";
-import AgentCardGrid from "./AgentCardGrid";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "../ui/select";
+import AgentModelPicker from "./AgentModelPicker";
 import { Textarea } from "../ui/textarea";
 
 
@@ -94,6 +87,10 @@ export default function LaunchSessionDialog({
     },
     [agents, defaultTransport],
   );
+
+  const handleModelSelect = useCallback((model: string) => {
+    setSelectedModel(model);
+  }, []);
 
   const canStart = useMemo(() => {
     if (starting) return false;
@@ -193,52 +190,20 @@ export default function LaunchSessionDialog({
           </div>
         )}
 
-        {/* Agent Cards */}
+        {/* Agent + Model */}
         <div>
           <label className="mb-1.5 block text-xs text-dim-foreground">
-            Agent
+            Agent & Model
           </label>
-          <AgentCardGrid
-            selectedAgentName={selectedAgentName}
-            onSelect={handleAgentSelect}
+          <AgentModelPicker
+            selectedAgent={selectedAgentName}
+            selectedModel={selectedModel}
+            onAgentChange={handleAgentSelect}
+            onModelChange={handleModelSelect}
             accentColor={accentColor}
+            disabled={starting}
           />
         </div>
-
-        {/* Model */}
-        {currentAgent && currentAgent.supported_models.length > 0 && (
-          <div>
-            <label className="mb-1 block text-xs text-dim-foreground">
-              Model
-            </label>
-            <Select
-              value={selectedModel || "__none__"}
-              onValueChange={(v) =>
-                setSelectedModel(!v || v === "__none__" ? "" : v)
-              }
-              items={[
-                { value: "__none__", label: "Default" },
-                ...currentAgent.supported_models.map((m) => ({
-                  value: m,
-                  label: `${m}${m === currentAgent.default_model ? " (default)" : ""}`,
-                })),
-              ]}
-            >
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Default" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="__none__">Default</SelectItem>
-                {currentAgent.supported_models.map((m) => (
-                  <SelectItem key={m} value={m}>
-                    {m}
-                    {m === currentAgent.default_model ? " (default)" : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        )}
 
         {/* Worktree toggle */}
         <ToggleRow

@@ -91,17 +91,40 @@ function ResizeHandle({
       ? "left-0 -translate-x-1/2"
       : "right-0 translate-x-1/2";
 
+  const handleKeyDown = useCallback(
+    (e: React.KeyboardEvent) => {
+      const step = e.shiftKey ? 50 : 10;
+      const panel = containerRef.current?.parentElement;
+      if (!panel) return;
+      const currentWidth = panel.getBoundingClientRect().width;
+      if (e.key === "ArrowLeft" || e.key === "ArrowRight") {
+        e.preventDefault();
+        const delta = side === "right"
+          ? (e.key === "ArrowLeft" ? step : -step)
+          : (e.key === "ArrowRight" ? step : -step);
+        const newWidth = Math.min(maxWidth, Math.max(minWidth, currentWidth + delta));
+        onResize(newWidth);
+      }
+    },
+    [onResize, side, minWidth, maxWidth],
+  );
+
   return (
     <div
       ref={containerRef}
+      role="separator"
+      aria-label="Resize panel"
+      aria-orientation="vertical"
+      tabIndex={0}
       onMouseDown={onMouseDown}
+      onKeyDown={handleKeyDown}
       className={cn(
-        "group absolute top-0 w-1.5 h-full cursor-col-resize z-10",
+        "group absolute top-0 w-1.5 h-full cursor-col-resize z-10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
         positionClasses,
       )}
     >
       {/* Grip dots — appear on hover */}
-      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 transition-opacity duration-150">
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 flex flex-col gap-1 opacity-0 group-hover:opacity-100 group-focus-visible:opacity-100 transition-opacity duration-150">
         <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
         <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
         <div className="w-0.5 h-0.5 rounded-full bg-muted-foreground/60" />
@@ -157,6 +180,8 @@ export default function SidePanel({
 
   return (
     <div
+      role="complementary"
+      aria-label={`${side === "right" ? "Right" : "Left"} panel`}
       className={cn(
         "relative shrink-0 flex flex-col overflow-hidden",
         borderClass,

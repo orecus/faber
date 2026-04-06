@@ -14,7 +14,7 @@ import { useAppStore } from "../../store/appStore";
 import { ptyBuffer } from "../../lib/ptyBuffer";
 import type { GridLayoutState } from "../../store/appStore";
 import type { Session } from "../../types";
-import ContinuousModeBar from "../Shell/ContinuousModeBar";
+import QueueModeBar from "../Shell/QueueModeBar";
 import LaunchTaskDialog from "../Launchers/LaunchTaskDialog";
 import { ViewLayout } from "../Shell/ViewLayout";
 import SessionsToolbar from "./SessionsToolbar";
@@ -27,7 +27,7 @@ import LaunchSessionDialog from "../Launchers/LaunchSessionDialog";
 export default function SessionsView() {
   const sessions = useAppStore((s) => s.sessions);
   const activeProjectId = useAppStore((s) => s.activeProjectId);
-  const continuousMode = useAppStore((s) => s.continuousMode);
+  const queueMode = useAppStore((s) => s.queueMode);
   const gridLayout = useAppStore((s) => s.gridLayout);
   const setGridLayout = useAppStore((s) => s.setGridLayout);
   const dismissEndedPane = useAppStore((s) => s.dismissEndedPane);
@@ -227,7 +227,47 @@ export default function SessionsView() {
         } else {
           nextIdx = currentIdx >= ids.length - 1 ? 0 : currentIdx + 1;
         }
-        setGridLayout({ focusedPaneId: ids[nextIdx] });
+        const nextId = ids[nextIdx];
+        setGridLayout({ focusedPaneId: nextId });
+        // Move DOM focus to the actual pane element
+        const paneEl = document.querySelector<HTMLElement>(`[data-session-pane="${nextId}"]`);
+        paneEl?.focus();
+        return;
+      }
+
+      // Arrow keys — navigate between panes based on grid layout
+      if (["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight"].includes(e.key) && !e.ctrlKey && !e.altKey && !e.metaKey) {
+        if (visibleSessions.length <= 1) return;
+        e.preventDefault();
+        const ids = visibleSessions.map((s) => s.id);
+        const currentIdx = ids.indexOf(gridLayout.focusedPaneId ?? "");
+        if (currentIdx === -1) {
+          // No pane focused — focus the first
+          const nextId = ids[0];
+          setGridLayout({ focusedPaneId: nextId });
+          document.querySelector<HTMLElement>(`[data-session-pane="${nextId}"]`)?.focus();
+          return;
+        }
+        // Compute cols from current layout (mirrors SessionGrid logic)
+        const count = ids.length;
+        const cols = gridLayout.mode === "2-up-v" ? 1
+          : gridLayout.mode === "2-up" ? Math.max(2, count)
+          : gridLayout.mode === "4-up" ? 2
+          : gridLayout.mode === "1-up" ? 1
+          : count <= 1 ? 1 : count <= 4 ? 2 : 2; // auto mode
+        const col = currentIdx % cols;
+        let nextIdx = currentIdx;
+        switch (e.key) {
+          case "ArrowRight": nextIdx = col < cols - 1 && currentIdx + 1 < count ? currentIdx + 1 : currentIdx; break;
+          case "ArrowLeft": nextIdx = col > 0 ? currentIdx - 1 : currentIdx; break;
+          case "ArrowDown": nextIdx = currentIdx + cols < count ? currentIdx + cols : currentIdx; break;
+          case "ArrowUp": nextIdx = currentIdx - cols >= 0 ? currentIdx - cols : currentIdx; break;
+        }
+        if (nextIdx !== currentIdx) {
+          const nextId = ids[nextIdx];
+          setGridLayout({ focusedPaneId: nextId });
+          document.querySelector<HTMLElement>(`[data-session-pane="${nextId}"]`)?.focus();
+        }
         return;
       }
 
@@ -246,7 +286,7 @@ export default function SessionsView() {
     return () => document.removeEventListener("keydown", handler);
   }, [activeView, visibleSessions, gridLayout.focusedPaneId, setGridLayout, handleStop]);
 
-  const hasContinuousRun = !!(activeProjectId && continuousMode[activeProjectId]);
+  const hasQueueRun = !!(activeProjectId && queueMode[activeProjectId]);
 
   return (
     <ViewLayout>
@@ -260,8 +300,8 @@ export default function SessionsView() {
       <div className="flex flex-1 min-h-0 overflow-hidden">
         {/* Main content */}
         <div className="flex flex-col flex-1 min-w-0 min-h-0">
-          {activeProjectId && hasContinuousRun && (
-            <ContinuousModeBar projectId={activeProjectId} />
+          {activeProjectId && hasQueueRun && (
+            <QueueModeBar projectId={activeProjectId} />
           )}
 
           {visibleSessions.length === 0 ? (

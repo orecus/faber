@@ -8,7 +8,7 @@ enum ToolCategory {
     Universal,
     /// Task management tools — available in all sessions (users commonly manage tasks from vibe/chat)
     TaskManagement,
-    /// Task completion signal — task and continuous sessions only
+    /// Task completion signal — task and queue sessions only
     TaskCompletion,
     /// Research completion signal — research sessions only
     ResearchCompletion,
@@ -22,11 +22,11 @@ struct ToolEntry {
 /// Returns tools filtered for the given session mode.
 ///
 /// - All modes: universal tools (status, progress, error, waiting, files_changed) + task management
-/// - `task` / `continuous`: + `report_complete`
+/// - `task` / `queue`: + `report_complete`
 /// - `research`: + `report_researched`
 /// - `breakdown` / `vibe` / `chat`: no completion tools
 pub fn tools_for_mode(session_mode: Option<&str>) -> Vec<ToolDefinition> {
-    let include_task_completion = matches!(session_mode, Some("task" | "continuous"));
+    let include_task_completion = matches!(session_mode, Some("task" | "queue"));
     let include_research_completion = matches!(session_mode, Some("research"));
 
     tool_entries()
@@ -42,6 +42,21 @@ pub fn tools_for_mode(session_mode: Option<&str>) -> Vec<ToolDefinition> {
 
 fn tool_entries() -> Vec<ToolEntry> {
     vec![
+        ToolEntry {
+            category: ToolCategory::Universal,
+            definition: ToolDefinition {
+                name: "get_instructions".into(),
+                description: "Get detailed instructions for this session. \
+                    Call this FIRST before doing any work. \
+                    Returns session-specific workflow guidance, available tools, \
+                    and task context (if applicable) so you don't need to call get_task separately."
+                    .into(),
+                input_schema: json!({
+                    "type": "object",
+                    "properties": {}
+                }),
+            },
+        },
         ToolEntry {
             category: ToolCategory::Universal,
             definition: ToolDefinition {
@@ -188,7 +203,7 @@ fn tool_entries() -> Vec<ToolEntry> {
                 description: "Signal that you have FULLY completed the task. \
                     IMPORTANT: Only call this ONCE, after ALL work is done — code written, tested, and verified. \
                     Calling this has permanent side effects: the task status moves to 'in-review' and \
-                    in continuous mode the next task in the queue is automatically launched. \
+                    in queue mode the next task in the queue is automatically launched. \
                     Do NOT call prematurely (e.g. after just reading the task, or before verifying changes). \
                     If you need user input, use report_waiting instead. \
                     If you hit a blocker, use report_error instead."
@@ -281,8 +296,8 @@ fn tool_entries() -> Vec<ToolEntry> {
             category: ToolCategory::TaskManagement,
             definition: ToolDefinition {
                 name: "update_task".into(),
-                description: "Update task metadata (status, priority, labels, dependencies, etc.). \
-                    Does NOT update the markdown body — use update_task_plan for that."
+                description: "Update task metadata and/or body. \
+                    Use 'body' to replace the full markdown body, or use update_task_plan to update only the implementation plan section."
                     .into(),
                 input_schema: json!({
                     "type": "object",
@@ -330,6 +345,10 @@ fn tool_entries() -> Vec<ToolEntry> {
                         "epic_id": {
                             "type": "string",
                             "description": "Parent epic task ID (set to empty string to unassign)"
+                        },
+                        "body": {
+                            "type": "string",
+                            "description": "Replace the full markdown body of the task. For updating only the implementation plan section, use update_task_plan instead."
                         }
                     }
                 }),
@@ -420,10 +439,10 @@ fn tool_entries() -> Vec<ToolEntry> {
 mod tests {
     use super::*;
 
-    // Total: 5 universal + 5 task management + report_complete + report_researched = 12
-    const TOTAL_TOOLS: usize = 12;
-    // Universal (5) + task management (5) = 10
-    const BASE_TOOLS: usize = 10;
+    // Total: 6 universal + 5 task management + report_complete + report_researched = 13
+    const TOTAL_TOOLS: usize = 13;
+    // Universal (6) + task management (5) = 11
+    const BASE_TOOLS: usize = 11;
 
     fn all_tools() -> Vec<ToolDefinition> {
         tool_entries().into_iter().map(|e| e.definition).collect()
@@ -464,8 +483,8 @@ mod tests {
     }
 
     #[test]
-    fn continuous_mode_gets_base_plus_complete() {
-        let tools = tools_for_mode(Some("continuous"));
+    fn queue_mode_gets_base_plus_complete() {
+        let tools = tools_for_mode(Some("queue"));
         assert_eq!(tools.len(), BASE_TOOLS + 1);
         assert!(tools.iter().any(|t| t.name == "report_complete"));
     }

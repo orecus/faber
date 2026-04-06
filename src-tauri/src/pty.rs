@@ -271,12 +271,12 @@ fn output_reader(
             },
         );
     }
-    // Check for continuous mode crash (PTY exit without report_complete)
-    crate::continuous::handle_pty_exit(&app, &session_id);
+    // Check for queue mode crash (PTY exit without report_complete)
+    crate::queue::handle_pty_exit(&app, &session_id);
 
     // Update DB status to "finished" for natural PTY exit.
     // Guard: only update if session is still in an active state to avoid
-    // overwriting a status already set by stop_session or continuous mode.
+    // overwriting a status already set by stop_session or queue mode.
     if let Some(db_state) = app.try_state::<DbState>() {
         if let Ok(conn) = db_state.inner().lock() {
             if let Ok(Some(session)) = db::sessions::get(&conn, &session_id) {

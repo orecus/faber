@@ -10,14 +10,11 @@ import {
   Layers,
   List,
   ListChecks,
-  Loader2,
   Paperclip,
   Rows3,
-  SendIcon,
   Sparkles,
   SquareIcon,
   Terminal,
-  X,
 } from "lucide-react";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
@@ -42,7 +39,6 @@ import {
   type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
 
-import { Shimmer } from "@/components/ai-elements/shimmer";
 import { usePersistedBoolean, usePersistedString } from "../../hooks/usePersistedState";
 import { useAppStore } from "../../store/appStore";
 import { cn } from "@/lib/utils";
@@ -174,19 +170,17 @@ export default React.memo(function ChatInput({
     return () => { cancelled = true; };
   }, [sessionId, disabled]);
 
-  // ── Stop & Send confirmation state ──
-  const [showStopConfirm, setShowStopConfirm] = useState(false);
-  /** True while we're waiting for the agent to stop (after Stop or Stop & Send). */
-  const [isStopping, setIsStopping] = useState(false);
-  const pendingMessageRef = useRef<PromptInputMessage | null>(null);
+  // ── Cancel safety timeout ──
+  // If the backend doesn't emit acp-prompt-complete within this window after
+  // a cancel, we force-clear promptPending so the UI never gets stuck.
+  const cancelTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  // Clear confirmation / stopping state when promptPending becomes false (agent finished/cancelled)
+  // Cleanup timeout on unmount
   useEffect(() => {
-    if (!promptPending) {
-      if (showStopConfirm) setShowStopConfirm(false);
-      if (isStopping) setIsStopping(false);
-    }
-  }, [promptPending, showStopConfirm, isStopping]);
+    return () => {
+      if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+    };
+  }, []);
 
   // ── Suggestion overlay state ──
   const [suggestionType, setSuggestionType] = useState<"slash" | "file" | null>(
@@ -197,7 +191,6 @@ export default React.memo(function ChatInput({
   const [fileSuggestions, setFileSuggestions] = useState<FileEntry[]>([]);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const suppressNextChange = useRef(false);
-  const [isFocused, setIsFocused] = useState(false);
 
   // ── Initial text pre-fill ──
   useEffect(() => {
@@ -414,7 +407,7 @@ export default React.memo(function ChatInput({
     [suggestionType, suggestions.length, selectedIdx, applySuggestion, closeSuggestions],
   );
 
-  /** Actually send a message (no guards — called after confirmation or when agent is idle). */
+  /** Actually send a message to the agent. */
   const doSend = useCallback(
     async (message: PromptInputMessage) => {
       const text = message.text.trim();
@@ -468,120 +461,88 @@ export default React.memo(function ChatInput({
     [sessionId, addAcpUserMessage, setAcpPromptPending, setMcpStatus, setAcpDraftText, closeSuggestions],
   );
 
+  /** Cancel current agent work, wait for idle, then send the new message. */
+  const interruptAndSend = useCallback(
+    async (message: PromptInputMessage) => {
+      // Fire cancel — the backend will signal acp-prompt-complete/error which
+      // clears promptPending via clearAcpPromptIfCurrent. We don't wait for
+      // that event; instead we poll briefly so the new doSend() gets a clean
+      // turn counter, then send regardless after the timeout.
+      try {
+        await invoke("cancel_acp_session", { sessionId });
+      } catch (e) {
+        console.error("Failed to cancel ACP session:", e);
+      }
+
+      // Wait for promptPending to clear (up to 5s). If the cancel event is
+      // lost we force-clear and send anyway — the user's intent is unambiguous.
+      await new Promise<void>((resolve) => {
+        const deadline = Date.now() + 5000;
+        const check = () => {
+          const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
+          if (!pending || Date.now() >= deadline) {
+            if (pending) {
+              console.warn("[ChatInput] Cancel timeout — force-clearing promptPending");
+              setAcpPromptPending(sessionId, false);
+            }
+            resolve();
+          } else {
+            setTimeout(check, 50);
+          }
+        };
+        setTimeout(check, 100);
+      });
+
+      doSend(message);
+    },
+    [sessionId, doSend, setAcpPromptPending],
+  );
+
   const handleSubmit = useCallback(
     async (message: PromptInputMessage) => {
       const text = message.text.trim();
       const hasFiles = message.files && message.files.length > 0;
       if ((!text && !hasFiles) || disabled) return;
 
-      // Block while we're waiting for a stop/stop-and-send to complete
-      if (isStopping) return;
-
-      // If agent is currently working, show confirmation instead of sending
+      // If agent is currently working, interrupt and send the new message
+      // immediately — no confirmation needed (matches Zed's interrupt-and-send).
       if (promptPending) {
-        pendingMessageRef.current = message;
-        setShowStopConfirm(true);
+        interruptAndSend(message);
         return;
       }
 
       doSend(message);
     },
-    [disabled, promptPending, isStopping, doSend],
+    [disabled, promptPending, doSend, interruptAndSend],
   );
 
-  /** User confirmed "Stop & Send" — cancel the agent, queue the message, then send. */
-  const handleStopAndSend = useCallback(async () => {
-    const message = pendingMessageRef.current;
-    if (!message) return;
-
-    setShowStopConfirm(false);
-    pendingMessageRef.current = null;
-    setIsStopping(true);
-
-    // Cancel the current agent work
-    try {
-      await invoke("cancel_acp_session", { sessionId });
-    } catch (e) {
-      console.error("Failed to cancel ACP session:", e);
-    }
-
-    // Wait for promptPending to clear (cancel triggers acp-prompt-complete/error event).
-    // Timeout after 5s to avoid polling forever if the cancel event is lost.
-    const waitForIdle = () =>
-      new Promise<void>((resolve) => {
-        const deadline = Date.now() + 5000;
-        const check = () => {
-          const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
-          if (!pending || Date.now() >= deadline) {
-            resolve();
-          } else {
-            setTimeout(check, 50);
-          }
-        };
-        // Start checking after a small delay to let the cancel propagate
-        setTimeout(check, 100);
-      });
-
-    await waitForIdle();
-    setIsStopping(false);
-    doSend(message);
-  }, [sessionId, doSend]);
-
-  /** User dismissed the confirmation bar. */
-  const handleDismissStopConfirm = useCallback(() => {
-    setShowStopConfirm(false);
-    pendingMessageRef.current = null;
-    textareaRef.current?.focus();
-  }, []);
-
+  /** Stop the agent's current work without sending a new message. */
   const handleStop = useCallback(async () => {
-    setShowStopConfirm(false);
-    pendingMessageRef.current = null;
-    setIsStopping(true);
     try {
       await invoke("cancel_acp_session", { sessionId });
     } catch (e) {
       console.error("Failed to cancel ACP session:", e);
     }
-    // isStopping clears when promptPending becomes false
-  }, [sessionId]);
 
-  const chatStatus = disabled
-    ? promptPending
-      ? "streaming"
-      : "ready"
-    : promptPending
-      ? "streaming"
-      : "ready";
+    // Safety timeout: if promptPending doesn't clear within 5s (lost event),
+    // force-clear it so the UI never gets stuck in a "stopping" state.
+    if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
+    cancelTimeoutRef.current = setTimeout(() => {
+      const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
+      if (pending) {
+        console.warn("[ChatInput] Cancel safety timeout — force-clearing promptPending");
+        setAcpPromptPending(sessionId, false);
+      }
+      cancelTimeoutRef.current = null;
+    }, 5000);
+  }, [sessionId, setAcpPromptPending]);
+
+  const chatStatus = promptPending ? "streaming" : "ready";
 
   return (
     <div className="border-t border-border/40 px-3 py-2 relative">
-      {/* Stop & Send confirmation bar */}
-      {showStopConfirm && (
-        <div className="absolute bottom-full left-3 right-3 mb-1 flex items-center gap-2 rounded-lg border border-border bg-popover px-3 py-2 shadow-lg z-50">
-          <span className="text-xs text-muted-foreground flex-1">
-            Agent is working. Stop and send your message?
-          </span>
-          <button
-            type="button"
-            onClick={handleStopAndSend}
-            className="flex items-center gap-1.5 rounded-md bg-primary px-2.5 py-1 text-xs font-medium text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer"
-          >
-            <SendIcon size={12} />
-            Stop &amp; Send
-          </button>
-          <button
-            type="button"
-            onClick={handleDismissStopConfirm}
-            className="flex items-center justify-center size-6 rounded text-muted-foreground hover:text-foreground hover:bg-accent/50 transition-colors cursor-pointer"
-          >
-            <X size={14} />
-          </button>
-        </div>
-      )}
-
       {/* Suggestion overlay */}
-      {suggestionType && suggestions.length > 0 && !showStopConfirm && (
+      {suggestionType && suggestions.length > 0 && (
         <SuggestionOverlay
           type={suggestionType}
           suggestions={suggestions}
@@ -601,26 +562,15 @@ export default React.memo(function ChatInput({
               ? placeholderOverride
               : disabled
                 ? "Session ended"
-                : (isStopping || promptPending)
-                  ? " "
+                : promptPending
+                  ? "Send to interrupt and override…"
                   : "Send a message… (/ for commands, @ for files)"
           }
-          disabled={(disabled && !promptPending) || isStopping}
+          disabled={disabled}
           className="min-h-[36px] text-sm"
           onChange={handleTextChange}
           onKeyDown={handleKeyDown}
-          onFocus={() => setIsFocused(true)}
-          onBlur={() => setIsFocused(false)}
         />
-        {/* Shimmer working indicator — positioned after the textarea, same visual position as placeholder */}
-        {promptPending && !placeholderOverride && !isFocused && !draftText && (
-          <div className="flex items-center justify-start gap-2 px-3 py-2 -mt-9 pointer-events-none w-full">
-            <Loader2 className="size-3.5 animate-spin text-primary shrink-0" />
-            <Shimmer duration={2} className="text-sm">
-              {isStopping ? "Stopping agent…" : "Agent is working..."}
-            </Shimmer>
-          </div>
-        )}
         <PromptInputFooter className="justify-between cursor-default">
           {/* Attachment actions (left side) */}
           <div className="flex items-center gap-1">
@@ -712,8 +662,7 @@ export default React.memo(function ChatInput({
                 onStop={handleStop}
                 variant="destructive"
                 size="icon-sm"
-                disabled={isStopping}
-                className={isStopping ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}
+                className="cursor-pointer"
               >
                 <SquareIcon className="size-3.5" />
               </PromptInputSubmit>

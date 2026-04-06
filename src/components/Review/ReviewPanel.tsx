@@ -1,9 +1,9 @@
 import { useMemo } from "react";
-import { html as diff2Html } from "diff2html";
-import DOMPurify from "dompurify";
-import "diff2html/bundles/css/diff2html.min.css";
 import { FileDiff } from "lucide-react";
 import { Spinner } from "../ui/spinner";
+
+import { DiffRenderer, fromUnifiedDiff } from "../Diff";
+import type { DiffViewMode } from "../Diff";
 import type { DiffOutputFormat } from "./DiffToolbar";
 
 interface ReviewPanelProps {
@@ -19,17 +19,13 @@ export default function ReviewPanel({
   loading,
   error,
 }: ReviewPanelProps) {
-  const diffHtml = useMemo(() => {
-    if (!rawDiff) return "";
-    const raw = diff2Html(rawDiff, {
-      outputFormat: outputFormat === "side-by-side" ? "side-by-side" : "line-by-line",
-      drawFileList: false,
-      matching: "lines",
-      diffStyle: "word",
-    });
-    // Sanitize to prevent XSS from crafted file content in diffs
-    return DOMPurify.sanitize(raw, { USE_PROFILES: { html: true } });
-  }, [rawDiff, outputFormat]);
+  const files = useMemo(() => {
+    if (!rawDiff) return [];
+    return fromUnifiedDiff(rawDiff);
+  }, [rawDiff]);
+
+  const viewMode: DiffViewMode =
+    outputFormat === "side-by-side" ? "side-by-side" : "unified";
 
   if (loading) {
     return (
@@ -64,9 +60,11 @@ export default function ReviewPanel({
   }
 
   return (
-    <div
-      className="diff-panel-root flex-1 overflow-auto"
-      dangerouslySetInnerHTML={{ __html: diffHtml }}
+    <DiffRenderer
+      files={files}
+      viewMode={viewMode}
+      contextThreshold={0}
+      className="flex-1 overflow-auto p-2"
     />
   );
 }

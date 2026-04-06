@@ -152,7 +152,7 @@ const KanbanColumn = memo(function KanbanColumn({
 
   // Count blocked tasks for column subtitle
   const blockedCount = useMemo(() => {
-    if (status !== "backlog" && status !== "ready") return 0;
+    if (status === "done") return 0;
     return tasks.filter((t) => isTaskBlocked(t, taskMap)).length;
   }, [status, tasks, taskMap]);
 
@@ -161,12 +161,16 @@ const KanbanColumn = memo(function KanbanColumn({
     return (
       <div
         ref={setNodeRef}
-        className={`w-10 min-h-0 flex flex-col items-center rounded-[var(--radius-panel)] overflow-hidden transition-all duration-150 cursor-pointer select-none ${
+        role="region"
+        aria-label={`${COLUMN_LABELS[status]} column, ${tasks.length} tasks, collapsed`}
+        className={`w-10 min-h-0 flex flex-col items-center rounded-[var(--radius-panel)] overflow-hidden transition-all duration-150 cursor-pointer select-none focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
           isOver
             ? `ring-1 ${ringColors[accentColor]} bg-accent/50`
             : "ring-1 ring-border/40 bg-card/50"
         }`}
+        tabIndex={0}
         onClick={onToggleCollapsed}
+        onKeyDown={(e) => { if (e.key === "Enter" || e.key === " ") { e.preventDefault(); onToggleCollapsed(); } }}
         title={`Expand ${COLUMN_LABELS[status]}`}
       >
         <div className="py-2">
@@ -192,6 +196,8 @@ const KanbanColumn = memo(function KanbanColumn({
   return (
     <div
       ref={setNodeRef}
+      role="region"
+      aria-label={`${COLUMN_LABELS[status]} column, ${tasks.length} tasks`}
       className={`flex-1 min-w-40 min-h-0 flex flex-col rounded-[var(--radius-panel)] overflow-hidden transition-all duration-150 ${
         isOver
           ? `ring-1 ${ringColors[accentColor]} bg-accent/50`
@@ -215,7 +221,9 @@ const KanbanColumn = memo(function KanbanColumn({
           <div className="relative" ref={sortMenuRef}>
             <button
               onClick={() => setShowSortMenu((v) => !v)}
-              className={`p-0.5 rounded hover:bg-accent/60 transition-colors ${
+              aria-label={`Sort ${COLUMN_LABELS[status]}: ${SORT_MODE_LABELS[sortMode]}`}
+              aria-expanded={showSortMenu}
+              className={`p-0.5 rounded hover:bg-accent/60 transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring ${
                 sortMode !== "topological" ? "text-primary" : "text-muted-foreground"
               }`}
               title={`Sort: ${SORT_MODE_LABELS[sortMode]}`}
@@ -242,7 +250,9 @@ const KanbanColumn = memo(function KanbanColumn({
           {/* Collapse button */}
           <button
             onClick={onToggleCollapsed}
-            className="p-0.5 rounded hover:bg-accent/60 transition-colors text-muted-foreground"
+            aria-label={`Collapse ${COLUMN_LABELS[status]}`}
+            aria-expanded={true}
+            className="p-0.5 rounded hover:bg-accent/60 transition-colors text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             title={`Collapse ${COLUMN_LABELS[status]}`}
           >
             <PanelLeftClose className="size-3" />

@@ -156,7 +156,7 @@ Agents can call these tools to communicate with Faber. The tools available depen
 
 | Tool | Available in | Purpose |
 |---|---|---|
-| `report_complete` | Task, Continuous | Signal that the task is fully done. Moves the task to **In Review**. In continuous mode, auto-launches the next task. |
+| `report_complete` | Task, Queue | Signal that the task is fully done. Moves the task to **In Review**. In queue mode, auto-launches the next task. |
 | `report_researched` | Research | Signal that research is complete. The user is prompted to continue to implementation. May move the task from Backlog to Ready. |
 
 Breakdown, Vibe, and Chat sessions have no completion tool — the user drives the lifecycle.

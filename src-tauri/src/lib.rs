@@ -6,7 +6,7 @@ mod acp;
 mod agent;
 mod commands;
 mod config_watcher;
-mod continuous;
+mod queue;
 mod db;
 mod error;
 mod font_detector;
@@ -202,7 +202,7 @@ pub fn run() {
 
             app.manage(db_state);
             app.manage(pty::new_state());
-            app.manage(continuous::new_state());
+            app.manage(queue::new_state());
             app.manage(task_watcher::new_state());
             app.manage(config_watcher::new_state());
             app.manage(acp::state::new_state());
@@ -255,8 +255,12 @@ pub fn run() {
             commands::git::get_branch_files,
             commands::git::get_branch_diff,
             commands::git::commit_staged,
+            commands::git::commit_amend,
             commands::git::stage_file,
             commands::git::unstage_file,
+            commands::git::discard_file,
+            commands::git::get_last_commit_message,
+            commands::git::get_staged_diff,
             commands::git::push_branch,
             commands::git::create_pull_request,
             commands::git::merge_worktree_branch,
@@ -363,12 +367,18 @@ pub fn run() {
             commands::updates::check_for_updates,
             commands::updates::download_and_install_update,
             commands::updates::get_app_version,
-            commands::continuous::start_continuous_mode,
-            commands::continuous::pause_continuous_mode,
-            commands::continuous::resume_continuous_mode,
-            commands::continuous::stop_continuous_mode,
-            commands::continuous::dismiss_continuous_mode,
-            commands::continuous::get_continuous_mode_status,
+            commands::queue::validate_queue_deps,
+            commands::queue::start_queue_mode,
+            commands::queue::pause_queue_mode,
+            commands::queue::resume_queue_mode,
+            commands::queue::stop_queue_mode,
+            commands::queue::dismiss_queue_mode,
+            commands::queue::get_queue_mode_status,
+            commands::queue::get_integration_branch,
+            commands::queue::resolve_merge_conflict,
+            commands::queue::skip_conflicted_task,
+            commands::queue::cleanup_integration_branch,
+            commands::queue::push_integration_branch,
             commands::usage::get_agent_usage,
             commands::files::list_directory,
             commands::files::index_project_files,

@@ -948,6 +948,164 @@ pub fn merge_branch(repo_path: &Path, branch_name: &str) -> Result<String, AppEr
     )
 }
 
+// ── Integration branch operations ──
+
+/// Result of a merge attempt on the integration branch.
+#[derive(Debug, Clone, Serialize)]
+#[serde(tag = "result", rename_all = "snake_case")]
+pub enum MergeResult {
+    /// Merge succeeded — includes the merge commit hash.
+    Success { commit_hash: String },
+    /// Merge had conflicts — includes the list of conflicting files.
+    /// The merge has been aborted (rolled back).
+    Conflict { files: Vec<String> },
+}
+
+/// Create an integration branch from a base ref.
+///
+/// If the branch already exists, checks it out instead (idempotent).
+/// Returns the branch name.
+pub fn create_integration_branch(
+    repo_path: &Path,
+    branch_name: &str,
+    base_ref: &str,
+) -> Result<String, AppError> {
+    // Try to create a new branch from base_ref
+    let result = run_git(repo_path, &["branch", branch_name, base_ref]);
+    match result {
+        Ok(_) => {
+            tracing::info!(branch = branch_name, base = base_ref, "Created integration branch");
+        }
+        Err(e) => {
+            let msg = e.to_string();
+            if msg.contains("already exists") {
+                tracing::debug!(branch = branch_name, "Integration branch already exists");
+            } else {
+                return Err(e);
+            }
+        }
+    }
+    Ok(branch_name.to_string())
+}
+
+/// Merge a task branch into the integration branch using `--no-ff`.
+///
+/// This function:
+/// 1. Checks out the integration branch in the main repo
+/// 2. Attempts `git merge --no-ff <task_branch>`
+/// 3. On success: returns `MergeResult::Success` with the commit hash
+/// 4. On conflict: aborts the merge and returns `MergeResult::Conflict` with affected files
+///
+/// IMPORTANT: This operates on the main repo, not a worktree. The caller
+/// should ensure no other operations are in-flight on the main repo.
+pub fn merge_task_branch(
+    repo_path: &Path,
+    integration_branch: &str,
+    task_branch: &str,
+    commit_message: &str,
+) -> Result<MergeResult, AppError> {
+    // Save current branch to restore later
+    let original_branch = run_git(repo_path, &["rev-parse", "--abbrev-ref", "HEAD"])
+        .map(|s| s.trim().to_string())
+        .unwrap_or_default();
+
+    // Checkout the integration branch
+    run_git(repo_path, &["checkout", integration_branch])?;
+
+    // Attempt merge with --no-ff
+    let merge_result = run_git(
+        repo_path,
+        &["merge", "--no-ff", task_branch, "-m", commit_message],
+    );
+
+    match merge_result {
+        Ok(_) => {
+            // Get the merge commit hash
+            let hash = run_git(repo_path, &["rev-parse", "--short", "HEAD"])
+                .map(|s| s.trim().to_string())
+                .unwrap_or_default();
+
+            // Restore original branch
+            if !original_branch.is_empty() && original_branch != integration_branch {
+                let _ = run_git(repo_path, &["checkout", &original_branch]);
+            }
+
+            tracing::info!(
+                integration = integration_branch,
+                task = task_branch,
+                commit = %hash,
+                "Merged task branch into integration branch"
+            );
+
+            Ok(MergeResult::Success { commit_hash: hash })
+        }
+        Err(_) => {
+            // Collect conflicting files before aborting
+            let conflict_files = run_git(repo_path, &["diff", "--name-only", "--diff-filter=U"])
+                .map(|s| {
+                    s.lines()
+                        .map(|l| l.trim().to_string())
+                        .filter(|l| !l.is_empty())
+                        .collect::<Vec<_>>()
+                })
+                .unwrap_or_default();
+
+            // Abort the merge to restore a clean state
+            let _ = run_git(repo_path, &["merge", "--abort"]);
+
+            // Restore original branch
+            if !original_branch.is_empty() && original_branch != integration_branch {
+                let _ = run_git(repo_path, &["checkout", &original_branch]);
+            }
+
+            tracing::warn!(
+                integration = integration_branch,
+                task = task_branch,
+                conflicts = ?conflict_files,
+                "Merge conflict detected — merge aborted"
+            );
+
+            Ok(MergeResult::Conflict { files: conflict_files })
+        }
+    }
+}
+
+/// Delete a local branch (only if it has been merged).
+///
+/// Uses `-d` (safe delete) first, falls back to `-D` (force) if needed.
+pub fn delete_task_branch(repo_path: &Path, branch: &str) -> Result<(), AppError> {
+    match run_git(repo_path, &["branch", "-d", branch]) {
+        Ok(_) => Ok(()),
+        Err(_) => {
+            // Force delete — the branch may not be fully merged to current HEAD
+            // but its commits live on the integration branch
+            run_git(repo_path, &["branch", "-D", branch])?;
+            Ok(())
+        }
+    }
+}
+
+/// Push a branch to the remote.
+pub fn push_integration_branch(
+    repo_path: &Path,
+    branch: &str,
+    remote: &str,
+) -> Result<(), AppError> {
+    run_git_remote(repo_path, &["push", "-u", remote, branch])?;
+    Ok(())
+}
+
+/// Delete a remote branch.
+pub fn delete_remote_branch(
+    repo_path: &Path,
+    branch: &str,
+    remote: &str,
+) -> Result<(), AppError> {
+    let refspec = format!(":{branch}");
+    run_git_remote(repo_path, &["push", remote, &refspec])?;
+    Ok(())
+}
+
 // ── Staging & commit operations ──
 
 /// Commit staged changes in a worktree.
@@ -970,6 +1128,59 @@ pub fn stage_file(worktree_path: &Path, file_path: &str) -> Result<(), AppError>
 pub fn unstage_file(worktree_path: &Path, file_path: &str) -> Result<(), AppError> {
     run_git(worktree_path, &["reset", "HEAD", "--", file_path])?;
     Ok(())
+}
+
+/// Discard working-tree changes for a file (git checkout -- <path>).
+///
+/// For untracked files, removes the file from disk instead.
+pub fn discard_file(worktree_path: &Path, file_path: &str) -> Result<(), AppError> {
+    let full = worktree_path.join(file_path);
+    // Check if the file is untracked
+    let status = run_git(worktree_path, &["status", "--porcelain", "--", file_path])?;
+    if status.starts_with("??") {
+        // Untracked — just delete it
+        if full.is_dir() {
+            std::fs::remove_dir_all(&full).map_err(|e| {
+                AppError::Git(format!("Failed to remove untracked directory {file_path}: {e}"))
+            })?;
+        } else {
+            std::fs::remove_file(&full).map_err(|e| {
+                AppError::Git(format!("Failed to remove untracked file {file_path}: {e}"))
+            })?;
+        }
+    } else {
+        // Tracked — restore from HEAD
+        run_git(worktree_path, &["checkout", "HEAD", "--", file_path])?;
+    }
+    Ok(())
+}
+
+/// Amend the last commit with the currently staged changes.
+///
+/// If `message` is provided, replaces the commit message. Otherwise keeps
+/// the existing message (`--no-edit`).
+pub fn commit_amend(worktree_path: &Path, message: Option<&str>) -> Result<String, AppError> {
+    if let Some(msg) = message {
+        run_git(worktree_path, &["commit", "--amend", "-m", msg])?;
+    } else {
+        run_git(worktree_path, &["commit", "--amend", "--no-edit"])?;
+    }
+    let hash = run_git(worktree_path, &["rev-parse", "--short", "HEAD"])?;
+    Ok(hash.trim().to_string())
+}
+
+/// Get the subject line of the last commit (for pre-filling amend UI).
+pub fn get_last_commit_message(worktree_path: &Path) -> Result<String, AppError> {
+    let output = run_git(worktree_path, &["log", "-1", "--format=%B"])?;
+    Ok(output.trim().to_string())
+}
+
+/// Get the diff of staged changes (git diff --cached).
+///
+/// Used for AI commit message generation — gives the model context about
+/// what is about to be committed.
+pub fn get_staged_diff(worktree_path: &Path) -> Result<String, AppError> {
+    run_git(worktree_path, &["diff", "--cached"])
 }
 
 // ── Push / PR operations ──
@@ -1062,16 +1273,10 @@ pub fn get_sync_status(repo_path: &Path) -> Result<SyncStatus, AppError> {
     Ok(SyncStatus { ahead, behind })
 }
 
-/// Pull from origin (fast-forward only). Errors if working tree is dirty.
+/// Pull from origin (fast-forward only).
+/// Allows pulling with uncommitted changes — Git will abort if dirty files
+/// overlap with incoming changes, matching VS Code / Zed behavior.
 pub fn git_pull(repo_path: &Path) -> Result<String, AppError> {
-    // Check for dirty working tree
-    let status = run_git(repo_path, &["status", "--porcelain"])?;
-    if !status.trim().is_empty() {
-        return Err(AppError::Git(
-            "Working tree has uncommitted changes. Commit or stash them first.".to_string(),
-        ));
-    }
-
     // Fetch
     run_git_remote(repo_path, &["fetch", "origin"])?;
 
@@ -1082,10 +1287,12 @@ pub fn git_pull(repo_path: &Path) -> Result<String, AppError> {
     let check = run_git(repo_path, &["merge-base", "--is-ancestor", "HEAD", &upstream]);
     if check.is_err() {
         return Err(AppError::Git(
-            "Cannot fast-forward: local branch has diverged from remote. Use manual merge.".to_string(),
+            "Cannot fast-forward: local branch has diverged from remote. Use manual merge."
+                .to_string(),
         ));
     }
 
+    // --ff-only will fail naturally if uncommitted changes conflict with incoming changes
     run_git_remote(repo_path, &["pull", "--ff-only"])?;
     Ok(format!("Pulled latest changes on {branch}"))
 }

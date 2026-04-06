@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-Faber is a cross-platform desktop app (Tauri 2 + React + TypeScript + Rust) for orchestrating AI coding agents. It wraps CLI-based agents (Claude Code, Codex CLI, Copilot CLI, Cursor Agent, Gemini CLI, OpenCode) with a task-driven workflow: Kanban board, git worktree isolation per task, PTY terminal sessions, multi-pane session grid, GitHub integration, and continuous mode for auto-launching task queues.
+Faber is a cross-platform desktop app (Tauri 2 + React + TypeScript + Rust) for orchestrating AI coding agents. It wraps CLI-based agents (Claude Code, Codex CLI, Copilot CLI, Cursor Agent, Gemini CLI, OpenCode) with a task-driven workflow: Kanban board, git worktree isolation per task, PTY terminal sessions, multi-pane session grid, GitHub integration, and queue mode for auto-launching task queues.
 
 **ALWAYS** use the frontend skill when designing, developing or updating frontend components or pages.
 
@@ -43,7 +43,7 @@ No frontend test runner is configured yet. Rust tests are inline (`#[cfg(test)]`
 - **State**: Zustand stores — primary `appStore.ts` and `updateStore.ts`. `ThemeContext` manages 4 themes (dark/light x glass/flat).
 - **Views** (`ViewId`): `dashboard`, `sessions`, `task-detail`, `review`, `github`, `skills-rules`, `help`
 - **Component tree**: `ThemeProvider -> StoreInitializer -> App -> AppShell` — AppShell is a 2-column CSS Grid. Sessions view stays mounted (hidden via CSS); other views mount/unmount.
-- **IPC**: `invoke("command_name", { args })` for calls, `listen("event-name")` for async events (PTY output, session status, MCP updates, continuous mode)
+- **IPC**: `invoke("command_name", { args })` for calls, `listen("event-name")` for async events (PTY output, session status, MCP updates, queue mode)
 
 ### Backend (`src-tauri/src/`)
 - **Database** (`db/`): SQLite with WAL mode, migrations in `db/migrations.rs`. IDs: `<prefix>_<timestamp_hex>_<counter_hex>`.
@@ -53,7 +53,7 @@ No frontend test runner is configured yet. Rust tests are inline (`#[cfg(test)]`
 - **PTY** (`pty.rs`): Spawns pseudo-terminals via `portable-pty`, streams output via Tauri events.
 - **Agent adapters** (`agent/`): Detects installed CLI agents, maps to commands + default models.
 - **MCP server** (`mcp/`): Embedded HTTP server (axum) on `127.0.0.1:<random_port>`. Sidecar binary (`bin/faber-mcp.rs`) acts as stdio-to-HTTP bridge for agent MCP configs.
-- **Continuous Mode** (`continuous.rs`): Auto-launches a queue of ready tasks. Two branching strategies: `independent` and `chained`.
+- **Queue mode** (`queue.rs`): Auto-launches a queue of ready tasks. Two branching strategies: `independent` and `chained`.
 - **Project config** (`project_config.rs`): File-based project settings via `.agents/faber.json`. See [Settings Architecture](#settings-architecture).
 - **Config watcher** (`config_watcher.rs`): Watches `.agents/faber.json` for external edits, re-syncs DB.
 
@@ -159,7 +159,7 @@ error!(session_id = %id, error = %e, "PTY spawn failed");
 Custom `AppError` enum with `From` conversions. All commands return `Result<T, AppError>`.
 
 ### State (Rust)
-Mutex-wrapped state (`PtyState`, `DbState`) for thread safety. MCP state uses `Arc<TokioMutex<McpState>>`. Continuous mode uses `Arc<TokioMutex<ContinuousState>>`.
+Mutex-wrapped state (`PtyState`, `DbState`) for thread safety. MCP state uses `Arc<TokioMutex<McpState>>`. Queue mode uses `Arc<TokioMutex<QueueState>>`.
 
 ### State management (Frontend)
 - **Selectors**: Always use `useAppStore((s) => s.fieldName)` — never subscribe to the whole store.
@@ -174,13 +174,5 @@ Strict mode enabled (`noUnusedLocals`, `noUnusedParameters`). Functional compone
 <!-- Faber:MCP -->
 ## Faber Integration
 
-You have MCP tools provided by the Faber IDE for reporting your progress. You MUST use them throughout your workflow.
-
-## Status Reporting (required)
-
-- `report_status(status, message, activity?)` — Call FIRST when you start working (status: "working"). Call again when your activity changes. Activity options: "researching", "exploring", "planning", "coding", "testing", "debugging", "reviewing".
-- `report_progress(current_step, total_steps, description)` — Call before each major step so the IDE shows a progress bar.
-- `report_files_changed(files)` — Call after modifying files so the IDE can track changes.
-- `report_error(error, details?)` — Call if you hit a hard blocker (build failure, missing dependency, etc.). After calling this, STOP and wait for the user.
-- `report_waiting(question)` — Call if you need user input or a decision. After calling this, STOP and wait — the session pauses until the user responds.
+You have MCP tools provided by the Faber IDE. IMPORTANT: Call the `get_instructions` MCP tool FIRST before doing any work. It provides your session-specific workflow, available tools, and task context.
 <!-- /Faber:MCP -->

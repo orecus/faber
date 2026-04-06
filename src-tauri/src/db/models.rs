@@ -306,6 +306,8 @@ pub struct Session {
     pub worktree_path: Option<String>,
     pub mcp_connected: bool,
     pub acp_session_id: Option<String>,
+    pub orchestration_source: Option<String>,
+    pub orchestration_run_id: Option<String>,
     pub started_at: String,
     pub ended_at: Option<String>,
 }
@@ -359,6 +361,28 @@ pub struct TaskActivity {
     pub event_type: String,
     pub timestamp: String,
     pub data: serde_json::Value,
+}
+
+// ── Integration Branch ──
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct IntegrationBranch {
+    pub id: String,
+    pub run_type: String,
+    pub run_id: String,
+    pub project_id: String,
+    pub branch_name: String,
+    pub base_branch: String,
+    pub worktree_strategy: String,
+    pub merged_tasks: Vec<String>,
+    pub pending_tasks: Vec<String>,
+    pub conflict_task: Option<String>,
+    pub conflict_files: Vec<String>,
+    pub pushed: bool,
+    pub pr_url: Option<String>,
+    pub status: String,
+    pub created_at: String,
+    pub updated_at: String,
 }
 
 // ── File Browser ──

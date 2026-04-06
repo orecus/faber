@@ -14,8 +14,8 @@ interface SummaryHeaderProps {
   showArchived?: boolean;
   onToggleArchived?: () => void;
   onNewTask?: () => void;
-  onContinuousMode?: () => void;
-  continuousModeEnabled?: boolean;
+  onQueueMode?: () => void;
+  queueModeEnabled?: boolean;
   accentColor?: ThemeColor;
   dashboardMode?: DashboardMode;
   onDashboardModeChange?: (mode: DashboardMode) => void;
@@ -39,8 +39,8 @@ const SummaryHeader = memo(function SummaryHeader({
   showArchived = false,
   onToggleArchived,
   onNewTask,
-  onContinuousMode,
-  continuousModeEnabled = false,
+  onQueueMode,
+  queueModeEnabled = false,
   accentColor = "blue",
   dashboardMode = "board",
   onDashboardModeChange,
@@ -171,10 +171,10 @@ const SummaryHeader = memo(function SummaryHeader({
       )}
 
       {/* Actions */}
-      {onContinuousMode && (
+      {onQueueMode && (
         <span
           title={
-            !continuousModeEnabled
+            !queueModeEnabled
               ? "Requires 2+ tasks in 'ready' status"
               : undefined
           }
@@ -182,13 +182,13 @@ const SummaryHeader = memo(function SummaryHeader({
           <Button
             variant="outline"
             size="xs"
-            disabled={!continuousModeEnabled}
-            onClick={onContinuousMode}
+            disabled={!queueModeEnabled}
+            onClick={onQueueMode}
             leftIcon={<ListChecks className="size-3" />}
             hoverEffect="scale"
             clickEffect="scale"
           >
-            Continuous
+            Queue
           </Button>
         </span>
       )}
