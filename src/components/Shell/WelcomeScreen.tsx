@@ -61,7 +61,6 @@ const WORKFLOW_STEPS: {
   },
 ];
 
-
 const LOADING_LABELS = [
   "Loading projects",
   "Detecting agents",
@@ -111,8 +110,12 @@ export default function WelcomeScreen() {
   const agentSummary = useMemo(() => {
     if (isDetectingAgents || agents.length === 0) return null;
     const installed = agents.filter((a) => a.installed).length;
-    if (installed === agents.length) return { text: "All agents ready", allReady: true };
-    return { text: `${installed} of ${agents.length} agents detected`, allReady: false };
+    if (installed === agents.length)
+      return { text: "All agents ready", allReady: true };
+    return {
+      text: `${installed} of ${agents.length} agents detected`,
+      allReady: false,
+    };
   }, [agents, isDetectingAgents]);
 
   const handleOpenProject = useCallback(
@@ -205,7 +208,7 @@ export default function WelcomeScreen() {
                 accentColor="primary"
                 className="w-full"
               >
-                <CardContent className="p-8 flex flex-col items-center gap-6">
+                <CardContent className="flex flex-col items-center gap-6">
                   {/* Description */}
                   <p className="text-sm text-dim-foreground text-center leading-relaxed max-w-[400px]">
                     Manage AI coding agents with a task-driven workflow. Assign
@@ -249,9 +252,9 @@ export default function WelcomeScreen() {
                   border
                   animationPreset="slide-up"
                   animationDelay={0.15}
-                  className="w-full mt-5"
+                  className="w-full mt-2"
                 >
-                  <CardContent className="p-5">
+                  <CardContent>
                     <div className="text-2xs font-medium tracking-[0.1em] uppercase text-muted-foreground mb-3">
                       How it works
                     </div>
@@ -314,9 +317,7 @@ export default function WelcomeScreen() {
                           : "text-dim-foreground"
                       }`}
                     >
-                      {agentSummary.allReady && (
-                        <CircleCheck size={11} />
-                      )}
+                      {agentSummary.allReady && <CircleCheck size={11} />}
                       <span>· {agentSummary.text}</span>
                     </span>
                   )}
@@ -343,7 +344,9 @@ export default function WelcomeScreen() {
                   exit={{ opacity: 0, x: 40 }}
                   transition={{ duration: 0.45, ease: EASE.panel }}
                   className="w-[320px] shrink-0 pt-[68px] flex flex-col"
-                  style={leftColHeight ? { maxHeight: leftColHeight } : undefined}
+                  style={
+                    leftColHeight ? { maxHeight: leftColHeight } : undefined
+                  }
                 >
                   <div className="flex items-center gap-2 mb-2.5 px-1 shrink-0">
                     <span className="text-xs font-medium tracking-[0.08em] uppercase text-muted-foreground">
