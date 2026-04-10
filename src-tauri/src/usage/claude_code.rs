@@ -246,7 +246,7 @@ fn window_order(api_key: &str) -> u8 {
 
 impl ClaudeCodeProvider {
     pub fn agent_name(&self) -> &str {
-        "claude"
+        "claude-code"
     }
 
     pub fn display_name(&self) -> &str {
