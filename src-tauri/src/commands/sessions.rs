@@ -620,6 +620,7 @@ pub fn send_acp_message(
 
             match client.prompt(acp_sid, content).await {
                 Ok(response) => {
+                    session::emit_token_usage(&app, &session_id, &response);
                     let stop_reason = format!("{:?}", response.stop_reason);
                     tracing::info!(
                         session_id = %session_id,

@@ -1,4 +1,5 @@
 use super::{is_command_in_path, AgentAdapter, AgentLaunchConfig, AgentLaunchSpec};
+use crate::acp::types::{AcpConfigOption, AcpConfigSelectOption};
 
 pub struct CodexAdapter;
 
@@ -73,6 +74,37 @@ impl AgentAdapter for CodexAdapter {
 
     fn acp_adapter_package(&self) -> Option<&str> {
         Some("@zed-industries/codex-acp")
+    }
+
+    fn detect_config_options(&self) -> Vec<AcpConfigOption> {
+        let mut options = self.default_detect_config_options();
+
+        // Add thought_level (Codex's reasoning_effort levels)
+        let levels = [
+            ("minimal", "Minimal", "Fastest responses, least reasoning"),
+            ("low", "Low", "Light reasoning"),
+            ("medium", "Medium", "Balanced reasoning depth"),
+            ("high", "High", "Deep reasoning for complex tasks"),
+            ("xhigh", "Extra High", "Maximum reasoning effort"),
+        ];
+        options.push(AcpConfigOption {
+            id: "thought_level".to_string(),
+            name: "Reasoning Effort".to_string(),
+            description: Some("Controls reasoning effort per request".to_string()),
+            category: Some("thought_level".to_string()),
+            current_value: "medium".to_string(),
+            options: levels
+                .iter()
+                .map(|(value, name, desc)| AcpConfigSelectOption {
+                    value: value.to_string(),
+                    name: name.to_string(),
+                    description: Some(desc.to_string()),
+                })
+                .collect(),
+            groups: vec![],
+        });
+
+        options
     }
 
     fn cli_install_url(&self) -> Option<&str> {

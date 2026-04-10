@@ -209,6 +209,21 @@ pub struct AcpUsageUpdatePayload {
     pub cost_currency: Option<String>,
 }
 
+/// Per-turn token usage from ACP PromptResponse (cumulative across turns).
+#[derive(Debug, Clone, Serialize)]
+pub struct AcpTokenUsagePayload {
+    pub session_id: String,
+    pub input_tokens: u64,
+    pub output_tokens: u64,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub thought_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_read_tokens: Option<u64>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cached_write_tokens: Option<u64>,
+    pub total_tokens: u64,
+}
+
 // ── Tauri Event Names ──
 
 pub const EVENT_ACP_THOUGHT_CHUNK: &str = "acp-thought-chunk";
@@ -226,6 +241,7 @@ pub const EVENT_ACP_PERMISSION_RESPONSE: &str = "acp-permission-response";
 pub const EVENT_ACP_AVAILABLE_COMMANDS: &str = "acp-available-commands";
 pub const EVENT_ACP_CONFIG_OPTION_UPDATE: &str = "acp-config-option-update";
 pub const EVENT_ACP_USAGE_UPDATE: &str = "acp-usage-update";
+pub const EVENT_ACP_TOKEN_USAGE: &str = "acp-token-usage";
 
 #[cfg(test)]
 mod tests {

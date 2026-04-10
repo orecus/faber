@@ -878,6 +878,7 @@ fn convert_config_option(opt: &acp::SessionConfigOption) -> AcpConfigOption {
         acp::SessionConfigOptionCategory::Mode => "mode".to_string(),
         acp::SessionConfigOptionCategory::Model => "model".to_string(),
         acp::SessionConfigOptionCategory::ThoughtLevel => "thought_level".to_string(),
+        acp::SessionConfigOptionCategory::Other(s) => s.clone(),
         _ => format!("{:?}", c),
     });
 

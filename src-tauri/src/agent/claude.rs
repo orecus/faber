@@ -1,4 +1,5 @@
 use super::{is_command_in_path, AgentAdapter, AgentLaunchConfig, AgentLaunchSpec};
+use crate::acp::types::{AcpConfigOption, AcpConfigSelectOption};
 
 pub struct ClaudeCodeAdapter;
 
@@ -80,6 +81,37 @@ impl AgentAdapter for ClaudeCodeAdapter {
 
     fn acp_adapter_package(&self) -> Option<&str> {
         Some("@agentclientprotocol/claude-agent-acp")
+    }
+
+    fn detect_config_options(&self) -> Vec<AcpConfigOption> {
+        // Start with the default model options from the trait
+        let mut options = self.default_detect_config_options();
+
+        // Add thought_level (Claude's extended thinking budget levels)
+        let levels = [
+            ("low", "Low", "Minimal reasoning — fast responses"),
+            ("medium", "Medium", "Balanced reasoning depth"),
+            ("high", "High", "Deep reasoning for complex tasks"),
+            ("max", "Max", "Maximum reasoning budget"),
+        ];
+        options.push(AcpConfigOption {
+            id: "thought_level".to_string(),
+            name: "Thinking Level".to_string(),
+            description: Some("Controls extended thinking budget".to_string()),
+            category: Some("thought_level".to_string()),
+            current_value: "medium".to_string(),
+            options: levels
+                .iter()
+                .map(|(value, name, desc)| AcpConfigSelectOption {
+                    value: value.to_string(),
+                    name: name.to_string(),
+                    description: Some(desc.to_string()),
+                })
+                .collect(),
+            groups: vec![],
+        });
+
+        options
     }
 
     fn cli_install_url(&self) -> Option<&str> {

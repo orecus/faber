@@ -113,7 +113,10 @@ pub trait AgentAdapter: Send + Sync {
     /// Returns synthesized `AcpConfigOption`s for model, thought_level, etc.
     /// by querying the agent's CLI. Called when the ACP session doesn't provide
     /// its own config options. Default: builds a model option from `detect_models()`.
-    fn detect_config_options(&self) -> Vec<crate::acp::types::AcpConfigOption> {
+    /// Build a model config option from `detect_models()`. Extracted as a helper
+    /// so adapters that override `detect_config_options()` can reuse the model
+    /// option logic and append additional categories (e.g. thought_level).
+    fn default_detect_config_options(&self) -> Vec<crate::acp::types::AcpConfigOption> {
         use crate::acp::types::{AcpConfigOption, AcpConfigSelectOption};
 
         let models = self.detect_models();
@@ -142,6 +145,10 @@ pub trait AgentAdapter: Send + Sync {
             options,
             groups: vec![],
         }]
+    }
+
+    fn detect_config_options(&self) -> Vec<crate::acp::types::AcpConfigOption> {
+        self.default_detect_config_options()
     }
 
     /// Whether this agent supports ACP (Agent Client Protocol).

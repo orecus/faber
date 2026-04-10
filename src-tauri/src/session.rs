@@ -11,7 +11,7 @@ use tokio::sync::Mutex as TokioMutex;
 use crate::acp::client::{AcpClient, AcpSpawnConfig};
 use crate::acp::handler;
 use crate::acp::state::{AcpSessionState, AcpState};
-use crate::acp::types::{AcpConfigOptionUpdatePayload, AcpErrorPayload, AcpPromptCompletePayload, EVENT_ACP_CONFIG_OPTION_UPDATE, EVENT_ACP_ERROR, EVENT_ACP_PROMPT_COMPLETE};
+use crate::acp::types::{AcpConfigOptionUpdatePayload, AcpErrorPayload, AcpPromptCompletePayload, AcpTokenUsagePayload, EVENT_ACP_CONFIG_OPTION_UPDATE, EVENT_ACP_ERROR, EVENT_ACP_PROMPT_COMPLETE, EVENT_ACP_TOKEN_USAGE};
 use crate::agent::{self, AgentLaunchConfig};
 use crate::commands::tasks::do_update_task_status;
 use crate::queue;
@@ -840,7 +840,13 @@ fn validate_acp_agent(adapter: &dyn agent::AgentAdapter, agent_name: &str) -> Re
     Ok((acp_command, acp_args))
 }
 
-/// Register an MCP session for ACP (no config file writing, just session data + instruction file).
+/// Register an MCP session for ACP.
+///
+/// ACP passes MCP servers via the protocol (`session/new` `mcp_servers` param),
+/// so we **remove** any existing faber sidecar entry from the agent's config file.
+/// If we left the entry, agents with native ACP (e.g. Gemini) would try to launch
+/// the sidecar independently at startup, blocking initialization.
+///
 /// Returns the MCP connection info if the MCP server is running.
 #[allow(clippy::too_many_arguments)]
 fn register_acp_mcp_session(
@@ -857,7 +863,12 @@ fn register_acp_mcp_session(
         return None;
     }
 
-    // Write instruction file for agent context (not MCP config)
+    // Remove the faber sidecar entry from the agent's config file.
+    // MCP is passed via the ACP protocol instead, so the config file entry
+    // would only cause the agent to try launching the sidecar independently.
+    mcp::server::cleanup_mcp_config(cwd);
+
+    // Write instruction file for agent context
     if let Some(filename) = agent_instruction_filename(agent_name) {
         write_instruction_file(cwd, filename);
     }
@@ -876,6 +887,38 @@ fn register_acp_mcp_session(
 
 /// Spawn an ACP session: creates DB record, starts ACP client thread, returns Session.
 ///
+/// Emit token usage from a PromptResponse if available.
+///
+/// The ACP `PromptResponse.usage` field (unstable) provides cumulative token
+/// counts across all turns. We emit these as a Tauri event so the frontend
+/// can display input/output/cache breakdowns.
+pub fn emit_token_usage(app: &AppHandle, session_id: &str, response: &acp::PromptResponse) {
+    if let Some(ref usage) = response.usage {
+        tracing::debug!(
+            session_id = %session_id,
+            input = usage.input_tokens,
+            output = usage.output_tokens,
+            thought = ?usage.thought_tokens,
+            cache_read = ?usage.cached_read_tokens,
+            cache_write = ?usage.cached_write_tokens,
+            total = usage.total_tokens,
+            "ACP ← token usage"
+        );
+        let _ = app.emit(
+            EVENT_ACP_TOKEN_USAGE,
+            AcpTokenUsagePayload {
+                session_id: session_id.to_string(),
+                input_tokens: usage.input_tokens,
+                output_tokens: usage.output_tokens,
+                thought_tokens: usage.thought_tokens,
+                cached_read_tokens: usage.cached_read_tokens,
+                cached_write_tokens: usage.cached_write_tokens,
+                total_tokens: usage.total_tokens,
+            },
+        );
+    }
+}
+
 /// This is the shared core for all ACP session types (task, vibe, research).
 /// The caller is responsible for task-specific logic (worktree, task status updates).
 #[allow(clippy::too_many_arguments)]
@@ -1054,58 +1097,58 @@ fn spawn_acp_session(
                 };
             }
 
-            // Emit initial config_options from the NewSessionResponse (if present).
-            // This is how agents like Claude Code advertise available models/modes
-            // at session creation time, before any ConfigOptionUpdate push events.
-            let has_model_option;
+            // Build the initial config options by merging ACP-reported options with
+            // adapter-detected ones. The ACP adapter may only report some categories
+            // (e.g. model + mode but not thought_level). We supplement missing
+            // categories from adapter detection and emit everything in a single event
+            // (since the frontend replaces the full option set on each event).
+            let mut config_options: Vec<crate::acp::types::AcpConfigOption> = Vec::new();
+            let mut acp_reported_categories = std::collections::HashSet::new();
+
             if let Some(ref config_opts) = acp_session.config_options {
                 let converted: Vec<_> = config_opts
                     .iter()
                     .map(handler::convert_config_option_public)
                     .collect();
-                has_model_option = converted.iter().any(|o| o.category.as_deref() == Some("model"));
-                if !converted.is_empty() {
-                    tracing::info!(
-                        session_id = %session_id_clone,
-                        option_count = converted.len(),
-                        "ACP ← initial config_options from NewSessionResponse"
-                    );
-                    let _ = app_for_task.emit(
-                        EVENT_ACP_CONFIG_OPTION_UPDATE,
-                        AcpConfigOptionUpdatePayload {
-                            session_id: session_id_clone.clone(),
-                            config_options: converted,
-                        },
-                    );
-                }
-            } else {
-                has_model_option = false;
-            }
-
-            // If the agent didn't advertise config options (model, thought_level, etc.),
-            // try to detect them from the adapter's CLI (e.g. `opencode models --verbose`).
-            if !has_model_option {
-                if let Some(adapter) = agent::get_adapter(&agent_name_clone) {
-                    let detected = adapter.detect_config_options();
-                    if !detected.is_empty() {
-                        let categories: Vec<&str> = detected.iter()
-                            .filter_map(|o| o.category.as_deref())
-                            .collect();
-                        tracing::info!(
-                            session_id = %session_id_clone,
-                            option_count = detected.len(),
-                            categories = ?categories,
-                            "Synthesized config options from adapter CLI"
-                        );
-                        let _ = app_for_task.emit(
-                            EVENT_ACP_CONFIG_OPTION_UPDATE,
-                            AcpConfigOptionUpdatePayload {
-                                session_id: session_id_clone.clone(),
-                                config_options: detected,
-                            },
-                        );
+                for opt in &converted {
+                    if let Some(ref cat) = opt.category {
+                        acp_reported_categories.insert(cat.clone());
                     }
                 }
+                config_options = converted;
+            }
+
+            // Supplement with adapter-detected options for categories ACP didn't report
+            if let Some(adapter) = agent::get_adapter(&agent_name_clone) {
+                let detected = adapter.detect_config_options();
+                for opt in detected {
+                    let cat = opt.category.as_deref().unwrap_or("");
+                    if !acp_reported_categories.contains(cat) {
+                        if let Some(ref c) = opt.category {
+                            acp_reported_categories.insert(c.clone());
+                        }
+                        config_options.push(opt);
+                    }
+                }
+            }
+
+            if !config_options.is_empty() {
+                let categories: Vec<&str> = config_options.iter()
+                    .filter_map(|o| o.category.as_deref())
+                    .collect();
+                tracing::info!(
+                    session_id = %session_id_clone,
+                    option_count = config_options.len(),
+                    categories = ?categories,
+                    "ACP ← initial config_options (ACP + adapter supplemental)"
+                );
+                let _ = app_for_task.emit(
+                    EVENT_ACP_CONFIG_OPTION_UPDATE,
+                    AcpConfigOptionUpdatePayload {
+                        session_id: session_id_clone.clone(),
+                        config_options,
+                    },
+                );
             }
 
             // Store client in ACP state
@@ -1165,6 +1208,7 @@ fn spawn_acp_session(
 
             match prompt_result {
                 Some(Ok(response)) => {
+                    emit_token_usage(&app_for_task, &session_id_clone, &response);
                     let stop_reason = format!("{:?}", response.stop_reason);
                     tracing::info!(
                         session_id = %session_id_clone,
