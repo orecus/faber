@@ -23,6 +23,7 @@ import type {
   AcpToolCall,
   AcpToolCallUpdate,
   AcpUsageData,
+  SessionTokenUsage,
   AgentInfo,
   AgentUsageData,
   CommitInfo,
@@ -146,6 +147,8 @@ interface AppState {
   acpConfigOptions: Record<string, AcpConfigOption[]>;
   /** Context window usage + cost per ACP session (from UsageUpdate). */
   acpUsage: Record<string, AcpUsageData>;
+  /** Per-session cumulative token usage from PromptResponse (input/output/cache). */
+  acpTokenUsage: Record<string, SessionTokenUsage>;
 
   /** Agent session lists from session/list — keyed by "agent:project_id" */
   agentSessionList: Record<string, import("../types").AgentSessionInfo[]>;
@@ -233,6 +236,7 @@ interface AppState {
   setAcpAvailableCommands: (sessionId: string, commands: AcpAvailableCommand[]) => void;
   setAcpConfigOptions: (sessionId: string, options: AcpConfigOption[]) => void;
   setAcpUsage: (sessionId: string, data: AcpUsageData) => void;
+  setAcpTokenUsage: (sessionId: string, data: SessionTokenUsage) => void;
   cleanupSessionAcp: (sessionId: string) => void;
 
   /** Fetch agent session list via list_agent_sessions IPC */
@@ -351,6 +355,7 @@ export const useAppStore = create<AppState>()(
     acpAvailableCommands: {},
     acpConfigOptions: {},
     acpUsage: {},
+    acpTokenUsage: {},
     agentSessionList: {},
     agentSessionListSupported: {},
     agentLoadSessionSupported: {},
@@ -893,6 +898,11 @@ export const useAppStore = create<AppState>()(
         acpUsage: { ...state.acpUsage, [sessionId]: data },
       })),
 
+    setAcpTokenUsage: (sessionId, data) =>
+      set((state) => ({
+        acpTokenUsage: { ...state.acpTokenUsage, [sessionId]: data },
+      })),
+
     cleanupSessionAcp: (sessionId) => {
       set((state) => {
         const { [sessionId]: _e, ...entries } = state.acpEntries;
@@ -909,6 +919,7 @@ export const useAppStore = create<AppState>()(
         const { [sessionId]: _ac, ...availCmds } = state.acpAvailableCommands;
         const { [sessionId]: _co, ...cfgOpts } = state.acpConfigOptions;
         const { [sessionId]: _u, ...usage } = state.acpUsage;
+        const { [sessionId]: _tu, ...tokenUsage } = state.acpTokenUsage;
         return {
           acpEntries: entries,
           acpTurnCounter: turnCounters,
@@ -924,6 +935,7 @@ export const useAppStore = create<AppState>()(
           acpAvailableCommands: availCmds,
           acpConfigOptions: cfgOpts,
           acpUsage: usage,
+          acpTokenUsage: tokenUsage,
         };
       });
     },
@@ -2142,6 +2154,15 @@ export const useAppStore = create<AppState>()(
           if (disposed) return;
           const { session_id, ...data } = event.payload;
           get().setAcpUsage(session_id, data);
+        }),
+      );
+
+      // ACP token usage (per-turn cumulative input/output/cache from PromptResponse)
+      eventCleanups.push(
+        listen<SessionTokenUsage & { session_id: string }>("acp-token-usage", (event) => {
+          if (disposed) return;
+          const { session_id, ...data } = event.payload;
+          get().setAcpTokenUsage(session_id, data);
         }),
       );
 

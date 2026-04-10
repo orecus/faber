@@ -400,6 +400,16 @@ export interface AcpUsageData {
   cost_currency?: string;
 }
 
+/** Per-session cumulative token usage from ACP PromptResponse (unstable). */
+export interface SessionTokenUsage {
+  input_tokens: number;
+  output_tokens: number;
+  thought_tokens?: number;
+  cached_read_tokens?: number;
+  cached_write_tokens?: number;
+  total_tokens: number;
+}
+
 export type PermissionAction = "auto_approve" | "ask" | "deny";
 
 export interface PermissionRule {

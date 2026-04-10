@@ -1,5 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
-import { Check, ChevronDown } from "lucide-react";
+import { Check, ChevronDown, ShieldCheck } from "lucide-react";
 import React, { useCallback, useMemo, useState } from "react";
 
 import {
@@ -78,8 +78,9 @@ export default React.memo(function ModeSelector({
       <PopoverTrigger
         className="flex items-center gap-1 h-7 px-2 rounded text-xs font-medium text-dim-foreground hover:text-foreground hover:bg-accent/50 transition-colors disabled:opacity-50 cursor-pointer"
         disabled={disabled}
-        title="Switch agent mode"
+        title="Permission mode"
       >
+        <ShieldCheck size={12} className="text-muted-foreground" />
         <span className="capitalize">{activeModeLabel}</span>
         <ChevronDown size={10} className="text-muted-foreground" />
       </PopoverTrigger>

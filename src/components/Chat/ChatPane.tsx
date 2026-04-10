@@ -220,6 +220,8 @@ function buildTimelineGrouped(entries: AcpEntry[], showThinking: boolean): Timel
       result.push({ type: "user-message", data: entry });
     } else if (entry.type === "thinking" && !showThinking) {
       continue;
+    } else if (entry.type === "tool-call" && entry.kind === "think" && !showThinking) {
+      continue;
     } else {
       currentTurnEntries.push(entry);
       // Flush after each agent-text — it's the "response" that closes a turn
@@ -257,6 +259,8 @@ function buildTimelineLinear(entries: AcpEntry[], showThinking: boolean): Timeli
     if (entry.type === "user-message") {
       result.push({ type: "user-message", data: entry });
     } else if (entry.type === "thinking" && !showThinking) {
+      continue;
+    } else if (entry.type === "tool-call" && entry.kind === "think" && !showThinking) {
       continue;
     } else {
       const isLast = i === total - 1 || entries.slice(i + 1).every(
@@ -297,6 +301,8 @@ function buildTimelineSingleResponse(entries: AcpEntry[], showThinking: boolean)
       flushTurn(false);
       result.push({ type: "user-message", data: entry });
     } else if (entry.type === "thinking" && !showThinking) {
+      continue;
+    } else if (entry.type === "tool-call" && entry.kind === "think" && !showThinking) {
       continue;
     } else {
       currentTurnEntries.push(entry);

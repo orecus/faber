@@ -823,6 +823,8 @@ export default React.memo(function AgentTurnBlock({
         // Only include non-hidden, non-faber steps
         const faberName = getFaberToolName(entry);
         if (faberName && HIDDEN_TOOLS.has(faberName)) continue;
+        // Hide "think" kind tool calls when thinking blocks are hidden
+        if (!showThinking && entry.kind === "think") continue;
         // Check if this is a classified step (not a faber MCP tool)
         if (classified.steps.includes(entry)) {
           items.push({ type: "tool", data: entry });

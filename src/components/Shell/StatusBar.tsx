@@ -1,7 +1,6 @@
 import { invoke } from "@tauri-apps/api/core";
 import {
   AlertTriangle,
-  BarChart3,
   Check,
   CircleHelp,
   Copy,
@@ -10,7 +9,7 @@ import {
   RefreshCw,
   Settings,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useState } from "react";
 
 import {
   Popover,
@@ -149,21 +148,49 @@ const AgentUsageSection = React.memo(function AgentUsageSection({
 
 // ── Usage indicator + popover ──
 
+/** Abbreviation map for known usage window labels → short codes. */
+const WINDOW_ABBREV: Record<string, string> = {
+  Session: "S",
+  "Weekly (all)": "W",
+  "Weekly (Sonnet)": "WS",
+};
+
+/** Color class for a utilization percentage. */
+function utilizationColor(pct: number): string {
+  if (pct >= 80) return "text-destructive";
+  if (pct >= 50) return "text-warning";
+  return "text-dim-foreground";
+}
+
+/** Inline per-agent compact summary: icon + abbreviated window percentages. */
+const AgentUsageBadge = React.memo(function AgentUsageBadge({
+  agent,
+}: {
+  agent: AgentUsageData;
+}) {
+  if (agent.needs_auth || agent.error || agent.windows.length === 0)
+    return null;
+
+  return (
+    <span className="inline-flex items-center gap-1">
+      <AgentIcon agent={agent.agent_name} size={12} className="shrink-0 opacity-80" />
+      {agent.windows.map((w) => {
+        const abbr = WINDOW_ABBREV[w.label] ?? w.label.charAt(0);
+        const pct = Math.round(w.utilization);
+        return (
+          <span key={w.label} className={`text-2xs tabular-nums ${utilizationColor(pct)}`}>
+            {abbr}:&nbsp;{pct}%
+          </span>
+        );
+      })}
+    </span>
+  );
+});
+
 const UsageIndicator = React.memo(function UsageIndicator() {
   const agentUsage = useAppStore((s) => s.agentUsage);
   const agentUsageLoading = useAppStore((s) => s.agentUsageLoading);
   const fetchAgentUsage = useAppStore((s) => s.fetchAgentUsage);
-
-  // Compute the top utilization across all agents
-  const topUtilization = useMemo(() => {
-    let max = 0;
-    for (const agent of agentUsage) {
-      for (const w of agent.windows) {
-        if (w.utilization > max) max = w.utilization;
-      }
-    }
-    return Math.round(max);
-  }, [agentUsage]);
 
   const handleRefresh = useCallback(
     (e: React.MouseEvent) => {
@@ -175,12 +202,10 @@ const UsageIndicator = React.memo(function UsageIndicator() {
 
   if (agentUsage.length === 0 && !agentUsageLoading) return null;
 
-  const utilizationColor =
-    topUtilization >= 80
-      ? "text-destructive"
-      : topUtilization >= 50
-        ? "text-warning"
-        : "text-dim-foreground";
+  // Agents that have displayable windows (not auth errors)
+  const displayableAgents = agentUsage.filter(
+    (a) => !a.needs_auth && !a.error && a.windows.length > 0,
+  );
 
   return (
     <Popover>
@@ -188,9 +213,20 @@ const UsageIndicator = React.memo(function UsageIndicator() {
         {agentUsageLoading ? (
           <Loader2 size={12} className="animate-spin text-muted-foreground" />
         ) : (
-          <BarChart3 size={12} className={utilizationColor} />
+          <div className="flex items-center gap-2">
+            {displayableAgents.map((agent, i) => (
+              <React.Fragment key={agent.agent_name}>
+                {i > 0 && (
+                  <span className="text-muted-foreground/50 text-2xs">|</span>
+                )}
+                <AgentUsageBadge agent={agent} />
+              </React.Fragment>
+            ))}
+            {displayableAgents.length === 0 && (
+              <span className="text-2xs text-muted-foreground">Usage</span>
+            )}
+          </div>
         )}
-        <span className={utilizationColor}>{topUtilization}%</span>
       </PopoverTrigger>
       <PopoverContent
         side="top"

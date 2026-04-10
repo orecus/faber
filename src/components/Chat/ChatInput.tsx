@@ -16,8 +16,32 @@ import {
   SquareIcon,
   Terminal,
 } from "lucide-react";
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 
+import {
+  usePersistedBoolean,
+  usePersistedString,
+} from "../../hooks/usePersistedState";
+import { useAppStore } from "../../store/appStore";
+import ConfigOptionsPopover from "./ConfigOptionsPopover";
+import ContextUsageIndicator from "./ContextUsageIndicator";
+import ModelSelector from "./ModelSelector";
+import ModeSelector from "./ModeSelector";
+import ThoughtLevelSelector from "./ThoughtLevelSelector";
+
+import type {
+  AcpAvailableCommand,
+  AcpMessageAttachment,
+  AgentCapabilities,
+  FileEntry,
+} from "../../types";
+import type { ChatDisplayMode } from "./ChatPane";
 import {
   Attachment,
   AttachmentInfo,
@@ -33,23 +57,12 @@ import {
   PromptInputActionMenuTrigger,
   PromptInputFooter,
   PromptInputHeader,
+  type PromptInputMessage,
   PromptInputSubmit,
   PromptInputTextarea,
   usePromptInputAttachments,
-  type PromptInputMessage,
 } from "@/components/ai-elements/prompt-input";
-
-import { usePersistedBoolean, usePersistedString } from "../../hooks/usePersistedState";
-import { useAppStore } from "../../store/appStore";
 import { cn } from "@/lib/utils";
-import ConfigOptionsPopover from "./ConfigOptionsPopover";
-import ContextUsageIndicator from "./ContextUsageIndicator";
-import ModeSelector from "./ModeSelector";
-import ModelSelector from "./ModelSelector";
-import ThoughtLevelSelector from "./ThoughtLevelSelector";
-
-import type { ChatDisplayMode } from "./ChatPane";
-import type { AcpAvailableCommand, AcpMessageAttachment, AgentCapabilities, FileEntry } from "../../types";
 
 // ── Slash Commands ──
 
@@ -139,13 +152,17 @@ export default React.memo(function ChatInput({
   );
 
   // ── Display options (persisted) ──
-  const [displayMode, setDisplayMode] = usePersistedString("chat_display_mode", "grouped") as [ChatDisplayMode, (v: ChatDisplayMode) => void, boolean];
-  const [showThinkingBlocks, setShowThinkingBlocks] = usePersistedBoolean("show_thinking_blocks", true);
+  const [displayMode, setDisplayMode] = usePersistedString(
+    "chat_display_mode",
+    "grouped",
+  ) as [ChatDisplayMode, (v: ChatDisplayMode) => void, boolean];
+  const [showThinkingBlocks, setShowThinkingBlocks] = usePersistedBoolean(
+    "show_thinking_blocks",
+    true,
+  );
 
   // ── Agent-provided slash commands ──
-  const agentCommands = useAppStore(
-    (s) => s.acpAvailableCommands[sessionId],
-  );
+  const agentCommands = useAppStore((s) => s.acpAvailableCommands[sessionId]);
   const allSlashCommands = useMemo(() => {
     const agentSlash = (agentCommands ?? []).map(agentCommandToSlash);
     // Merge: built-in first, then agent commands (skip duplicates by name)
@@ -155,7 +172,9 @@ export default React.memo(function ChatInput({
   }, [agentCommands]);
 
   // ── Agent capabilities ──
-  const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
+  const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(
+    null,
+  );
 
   useEffect(() => {
     if (disabled) return; // Don't fetch if session is not running
@@ -167,7 +186,9 @@ export default React.memo(function ChatInput({
       .catch(() => {
         // Not an ACP session or capabilities not available yet — graceful fallback
       });
-    return () => { cancelled = true; };
+    return () => {
+      cancelled = true;
+    };
   }, [sessionId, disabled]);
 
   // ── Cancel safety timeout ──
@@ -220,36 +241,29 @@ export default React.memo(function ChatInput({
       )?.set;
       if (setter) {
         setter.call(textareaRef.current, draftText);
-        textareaRef.current.dispatchEvent(new Event("input", { bubbles: true }));
+        textareaRef.current.dispatchEvent(
+          new Event("input", { bubbles: true }),
+        );
       }
     }
     // Only restore on mount — not on every draftText change
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [sessionId]);
 
-  // ── Fetch file suggestions ──
+  // ── Fetch file suggestions (full project index) ──
   useEffect(() => {
-    if (suggestionType !== "file" || !projectPath) return;
+    if (!projectPath) return;
 
     let cancelled = false;
-    const fetchFiles = async () => {
-      try {
-        const entries = await invoke<FileEntry[]>("list_directory", {
-          path: projectPath,
-          projectRoot: projectPath,
-        });
-        if (!cancelled) {
-          setFileSuggestions(entries);
-        }
-      } catch (e) {
-        console.error("Failed to list files:", e);
-      }
-    };
-    fetchFiles();
+    invoke<FileEntry[]>("index_project_files", { projectRoot: projectPath })
+      .then((entries) => {
+        if (!cancelled) setFileSuggestions(entries);
+      })
+      .catch((e) => console.error("Failed to index project files:", e));
     return () => {
       cancelled = true;
     };
-  }, [suggestionType, projectPath]);
+  }, [projectPath]);
 
   // ── Filtered suggestions ──
   const filteredSlashCommands = useMemo(() => {
@@ -259,11 +273,20 @@ export default React.memo(function ChatInput({
   }, [suggestionType, suggestionQuery, allSlashCommands]);
 
   const filteredFiles = useMemo(() => {
-    if (suggestionType !== "file") return [];
+    if (suggestionType !== "file" || !suggestionQuery)
+      return fileSuggestions.slice(0, 20);
     const q = suggestionQuery.toLowerCase();
-    return fileSuggestions
-      .filter((f) => f.name.toLowerCase().includes(q) || f.path.toLowerCase().includes(q))
-      .slice(0, 12);
+    const results: FileEntry[] = [];
+    for (const f of fileSuggestions) {
+      if (
+        f.name.toLowerCase().includes(q) ||
+        f.path.toLowerCase().includes(q)
+      ) {
+        results.push(f);
+        if (results.length >= 20) break;
+      }
+    }
+    return results;
   }, [suggestionType, suggestionQuery, fileSuggestions]);
 
   const suggestions =
@@ -375,12 +398,7 @@ export default React.memo(function ChatInput({
       closeSuggestions();
       textarea.focus();
     },
-    [
-      suggestionType,
-      filteredSlashCommands,
-      filteredFiles,
-      closeSuggestions,
-    ],
+    [suggestionType, filteredSlashCommands, filteredFiles, closeSuggestions],
   );
 
   const handleKeyDown = useCallback(
@@ -392,7 +410,9 @@ export default React.memo(function ChatInput({
         setSelectedIdx((i) => (i + 1) % suggestions.length);
       } else if (e.key === "ArrowUp") {
         e.preventDefault();
-        setSelectedIdx((i) => (i - 1 + suggestions.length) % suggestions.length);
+        setSelectedIdx(
+          (i) => (i - 1 + suggestions.length) % suggestions.length,
+        );
       } else if (e.key === "Tab" || e.key === "Enter") {
         if (suggestionType) {
           e.preventDefault();
@@ -404,7 +424,13 @@ export default React.memo(function ChatInput({
         closeSuggestions();
       }
     },
-    [suggestionType, suggestions.length, selectedIdx, applySuggestion, closeSuggestions],
+    [
+      suggestionType,
+      suggestions.length,
+      selectedIdx,
+      applySuggestion,
+      closeSuggestions,
+    ],
   );
 
   /** Actually send a message to the agent. */
@@ -426,7 +452,11 @@ export default React.memo(function ChatInput({
           }))
         : undefined;
 
-      addAcpUserMessage(sessionId, text || (hasFiles ? `[${message.files.length} attachment(s)]` : ""), messageAttachments);
+      addAcpUserMessage(
+        sessionId,
+        text || (hasFiles ? `[${message.files.length} attachment(s)]` : ""),
+        messageAttachments,
+      );
       setAcpPromptPending(sessionId, true);
 
       // Clear waiting state immediately when user submits a response
@@ -437,7 +467,14 @@ export default React.memo(function ChatInput({
 
       try {
         // Convert FileUIPart[] to AttachmentPayload[] for the backend
-        let attachments: { data: string; mime_type: string; filename: string; kind: string }[] | undefined;
+        let attachments:
+          | {
+              data: string;
+              mime_type: string;
+              filename: string;
+              kind: string;
+            }[]
+          | undefined;
 
         if (hasFiles) {
           attachments = message.files.map((file) => {
@@ -458,7 +495,14 @@ export default React.memo(function ChatInput({
         setAcpPromptPending(sessionId, false);
       }
     },
-    [sessionId, addAcpUserMessage, setAcpPromptPending, setMcpStatus, setAcpDraftText, closeSuggestions],
+    [
+      sessionId,
+      addAcpUserMessage,
+      setAcpPromptPending,
+      setMcpStatus,
+      setAcpDraftText,
+      closeSuggestions,
+    ],
   );
 
   /** Cancel current agent work, wait for idle, then send the new message. */
@@ -479,10 +523,13 @@ export default React.memo(function ChatInput({
       await new Promise<void>((resolve) => {
         const deadline = Date.now() + 5000;
         const check = () => {
-          const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
+          const pending =
+            useAppStore.getState().acpPromptPending[sessionId] ?? false;
           if (!pending || Date.now() >= deadline) {
             if (pending) {
-              console.warn("[ChatInput] Cancel timeout — force-clearing promptPending");
+              console.warn(
+                "[ChatInput] Cancel timeout — force-clearing promptPending",
+              );
               setAcpPromptPending(sessionId, false);
             }
             resolve();
@@ -528,9 +575,12 @@ export default React.memo(function ChatInput({
     // force-clear it so the UI never gets stuck in a "stopping" state.
     if (cancelTimeoutRef.current) clearTimeout(cancelTimeoutRef.current);
     cancelTimeoutRef.current = setTimeout(() => {
-      const pending = useAppStore.getState().acpPromptPending[sessionId] ?? false;
+      const pending =
+        useAppStore.getState().acpPromptPending[sessionId] ?? false;
       if (pending) {
-        console.warn("[ChatInput] Cancel safety timeout — force-clearing promptPending");
+        console.warn(
+          "[ChatInput] Cancel safety timeout — force-clearing promptPending",
+        );
         setAcpPromptPending(sessionId, false);
       }
       cancelTimeoutRef.current = null;
@@ -574,9 +624,8 @@ export default React.memo(function ChatInput({
         <PromptInputFooter className="justify-between cursor-default">
           {/* Attachment actions (left side) */}
           <div className="flex items-center gap-1">
-            {(capabilities?.image || capabilities?.embedded_context) && !disabled && (
-              <AttachmentActions capabilities={capabilities} />
-            )}
+            {(capabilities?.image || capabilities?.embedded_context) &&
+              !disabled && <AttachmentActions capabilities={capabilities} />}
             {/* Passive capability indicators when no capabilities */}
             {!capabilities?.image && !capabilities?.embedded_context && (
               <div className="flex items-center gap-1">
@@ -594,7 +643,7 @@ export default React.memo(function ChatInput({
             <ContextUsageIndicator sessionId={sessionId} />
 
             {/* Divider */}
-            <div className="w-px h-4 bg-border/40" />
+            <div className="w-px h-5 bg-border mr-1" />
 
             {/* Display mode selector */}
             <div className="inline-flex items-center rounded-md ring-1 ring-border/40 overflow-hidden">
@@ -651,7 +700,11 @@ export default React.memo(function ChatInput({
                   ? "bg-accent text-foreground"
                   : "text-muted-foreground/50 hover:text-muted-foreground hover:bg-muted/50",
               )}
-              title={showThinkingBlocks ? "Hide thinking blocks" : "Show thinking blocks"}
+              title={
+                showThinkingBlocks
+                  ? "Hide thinking blocks"
+                  : "Show thinking blocks"
+              }
             >
               <Brain size={13} />
             </button>
@@ -710,7 +763,11 @@ function AttachmentPreviewBar({ disabled }: { disabled?: boolean }) {
 // ── Attachment Actions (+ menu) ──
 
 /** Dropdown menu for adding files/images using Tauri's native file dialog. */
-function AttachmentActions({ capabilities }: { capabilities: AgentCapabilities | null }) {
+function AttachmentActions({
+  capabilities,
+}: {
+  capabilities: AgentCapabilities | null;
+}) {
   const attachments = usePromptInputAttachments();
 
   const handleAddFiles = useCallback(async () => {
@@ -746,7 +803,12 @@ function AttachmentActions({ capabilities }: { capabilities: AgentCapabilities |
       const selected = await openFileDialog({
         multiple: true,
         title: "Add images",
-        filters: [{ name: "Images", extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"] }],
+        filters: [
+          {
+            name: "Images",
+            extensions: ["png", "jpg", "jpeg", "gif", "webp", "bmp", "svg"],
+          },
+        ],
       });
       if (!selected) return;
 
@@ -828,19 +890,45 @@ function AttachmentActions({ capabilities }: { capabilities: AgentCapabilities |
 function extToMime(ext: string): string {
   const map: Record<string, string> = {
     // Images
-    png: "image/png", jpg: "image/jpeg", jpeg: "image/jpeg", gif: "image/gif",
-    webp: "image/webp", bmp: "image/bmp", svg: "image/svg+xml",
+    png: "image/png",
+    jpg: "image/jpeg",
+    jpeg: "image/jpeg",
+    gif: "image/gif",
+    webp: "image/webp",
+    bmp: "image/bmp",
+    svg: "image/svg+xml",
     // Text/Code
-    txt: "text/plain", md: "text/markdown", html: "text/html", css: "text/css",
-    js: "application/javascript", ts: "application/typescript", jsx: "application/javascript",
-    tsx: "application/typescript", json: "application/json", xml: "application/xml",
-    yaml: "application/x-yaml", yml: "application/x-yaml", toml: "application/toml",
-    rs: "text/x-rust", py: "text/x-python", go: "text/x-go", java: "text/x-java",
-    c: "text/x-c", cpp: "text/x-c++", h: "text/x-c", hpp: "text/x-c++",
-    sh: "text/x-shellscript", bash: "text/x-shellscript", zsh: "text/x-shellscript",
-    sql: "text/x-sql", csv: "text/csv", log: "text/plain",
+    txt: "text/plain",
+    md: "text/markdown",
+    html: "text/html",
+    css: "text/css",
+    js: "application/javascript",
+    ts: "application/typescript",
+    jsx: "application/javascript",
+    tsx: "application/typescript",
+    json: "application/json",
+    xml: "application/xml",
+    yaml: "application/x-yaml",
+    yml: "application/x-yaml",
+    toml: "application/toml",
+    rs: "text/x-rust",
+    py: "text/x-python",
+    go: "text/x-go",
+    java: "text/x-java",
+    c: "text/x-c",
+    cpp: "text/x-c++",
+    h: "text/x-c",
+    hpp: "text/x-c++",
+    sh: "text/x-shellscript",
+    bash: "text/x-shellscript",
+    zsh: "text/x-shellscript",
+    sql: "text/x-sql",
+    csv: "text/csv",
+    log: "text/plain",
     // Binary
-    pdf: "application/pdf", zip: "application/zip", tar: "application/x-tar",
+    pdf: "application/pdf",
+    zip: "application/zip",
+    tar: "application/x-tar",
     gz: "application/gzip",
   };
   return map[ext] || "application/octet-stream";
@@ -910,7 +998,10 @@ function SuggestionOverlay({
                 {file.is_dir ? (
                   <FolderOpen size={13} className="text-warning shrink-0" />
                 ) : (
-                  <FileText size={13} className="text-muted-foreground shrink-0" />
+                  <FileText
+                    size={13}
+                    className="text-muted-foreground shrink-0"
+                  />
                 )}
                 <span className="text-xs truncate">{file.path}</span>
                 {file.is_dir && (
